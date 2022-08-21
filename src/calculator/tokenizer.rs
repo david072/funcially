@@ -1,5 +1,6 @@
 use crate::calculator::common::*;
 use strum::{EnumIter};
+use std::ops::Range;
 
 #[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
@@ -21,8 +22,7 @@ impl TokenType {
 pub struct Token {
     pub ty: TokenType,
     pub text: String,
-    pub start: usize,
-    pub end: usize,
+    pub range: Range<usize>,
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>> {
@@ -76,11 +76,10 @@ impl<'a> Tokenizer<'a> {
                 Ok(Some(Token {
                     ty,
                     text: String::from_utf8(slice).unwrap(),
-                    start,
-                    end: std::cmp::max(0, end as isize - 1) as usize,
+                    range: start..std::cmp::max(0, end as isize - 1) as usize,
                 }))
             }
-            None => Err(Error::new(ErrorType::InvalidCharacter, start..start)),
+            None => Err(ErrorType::InvalidCharacter.with(start..start)),
         }
     }
 

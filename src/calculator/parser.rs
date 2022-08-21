@@ -48,34 +48,33 @@ impl<'a> Parser<'a> {
         self.index += 1;
 
         let mut allowed_tokens = self.all_tokens_tys.clone();
-        let error_type: ErrorType;
 
         #[allow(unused_parens)]
-        match self.last_token_ty {
+            let error_type = match self.last_token_ty {
             Some(ty) => match ty {
                 TokenType::Literal(_) => {
                     remove_elems!(allowed_tokens, (|i| matches!(i, TokenType::Literal(_))));
-                    error_type = ErrorType::ExpectedOperator;
+                    ErrorType::ExpectedOperator
                 }
                 TokenType::Plus | TokenType::Minus | TokenType::Multiply | TokenType::Divide => {
                     remove_elems!(allowed_tokens, (|i| i.is_operator()));
-                    error_type = ErrorType::ExpectedNumber;
+                    ErrorType::ExpectedNumber
                 }
                 _ => unreachable!()
             }
             // if this is matched, there should never be an error
-            None => error_type = ErrorType::Nothing,
-        }
+            None => ErrorType::Nothing,
+        };
 
         if !allowed_tokens.contains(&token.ty) {
             // since `self.all_token_tys` contains TokenType::Literal(0), there
             // has to be special logic for literals
             if matches!(token.ty, TokenType::Literal(_)) {
                 if !allowed_tokens.contains(&TokenType::Literal(0)) {
-                    return Err(Error::new(error_type, token.start..token.end));
+                    return Err(error_type.with(token.range.clone()));
                 }
             } else {
-                return Err(Error::new(error_type, token.start..token.end));
+                return Err(error_type.with(token.range.clone()));
             }
         }
 
@@ -86,12 +85,12 @@ impl<'a> Parser<'a> {
                 let number: f64 = if *radix == 10 {
                     match token.text.parse() {
                         Ok(number) => number,
-                        Err(_) => return Err(Error::new(ErrorType::InvalidNumber, token.start..token.end)),
+                        Err(_) => return Err(ErrorType::InvalidNumber.with(token.range.clone())),
                     }
                 } else {
                     (match i64::from_str_radix(&token.text[2..], *radix) {
                         Ok(number) => number,
-                        Err(_) => return Err(Error::new(ErrorType::InvalidNumber, token.start..token.end)),
+                        Err(_) => return Err(ErrorType::InvalidNumber.with(token.range.clone())),
                     }) as f64
                 };
                 Ok(Some(AstNode::Literal(number)))

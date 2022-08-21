@@ -11,20 +11,20 @@ pub enum ErrorType {
     ExpectedOperator,
 }
 
-pub struct Error {
-    pub error: ErrorType,
-    pub start: usize,
-    pub end: usize,
-}
-
-impl Error {
-    pub fn new(error: ErrorType, range: Range<usize>) -> Error {
+impl ErrorType {
+    pub fn with(self, range: Range<usize>) -> Error {
         Error {
-            error,
+            error: self,
             start: range.start,
             end: range.end,
         }
     }
+}
+
+pub struct Error {
+    pub error: ErrorType,
+    pub start: usize,
+    pub end: usize,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
