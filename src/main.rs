@@ -36,8 +36,27 @@ fn main() {
         match input.as_str() {
             "quit" | "exit" => break,
             _ => {
-                let result = calculate(input, verbosity);
-                println!("= {}", result);
+                match calculate(&input, verbosity) {
+                    Ok(number) => println!("= {}", number),
+                    Err(error) => {
+                        println!("An error occured: {:?}", error.error);
+
+                        let slice_start = std::cmp::max(0, error.start - 5);
+                        let slice_end = std::cmp::min(input.len(), error.end + 5);
+                        let slice = &input[slice_start..slice_end];
+                        println!("{}", slice);
+
+                        for _ in 0..error.start - slice_start {
+                            print!(" ");
+                        }
+                        print!("^");
+                        for _ in 0..error.end - error.start {
+                            print!("-");
+                        }
+
+                        println!(" {:?}", error.error);
+                    },
+                }
             }
         }
     }

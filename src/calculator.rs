@@ -22,7 +22,7 @@ impl Verbosity {
     }
 }
 
-pub fn calculate(input: String, verbosity: Verbosity) -> Result<i64> {
+pub fn calculate(input: &String, verbosity: Verbosity) -> Result<f64> {
     println!("calculating {} (verbosity: {:?})", input, verbosity);
-    Ok(0)
+    Ok(0.0)
 }
