@@ -26,12 +26,14 @@ fn main() {
 
     let verbosity = Verbosity::from_str(matches.get_one::<String>("verbosity"));
 
+    // TODO: Properly handle CTRL-C
     loop {
         print!("> ");
         stdout().flush().unwrap();
 
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
+        input = input.trim().to_string();
 
         match input.as_str() {
             "quit" | "exit" => break,
@@ -41,7 +43,7 @@ fn main() {
                     Err(error) => {
                         println!("An error occured: {:?}", error.error);
 
-                        let slice_start = std::cmp::max(0, error.start - 5);
+                        let slice_start = std::cmp::max(0, error.start as isize - 5) as usize;
                         let slice_end = std::cmp::min(input.len(), error.end + 5);
                         let slice = &input[slice_start..slice_end];
                         println!("{}", slice);
@@ -55,7 +57,7 @@ fn main() {
                         }
 
                         println!(" {:?}", error.error);
-                    },
+                    }
                 }
             }
         }

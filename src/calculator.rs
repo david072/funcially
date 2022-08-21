@@ -1,6 +1,8 @@
-mod common;
+pub mod common;
+mod tokenizer;
 
 use common::Result;
+use tokenizer::tokenize;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -23,6 +25,12 @@ impl Verbosity {
 }
 
 pub fn calculate(input: &String, verbosity: Verbosity) -> Result<f64> {
-    println!("calculating {} (verbosity: {:?})", input, verbosity);
+    let tokens = tokenize(input)?;
+    if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
+        for token in tokens {
+            println!("{} => {:?}", token.text, token.ty);
+        }
+    }
+
     Ok(0.0)
 }
