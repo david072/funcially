@@ -1,7 +1,10 @@
 pub mod common;
+mod ast;
+mod parser;
 mod tokenizer;
 
 use common::Result;
+use parser::parse;
 use tokenizer::tokenize;
 
 #[derive(Debug, Clone, Copy)]
@@ -24,11 +27,20 @@ impl Verbosity {
     }
 }
 
-pub fn calculate(input: &String, verbosity: Verbosity) -> Result<f64> {
+pub fn calculate(input: &str, verbosity: Verbosity) -> Result<f64> {
     let tokens = tokenize(input)?;
     if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
-        for token in tokens {
+        println!("Tokens:");
+        for token in &tokens {
             println!("{} => {:?}", token.text, token.ty);
+        }
+    }
+
+    let ast = parse(&tokens)?;
+    if matches!(verbosity, Verbosity::Ast) {
+        println!("AST:");
+        for node in &ast {
+            println!("{}", node);
         }
     }
 

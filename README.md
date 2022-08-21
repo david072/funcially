@@ -6,7 +6,6 @@ Literals can be declared using different representations.
 3       => 3
 0xFF    => 255
 0b110   => 6
-0o1     => 10
 ```
 
 ## Floats
@@ -205,6 +204,5 @@ If the left hand side has a unit, the unit's number is converted and the unit is
 0xFF in decimal	    => 255 (default)
 255 in hex		    => 0xFF
 6 in binary	        => 0b110
-10 in octal	        => 0o12
-10km in octal	    => 0o12km
+255km in hex	    => 0xFFkm
 ```

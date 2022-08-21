@@ -9,3 +9,4 @@ description = "A calculator working with text inputs."
 
 [dependencies]
 clap = { version = "3.2.17", features = ["derive"] }
+strum = { version = "0.24.1", features = ["derive"] }

@@ -1,18 +1,28 @@
-use crate::calculator::common::{Result, Error, ErrorType};
+use crate::calculator::common::*;
+use strum::{EnumIter};
 
-#[derive(Debug)]
+#[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Whitespace,
-    Literal,
+    /// A number literal containing it's base
+    Literal(u32),
     Plus,
     Minus,
     Multiply,
     Divide,
 }
 
+impl TokenType {
+    pub fn is_operator(&self) -> bool {
+        matches!(self, Self::Plus | Self::Minus | Self::Multiply | Self::Divide)
+    }
+}
+
 pub struct Token {
     pub ty: TokenType,
     pub text: String,
+    pub start: usize,
+    pub end: usize,
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>> {
@@ -32,7 +42,6 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 const NUMBERS: &[u8] = b"0123456789";
 const HEXADECIMAL_CHARS: &[u8] = b"0123456789abcdefABCDEF";
 const BINARY_DIGITS: &[u8] = b"01";
-const OCTAL_DIGITS: &[u8] = b"01234567";
 const WHITESPACE: &[u8] = b" \t\r\n";
 
 fn any_of(chars: &[u8]) -> impl Fn(u8) -> bool + '_ {
@@ -67,6 +76,8 @@ impl<'a> Tokenizer<'a> {
                 Ok(Some(Token {
                     ty,
                     text: String::from_utf8(slice).unwrap(),
+                    start,
+                    end: std::cmp::max(0, end as isize - 1) as usize,
                 }))
             }
             None => Err(Error::new(ErrorType::InvalidCharacter, start..start)),
@@ -103,28 +114,24 @@ impl<'a> Tokenizer<'a> {
                     match c {
                         b'x' | b'X' => {
                             while self.accept(any_of(HEXADECIMAL_CHARS)) {}
-                            return Some(TokenType::Literal);
+                            return Some(TokenType::Literal(16));
                         }
                         b'b' | b'B' => {
                             while self.accept(any_of(BINARY_DIGITS)) {}
-                            return Some(TokenType::Literal);
-                        }
-                        b'o' | b'O' => {
-                            while self.accept(any_of(OCTAL_DIGITS)) {}
-                            return Some(TokenType::Literal);
+                            return Some(TokenType::Literal(2));
                         }
                         // fall through to after the if
                         b'0'..=b'9' => {}
                         _ => {
                             // the character needs to be processed in the next iteration
                             self.index -= 1;
-                            return Some(TokenType::Literal);
+                            return Some(TokenType::Literal(10));
                         }
                     }
                 }
 
                 while self.accept(any_of(NUMBERS)) {}
-                Some(TokenType::Literal)
+                Some(TokenType::Literal(10))
             }
             b'+' => Some(TokenType::Plus),
             b'-' => Some(TokenType::Minus),
