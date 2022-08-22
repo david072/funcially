@@ -4,6 +4,11 @@ use crate::astgen::ast::{AstNode};
 use crate::common::*;
 
 pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
+    if ast.len() == 1 {
+        let result = match_ast_node!(AstNode::Literal(res), res, ast[0]);
+        return Ok(result);
+    }
+
     eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide])?;
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
 
@@ -36,4 +41,45 @@ fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> 
     }
 
     Ok(())
+}
+
+mod tests {
+    use super::*;
+    use crate::common::Result;
+    use crate::parse;
+    use crate::tokenize;
+
+    macro_rules! eval {
+        ($str:expr) => {
+            evaluate(parse(&tokenize($str)?)?)?
+        }
+    }
+
+    #[test]
+    fn only_one() -> Result<()> {
+        let result = eval!("3");
+        assert_eq!(result, 3.0);
+        Ok(())
+    }
+
+    #[test]
+    fn plus_and_minus() -> Result<()> {
+        let result = eval!("3 + 5 - -2");
+        assert_eq!(result, 10.0);
+        Ok(())
+    }
+
+    #[test]
+    fn multiply_and_divide() -> Result<()> {
+        let result = eval!("3 * 2 / 3");
+        assert_eq!(result, 2.0);
+        Ok(())
+    }
+
+    #[test]
+    fn operator_order() -> Result<()> {
+        let result = eval!("3 + 4 * 2");
+        assert_eq!(result, 11.0);
+        Ok(())
+    }
 }

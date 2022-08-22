@@ -108,7 +108,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::calculator::astgen::tokenizer::tokenize;
+    use crate::astgen::tokenizer::tokenize;
     use super::*;
 
     #[test]
