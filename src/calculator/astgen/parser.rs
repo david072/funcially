@@ -65,6 +65,10 @@ impl<'a> Parser<'a> {
 
         let mut allowed_tokens = self.all_tokens_tys.clone();
 
+        if let None = self.last_token_ty {
+            remove_elems!(allowed_tokens, ())
+        }
+
         #[allow(unused_parens)]
             let mut error_type = match self.last_token_ty {
             Some(ty) => {
@@ -93,21 +97,29 @@ impl<'a> Parser<'a> {
         }
 
         // Handle modifiers
-        if token.ty == TokenType::ExclamationMark {
-            return if let Some(last_ty) = self.last_token_ty {
-                if !last_ty.is_operator() {
-                    // Exclamation mark is factorial
-                    let last_node = self.result.last_mut().unwrap();
-                    last_node.modifiers.push(AstNodeModifier::Factorial);
-                    Ok(Some(()))
+        match token.ty {
+            TokenType::ExclamationMark => {
+                return if let Some(last_ty) = self.last_token_ty {
+                    if !last_ty.is_operator() {
+                        // Exclamation mark is factorial
+                        let last_node = self.result.last_mut().unwrap();
+                        last_node.modifiers.push(AstNodeModifier::Factorial);
+                        Ok(Some(()))
+                    } else {
+                        self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
+                        Ok(Some(()))
+                    }
                 } else {
                     self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
                     Ok(Some(()))
-                }
-            } else {
-                self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
-                Ok(Some(()))
+                };
             }
+            TokenType::PercentSign => {
+                return if let Some(last_ty) = self.last_token_ty {
+
+                }
+            }
+            _ => {}
         }
 
         self.last_token_ty = Some(token.ty);

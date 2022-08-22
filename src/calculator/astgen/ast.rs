@@ -23,15 +23,12 @@ pub enum AstNodeData {
 pub enum AstNodeModifier {
     Factorial,
     BitwiseNot,
+    Percent,
 }
 
 impl AstNodeModifier {
     pub fn is_prefix(&self) -> bool {
         matches!(self, AstNodeModifier::BitwiseNot)
-    }
-
-    pub fn is_suffix(&self) -> bool {
-        matches!(self, AstNodeModifier::Factorial)
     }
 }
 

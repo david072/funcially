@@ -32,10 +32,6 @@ impl TokenType {
             | Self::BitwiseAnd
             | Self::BitwiseOr)
     }
-
-    pub fn is_modifier(&self) -> bool {
-        matches!(self, Self::ExclamationMark)
-    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
