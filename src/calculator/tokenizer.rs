@@ -39,7 +39,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
     Ok(result)
 }
 
-const NUMBERS: &[u8] = b"0123456789";
+const NUMBERS: &[u8] = b"0123456789.";
 const HEXADECIMAL_CHARS: &[u8] = b"0123456789abcdefABCDEF";
 const BINARY_DIGITS: &[u8] = b"01";
 const WHITESPACE: &[u8] = b" \t\r\n";
@@ -120,7 +120,7 @@ impl<'a> Tokenizer<'a> {
                             return Some(TokenType::Literal(2));
                         }
                         // fall through to after the if
-                        b'0'..=b'9' => {}
+                        b'0'..=b'9' | b'.' => {}
                         _ => {
                             // the character needs to be processed in the next iteration
                             self.index -= 1;
@@ -129,6 +129,16 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
 
+                while self.accept(any_of(NUMBERS)) {}
+                Some(TokenType::Literal(10))
+            }
+            b'.' => {
+                while self.accept(any_of(NUMBERS)) {}
+                Some(TokenType::Literal(10))
+            }
+            // number sign
+            b'+' | b'-' if matches!(self.string[self.index], b'0'..=b'9' | b'.') => {
+                self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::Literal(10))
             }
