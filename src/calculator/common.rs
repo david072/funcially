@@ -17,6 +17,7 @@ pub enum ErrorType {
     DivideByZero,
     ExpectedInteger,
     ExpectedPositiveInteger,
+    ExpectedPercentage,
     /// This should never happen
     InvalidAst,
 }

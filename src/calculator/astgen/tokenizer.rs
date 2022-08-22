@@ -17,6 +17,7 @@ pub enum TokenType {
     BitwiseOr,
     ExclamationMark,
     PercentSign,
+    Of,
 }
 
 impl TokenType {
@@ -31,7 +32,8 @@ impl TokenType {
             | Self::Divide
             | Self::Exponentiation
             | Self::BitwiseAnd
-            | Self::BitwiseOr)
+            | Self::BitwiseOr
+            | Self::Of)
     }
 }
 
@@ -161,6 +163,11 @@ impl<'a> Tokenizer<'a> {
                 self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
+            }
+            b'o' | b'O' if self.index < self.string.len() &&
+                matches!(self.string[self.index], b'f' | b'F') => {
+                self.index += 1;
+                Some(TokenType::Of)
             }
             b'+' => Some(TokenType::Plus),
             b'-' => Some(TokenType::Minus),

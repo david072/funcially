@@ -143,9 +143,9 @@ impl<'a> Parser<'a> {
             TokenType::Exponentiation => Ok(AstNodeData::Operator(Operator::Exponentiation)),
             TokenType::BitwiseAnd => Ok(AstNodeData::Operator(Operator::BitwiseAnd)),
             TokenType::BitwiseOr => Ok(AstNodeData::Operator(Operator::BitwiseOr)),
+            TokenType::Of => Ok(AstNodeData::Operator(Operator::Of)),
             _ => unreachable!(),
         }?;
-
 
         let mut new_node = AstNode::new(data, token.range.clone());
         new_node.modifiers = mem::take(&mut self.next_token_modifiers);

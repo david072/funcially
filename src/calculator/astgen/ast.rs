@@ -11,6 +11,7 @@ pub enum Operator {
     Exponentiation,
     BitwiseAnd,
     BitwiseOr,
+    Of,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -46,6 +47,7 @@ pub struct AstNode {
     pub data: AstNodeData,
     pub modifiers: Vec<AstNodeModifier>,
     pub range: Range<usize>,
+    did_apply_modifiers: bool,
 }
 
 #[macro_export]
@@ -68,7 +70,12 @@ macro_rules! expect_int {
 
 impl AstNode {
     pub fn new(data: AstNodeData, range: Range<usize>) -> AstNode {
-        AstNode { data, modifiers: Vec::new(), range }
+        AstNode {
+            data,
+            modifiers: Vec::new(),
+            range,
+            did_apply_modifiers: false,
+        }
     }
 
     pub fn apply(&mut self, operator: &Self, rhs: &mut Self) -> Result<()> {
@@ -100,13 +107,20 @@ impl AstNode {
                     _ => unreachable!(),
                 }
             }
+            Operator::Of => {
+                if !self.modifiers.contains(&AstNodeModifier::Percent) {
+                    return Err(ErrorType::ExpectedPercentage.with(self.range.clone()));
+                }
+
+                *lhs *= rhs_value;
+            }
         }
 
         Ok(())
     }
 
     pub fn apply_modifiers(&mut self) -> Result<()> {
-        if self.modifiers.is_empty() {
+        if self.modifiers.is_empty() || self.did_apply_modifiers {
             return Ok(());
         }
 
@@ -136,6 +150,7 @@ impl AstNode {
             }
         }
 
+        self.did_apply_modifiers = true;
         Ok(())
     }
 }

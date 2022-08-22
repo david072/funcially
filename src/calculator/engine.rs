@@ -13,6 +13,7 @@ pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
     eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
     eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide])?;
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
+    eval_operators(&mut ast, &[Operator::Of])?;
 
     assert_eq!(ast.len(), 1);
     ast[0].apply_modifiers()?;
