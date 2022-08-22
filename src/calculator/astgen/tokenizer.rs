@@ -145,7 +145,8 @@ impl<'a> Tokenizer<'a> {
                 Some(TokenType::DecimalLiteral)
             }
             // number sign
-            b'+' | b'-' if matches!(self.string[self.index], b'0'..=b'9' | b'.') => {
+            b'+' | b'-' if self.index < self.string.len() &&
+                matches!(self.string[self.index], b'0'..=b'9' | b'.') => {
                 self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
@@ -176,7 +177,7 @@ mod tests {
             Token::new(TokenType::DecimalLiteral, "3", 0..1),
             Token::new(TokenType::HexLiteral, "0x0123456789", 2..14),
             Token::new(TokenType::HexLiteral, "0xABCdef", 15..23),
-            Token::new(TokenType::BinaryLiteral, "0b110", 24..29)
+            Token::new(TokenType::BinaryLiteral, "0b110", 24..29),
         ]);
         Ok(())
     }

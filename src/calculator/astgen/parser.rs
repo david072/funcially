@@ -59,7 +59,7 @@ impl<'a> Parser<'a> {
         let mut allowed_tokens = self.all_tokens_tys.clone();
 
         #[allow(unused_parens)]
-            let error_type = match self.last_token_ty {
+            let mut error_type = match self.last_token_ty {
             Some(ty) => match ty {
                 TokenType::DecimalLiteral | TokenType::HexLiteral | TokenType::BinaryLiteral => {
                     remove_elems!(allowed_tokens, (|i| i.is_literal()));
@@ -74,6 +74,12 @@ impl<'a> Parser<'a> {
             // if this is matched, there should never be an error
             None => ErrorType::Nothing,
         };
+
+        #[allow(unused_parens)]
+        if self.index == self.tokens.len() {
+            remove_elems!(allowed_tokens, (|i| i.is_operator()));
+            error_type = ErrorType::ExpectedNumber;
+        }
 
         if !allowed_tokens.contains(&token.ty) {
             return Err(error_type.with(token.range.clone()));
