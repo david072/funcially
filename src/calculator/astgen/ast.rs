@@ -8,6 +8,9 @@ pub enum Operator {
     Minus,
     Multiply,
     Divide,
+    Exponentiation,
+    BitwiseAnd,
+    BitwiseOr,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -51,6 +54,21 @@ impl AstNode {
             }
             Operator::Plus => *lhs += rhs_value,
             Operator::Minus => *lhs -= rhs_value,
+            Operator::Exponentiation => *lhs = lhs.powf(rhs_value),
+            Operator::BitwiseAnd | Operator::BitwiseOr => {
+                if lhs.fract() != 0.0 {
+                    return Err(ErrorType::ExpectedInteger.with(self.range.clone()));
+                }
+                if rhs_value.fract() != 0.0 {
+                    return Err(ErrorType::ExpectedInteger.with(rhs.range.clone()));
+                }
+
+                match op {
+                    Operator::BitwiseAnd => *lhs = (*lhs as i64 & rhs_value as i64) as f64,
+                    Operator::BitwiseOr => *lhs = (*lhs as i64 | rhs_value as i64) as f64,
+                    _ => unreachable!(),
+                }
+            }
         }
 
         Ok(())

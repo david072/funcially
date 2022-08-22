@@ -60,16 +60,16 @@ impl<'a> Parser<'a> {
 
         #[allow(unused_parens)]
             let mut error_type = match self.last_token_ty {
-            Some(ty) => match ty {
-                TokenType::DecimalLiteral | TokenType::HexLiteral | TokenType::BinaryLiteral => {
+            Some(ty) => {
+                if ty.is_literal() {
                     remove_elems!(allowed_tokens, (|i| i.is_literal()));
                     ErrorType::ExpectedOperator
-                }
-                TokenType::Plus | TokenType::Minus | TokenType::Multiply | TokenType::Divide => {
+                } else if ty.is_operator() {
                     remove_elems!(allowed_tokens, (|i| i.is_operator()));
                     ErrorType::ExpectedNumber
+                } else {
+                    unreachable!()
                 }
-                _ => unreachable!()
             }
             // if this is matched, there should never be an error
             None => ErrorType::Nothing,
@@ -101,6 +101,9 @@ impl<'a> Parser<'a> {
             TokenType::Minus => Ok(AstNodeData::Operator(Operator::Minus)),
             TokenType::Multiply => Ok(AstNodeData::Operator(Operator::Multiply)),
             TokenType::Divide => Ok(AstNodeData::Operator(Operator::Divide)),
+            TokenType::Exponentiation => Ok(AstNodeData::Operator(Operator::Exponentiation)),
+            TokenType::BitwiseAnd => Ok(AstNodeData::Operator(Operator::BitwiseAnd)),
+            TokenType::BitwiseOr => Ok(AstNodeData::Operator(Operator::BitwiseOr)),
             _ => unreachable!(),
         }?;
         Ok(Some(AstNode::new(data, token.range.clone())))

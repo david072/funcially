@@ -9,6 +9,7 @@ pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
         return Ok(result);
     }
 
+    eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
     eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide])?;
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
 

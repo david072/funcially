@@ -15,6 +15,7 @@ pub enum ErrorType {
 
     // engine
     DivideByZero,
+    ExpectedInteger,
     /// This should never happen
     InvalidAst,
 }

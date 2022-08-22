@@ -12,6 +12,9 @@ pub enum TokenType {
     Minus,
     Multiply,
     Divide,
+    Exponentiation,
+    BitwiseAnd,
+    BitwiseOr,
 }
 
 impl TokenType {
@@ -20,7 +23,13 @@ impl TokenType {
     }
 
     pub fn is_operator(&self) -> bool {
-        matches!(self, Self::Plus | Self::Minus | Self::Multiply | Self::Divide)
+        matches!(self, Self::Plus
+            | Self::Minus
+            | Self::Multiply
+            | Self::Divide
+            | Self::Exponentiation
+            | Self::BitwiseAnd
+            | Self::BitwiseOr)
     }
 }
 
@@ -155,6 +164,9 @@ impl<'a> Tokenizer<'a> {
             b'-' => Some(TokenType::Minus),
             b'*' => Some(TokenType::Multiply),
             b'/' => Some(TokenType::Divide),
+            b'^' => Some(TokenType::Exponentiation),
+            b'&' => Some(TokenType::BitwiseAnd),
+            b'|' => Some(TokenType::BitwiseOr),
             _ => None
         }
     }
