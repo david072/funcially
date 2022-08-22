@@ -60,11 +60,17 @@ macro_rules! match_ast_node {
     }
 }
 
+macro_rules! expect {
+    ($bool:expr, $error_variant:ident, $range:expr) => {
+        if !($bool) {
+            return Err(ErrorType::$error_variant.with($range.clone()));
+        }
+    }
+}
+
 macro_rules! expect_int {
     ($val:expr, $range:expr) => {
-        if ($val.fract() != 0.0) {
-            return Err(ErrorType::ExpectedInteger.with($range.clone()));
-        }
+        expect!($val.fract() == 0.0, ExpectedInteger, $range);
     }
 }
 
@@ -89,9 +95,7 @@ impl AstNode {
         match op {
             Operator::Multiply => *lhs *= rhs_value,
             Operator::Divide => {
-                if rhs_value == 0.0 {
-                    return Err(ErrorType::DivideByZero.with(rhs.range.clone()));
-                }
+                expect!(rhs_value != 0.0, DivideByZero, rhs.range);
                 *lhs /= rhs_value;
             }
             Operator::Plus => *lhs += rhs_value,
@@ -108,10 +112,8 @@ impl AstNode {
                 }
             }
             Operator::Of => {
-                if !self.modifiers.contains(&AstNodeModifier::Percent) {
-                    return Err(ErrorType::ExpectedPercentage.with(self.range.clone()));
-                }
-
+                expect!(self.modifiers.contains(&AstNodeModifier::Percent),
+                    ExpectedPercentage, self.range);
                 *lhs *= rhs_value;
             }
         }

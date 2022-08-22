@@ -36,6 +36,12 @@ macro_rules! parse_f64_radix {
     }
 }
 
+macro_rules! ok_operator {
+    ($variant:ident) => {
+        Ok(AstNodeData::Operator(Operator::$variant))
+    }
+}
+
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Parser {
         Parser {
@@ -136,14 +142,14 @@ impl<'a> Parser<'a> {
             }
             TokenType::HexLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(token, 16))),
             TokenType::BinaryLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(token, 2))),
-            TokenType::Plus => Ok(AstNodeData::Operator(Operator::Plus)),
-            TokenType::Minus => Ok(AstNodeData::Operator(Operator::Minus)),
-            TokenType::Multiply => Ok(AstNodeData::Operator(Operator::Multiply)),
-            TokenType::Divide => Ok(AstNodeData::Operator(Operator::Divide)),
-            TokenType::Exponentiation => Ok(AstNodeData::Operator(Operator::Exponentiation)),
-            TokenType::BitwiseAnd => Ok(AstNodeData::Operator(Operator::BitwiseAnd)),
-            TokenType::BitwiseOr => Ok(AstNodeData::Operator(Operator::BitwiseOr)),
-            TokenType::Of => Ok(AstNodeData::Operator(Operator::Of)),
+            TokenType::Plus => ok_operator!(Plus),
+            TokenType::Minus => ok_operator!(Minus),
+            TokenType::Multiply => ok_operator!(Multiply),
+            TokenType::Divide => ok_operator!(Divide),
+            TokenType::Exponentiation => ok_operator!(Exponentiation),
+            TokenType::BitwiseAnd => ok_operator!(BitwiseAnd),
+            TokenType::BitwiseOr => ok_operator!(BitwiseOr),
+            TokenType::Of => ok_operator!(Of),
             _ => unreachable!(),
         }?;
 
