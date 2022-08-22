@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Operator {
     Plus,
     Minus,
@@ -8,6 +8,7 @@ pub enum Operator {
     Divide,
 }
 
+#[derive(PartialEq, Debug)]
 pub enum AstNode {
     Literal(f64),
     Operator(Operator),

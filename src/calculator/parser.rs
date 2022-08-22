@@ -103,3 +103,41 @@ impl<'a> Parser<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::calculator::tokenizer::tokenize;
+    use super::*;
+
+    #[test]
+    fn basic() -> Result<()> {
+        let ast = parse(&tokenize("1 - 3 + 4 * 5 / 6")?)?;
+        assert_eq!(ast, vec![
+            AstNode::Literal(1.0),
+            AstNode::Operator(Operator::Minus),
+            AstNode::Literal(3.0),
+            AstNode::Operator(Operator::Plus),
+            AstNode::Literal(4.0),
+            AstNode::Operator(Operator::Multiply),
+            AstNode::Literal(5.0),
+            AstNode::Operator(Operator::Divide),
+            AstNode::Literal(6.0),
+        ]);
+        Ok(())
+    }
+
+    #[test]
+    fn expected_operand() -> Result<()> {
+        let ast = parse(&tokenize("2 3 + 4")?);
+        assert!(ast.is_err());
+        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedOperator);
+        Ok(())
+    }
+
+    #[test]
+    fn expected_number() -> Result<()> {
+        let ast = parse(&tokenize("2 ++ 4")?);
+        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        Ok(())
+    }
+}

@@ -19,6 +19,7 @@ impl TokenType {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Token {
     pub ty: TokenType,
     pub text: String,
@@ -39,7 +40,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
     Ok(result)
 }
 
-const NUMBERS: &[u8] = b"0123456789.";
+const NUMBERS: &[u8] = b"0123456789";
 const HEXADECIMAL_CHARS: &[u8] = b"0123456789abcdefABCDEF";
 const BINARY_DIGITS: &[u8] = b"01";
 const WHITESPACE: &[u8] = b" \t\r\n";
@@ -76,7 +77,7 @@ impl<'a> Tokenizer<'a> {
                 Ok(Some(Token {
                     ty,
                     text: String::from_utf8(slice).unwrap(),
-                    range: start..std::cmp::max(0, end as isize - 1) as usize,
+                    range: start..std::cmp::max(0, end),
                 }))
             }
             None => Err(ErrorType::InvalidCharacter.with(start..start)),
@@ -130,6 +131,8 @@ impl<'a> Tokenizer<'a> {
                 }
 
                 while self.accept(any_of(NUMBERS)) {}
+                self.accept(any_of(b"."));
+                while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::Literal(10))
             }
             b'.' => {
@@ -148,5 +151,61 @@ impl<'a> Tokenizer<'a> {
             b'/' => Some(TokenType::Divide),
             _ => None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Token {
+        fn new(ty: TokenType, text: &str, range: Range<usize>) -> Token {
+            Token { ty, text: text.to_owned(), range }
+        }
+    }
+
+    #[test]
+    fn literals() -> Result<()> {
+        let tokens = tokenize("3 0x0123456789 0xABCdef 0b110")?;
+        assert_eq!(tokens, vec![
+            Token::new(TokenType::Literal(10), "3", 0..1),
+            Token::new(TokenType::Literal(16), "0x0123456789", 2..14),
+            Token::new(TokenType::Literal(16), "0xABCdef", 15..23),
+            Token::new(TokenType::Literal(2), "0b110", 24..29)
+        ]);
+        Ok(())
+    }
+
+    #[test]
+    fn operators() -> Result<()> {
+        let tokens = tokenize("+ - * /")?;
+        assert_eq!(tokens, vec![
+            Token::new(TokenType::Plus, "+", 0..1),
+            Token::new(TokenType::Minus, "-", 2..3),
+            Token::new(TokenType::Multiply, "*", 4..5),
+            Token::new(TokenType::Divide, "/", 6..7),
+        ]);
+        Ok(())
+    }
+
+    #[test]
+    fn floats() -> Result<()> {
+        let tokens = tokenize("0.23 .23")?;
+        assert_eq!(tokens, vec![
+            Token::new(TokenType::Literal(10), "0.23", 0..4),
+            Token::new(TokenType::Literal(10), ".23", 5..8),
+        ]);
+        Ok(())
+    }
+
+    #[test]
+    fn signs() -> Result<()> {
+        let tokens = tokenize("-3 +3 -.3")?;
+        assert_eq!(tokens, vec![
+            Token::new(TokenType::Literal(10), "-3", 0..2),
+            Token::new(TokenType::Literal(10), "+3", 3..5),
+            Token::new(TokenType::Literal(10), "-.3", 6..9),
+        ]);
+        Ok(())
     }
 }

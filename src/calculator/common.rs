@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ErrorType {
     /// Not actually an error. Used when e.g.
     /// a variable needs a value, but will never be used.
@@ -21,6 +21,7 @@ impl ErrorType {
     }
 }
 
+#[derive(Debug)]
 pub struct Error {
     pub error: ErrorType,
     pub start: usize,

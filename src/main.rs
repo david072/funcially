@@ -52,7 +52,7 @@ fn main() {
                             print!(" ");
                         }
                         print!("^");
-                        for _ in 0..error.end - error.start {
+                        for _ in 0..error.end - error.start - 1 {
                             print!("-");
                         }
 
