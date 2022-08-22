@@ -16,6 +16,7 @@ pub enum TokenType {
     BitwiseAnd,
     BitwiseOr,
     ExclamationMark,
+    PercentSign,
 }
 
 impl TokenType {
@@ -169,6 +170,7 @@ impl<'a> Tokenizer<'a> {
             b'&' => Some(TokenType::BitwiseAnd),
             b'|' => Some(TokenType::BitwiseOr),
             b'!' => Some(TokenType::ExclamationMark),
+            b'%' => Some(TokenType::PercentSign),
             _ => None
         }
     }

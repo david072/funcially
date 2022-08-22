@@ -65,10 +65,6 @@ impl<'a> Parser<'a> {
 
         let mut allowed_tokens = self.all_tokens_tys.clone();
 
-        if let None = self.last_token_ty {
-            remove_elems!(allowed_tokens, ())
-        }
-
         #[allow(unused_parens)]
             let mut error_type = match self.last_token_ty {
             Some(ty) => {
@@ -76,7 +72,7 @@ impl<'a> Parser<'a> {
                     remove_elems!(allowed_tokens, (|i| i.is_literal()));
                     ErrorType::ExpectedOperator
                 } else if ty.is_operator() {
-                    remove_elems!(allowed_tokens, (|i| i.is_operator()));
+                    remove_elems!(allowed_tokens, (|i| i.is_operator() || *i == TokenType::PercentSign));
                     ErrorType::ExpectedNumber
                 } else {
                     unreachable!()
@@ -85,6 +81,12 @@ impl<'a> Parser<'a> {
             // if this is matched, there should never be an error
             None => ErrorType::Nothing,
         };
+
+        #[allow(unused_parens)]
+        if let None = self.last_token_ty {
+            remove_elems!(allowed_tokens, (|i| *i == TokenType::PercentSign));
+            error_type = ErrorType::ExpectedNumber;
+        }
 
         #[allow(unused_parens)]
         if self.index == self.tokens.len() {
@@ -115,9 +117,9 @@ impl<'a> Parser<'a> {
                 };
             }
             TokenType::PercentSign => {
-                return if let Some(last_ty) = self.last_token_ty {
-
-                }
+                let last_node = self.result.last_mut().unwrap();
+                last_node.modifiers.push(AstNodeModifier::Percent);
+                return Ok(Some(()));
             }
             _ => {}
         }

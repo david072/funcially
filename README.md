@@ -11,7 +11,7 @@ A calculator working purely with text inputs.
 - [ ] Functions
 - [ ] Variables
 - [ ] Percentages
-  - [ ] Percentage modifier 
+  - [x] Percentage modifier 
   - [ ] "of" operator
 - [ ] Equality checks
 - [ ] Units

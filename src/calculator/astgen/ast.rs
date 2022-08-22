@@ -37,6 +37,7 @@ impl Display for AstNodeModifier {
         match self {
             AstNodeModifier::Factorial => write!(f, "!"),
             AstNodeModifier::BitwiseNot => write!(f, "!"),
+            AstNodeModifier::Percent => write!(f, "%"),
         }
     }
 }
@@ -131,6 +132,7 @@ impl AstNode {
                         Err(_) => unreachable!(),
                     } as f64;
                 }
+                AstNodeModifier::Percent => *value /= 100.0,
             }
         }
 
