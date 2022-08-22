@@ -1,12 +1,13 @@
-use crate::calculator::common::*;
+use crate::common::*;
 use strum::{EnumIter};
 use std::ops::Range;
 
 #[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Whitespace,
-    /// A number literal containing it's base
-    Literal(u32),
+    DecimalLiteral,
+    HexLiteral,
+    BinaryLiteral,
     Plus,
     Minus,
     Multiply,
@@ -14,6 +15,10 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    pub fn is_literal(&self) -> bool {
+        matches!(self, Self::DecimalLiteral | Self::HexLiteral | Self::BinaryLiteral)
+    }
+
     pub fn is_operator(&self) -> bool {
         matches!(self, Self::Plus | Self::Minus | Self::Multiply | Self::Divide)
     }
@@ -114,18 +119,18 @@ impl<'a> Tokenizer<'a> {
                     match c {
                         b'x' | b'X' => {
                             while self.accept(any_of(HEXADECIMAL_CHARS)) {}
-                            return Some(TokenType::Literal(16));
+                            return Some(TokenType::HexLiteral);
                         }
                         b'b' | b'B' => {
                             while self.accept(any_of(BINARY_DIGITS)) {}
-                            return Some(TokenType::Literal(2));
+                            return Some(TokenType::BinaryLiteral);
                         }
                         // fall through to after the if
                         b'0'..=b'9' | b'.' => {}
                         _ => {
                             // the character needs to be processed in the next iteration
                             self.index -= 1;
-                            return Some(TokenType::Literal(10));
+                            return Some(TokenType::DecimalLiteral);
                         }
                     }
                 }
@@ -133,17 +138,17 @@ impl<'a> Tokenizer<'a> {
                 while self.accept(any_of(NUMBERS)) {}
                 self.accept(any_of(b"."));
                 while self.accept(any_of(NUMBERS)) {}
-                Some(TokenType::Literal(10))
+                Some(TokenType::DecimalLiteral)
             }
             b'.' => {
                 while self.accept(any_of(NUMBERS)) {}
-                Some(TokenType::Literal(10))
+                Some(TokenType::DecimalLiteral)
             }
             // number sign
             b'+' | b'-' if matches!(self.string[self.index], b'0'..=b'9' | b'.') => {
                 self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
-                Some(TokenType::Literal(10))
+                Some(TokenType::DecimalLiteral)
             }
             b'+' => Some(TokenType::Plus),
             b'-' => Some(TokenType::Minus),
@@ -168,10 +173,10 @@ mod tests {
     fn literals() -> Result<()> {
         let tokens = tokenize("3 0x0123456789 0xABCdef 0b110")?;
         assert_eq!(tokens, vec![
-            Token::new(TokenType::Literal(10), "3", 0..1),
-            Token::new(TokenType::Literal(16), "0x0123456789", 2..14),
-            Token::new(TokenType::Literal(16), "0xABCdef", 15..23),
-            Token::new(TokenType::Literal(2), "0b110", 24..29)
+            Token::new(TokenType::DecimalLiteral, "3", 0..1),
+            Token::new(TokenType::HexLiteral, "0x0123456789", 2..14),
+            Token::new(TokenType::HexLiteral, "0xABCdef", 15..23),
+            Token::new(TokenType::BinaryLiteral, "0b110", 24..29)
         ]);
         Ok(())
     }
@@ -192,8 +197,8 @@ mod tests {
     fn floats() -> Result<()> {
         let tokens = tokenize("0.23 .23")?;
         assert_eq!(tokens, vec![
-            Token::new(TokenType::Literal(10), "0.23", 0..4),
-            Token::new(TokenType::Literal(10), ".23", 5..8),
+            Token::new(TokenType::DecimalLiteral, "0.23", 0..4),
+            Token::new(TokenType::DecimalLiteral, ".23", 5..8),
         ]);
         Ok(())
     }
@@ -202,9 +207,9 @@ mod tests {
     fn signs() -> Result<()> {
         let tokens = tokenize("-3 +3 -.3")?;
         assert_eq!(tokens, vec![
-            Token::new(TokenType::Literal(10), "-3", 0..2),
-            Token::new(TokenType::Literal(10), "+3", 3..5),
-            Token::new(TokenType::Literal(10), "-.3", 6..9),
+            Token::new(TokenType::DecimalLiteral, "-3", 0..2),
+            Token::new(TokenType::DecimalLiteral, "+3", 3..5),
+            Token::new(TokenType::DecimalLiteral, "-.3", 6..9),
         ]);
         Ok(())
     }

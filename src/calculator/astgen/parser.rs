@@ -1,6 +1,6 @@
-use crate::calculator::common::*;
-use crate::calculator::ast::{AstNode, Operator};
-use crate::calculator::tokenizer::{Token, TokenType};
+use crate::common::*;
+use crate::astgen::ast::{AstNode, Operator};
+use crate::astgen::tokenizer::{Token, TokenType};
 use strum::IntoEnumIterator;
 
 pub fn parse(tokens: &[Token]) -> Result<Vec<AstNode>> {
@@ -29,6 +29,15 @@ macro_rules! remove_elems {
     }
 }
 
+macro_rules! parse_f64_radix {
+    ($token:expr, $radix:expr) => {
+        (match i64::from_str_radix(&$token.text[2..], $radix) {
+            Ok(number) => number,
+            Err(_) => return Err(ErrorType::InvalidNumber.with($token.range.clone())),
+        }) as f64
+    }
+}
+
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Parser {
         Parser {
@@ -52,8 +61,8 @@ impl<'a> Parser<'a> {
         #[allow(unused_parens)]
             let error_type = match self.last_token_ty {
             Some(ty) => match ty {
-                TokenType::Literal(_) => {
-                    remove_elems!(allowed_tokens, (|i| matches!(i, TokenType::Literal(_))));
+                TokenType::DecimalLiteral | TokenType::HexLiteral | TokenType::BinaryLiteral => {
+                    remove_elems!(allowed_tokens, (|i| i.is_literal()));
                     ErrorType::ExpectedOperator
                 }
                 TokenType::Plus | TokenType::Minus | TokenType::Multiply | TokenType::Divide => {
@@ -67,34 +76,21 @@ impl<'a> Parser<'a> {
         };
 
         if !allowed_tokens.contains(&token.ty) {
-            // since `self.all_token_tys` contains TokenType::Literal(0), there
-            // has to be special logic for literals
-            if matches!(token.ty, TokenType::Literal(_)) {
-                if !allowed_tokens.contains(&TokenType::Literal(0)) {
-                    return Err(error_type.with(token.range.clone()));
-                }
-            } else {
-                return Err(error_type.with(token.range.clone()));
-            }
+            return Err(error_type.with(token.range.clone()));
         }
 
         self.last_token_ty = Some(token.ty);
 
-        match &token.ty {
-            TokenType::Literal(radix) => {
-                let number: f64 = if *radix == 10 {
-                    match token.text.parse() {
-                        Ok(number) => number,
-                        Err(_) => return Err(ErrorType::InvalidNumber.with(token.range.clone())),
-                    }
-                } else {
-                    (match i64::from_str_radix(&token.text[2..], *radix) {
-                        Ok(number) => number,
-                        Err(_) => return Err(ErrorType::InvalidNumber.with(token.range.clone())),
-                    }) as f64
+        match token.ty {
+            TokenType::DecimalLiteral => {
+                let number = match token.text.parse() {
+                    Ok(number) => number,
+                    Err(_) => return Err(ErrorType::InvalidNumber.with(token.range.clone())),
                 };
                 Ok(Some(AstNode::Literal(number)))
             }
+            TokenType::HexLiteral => Ok(Some(AstNode::Literal(parse_f64_radix!(token, 16)))),
+            TokenType::BinaryLiteral => Ok(Some(AstNode::Literal(parse_f64_radix!(token, 2)))),
             TokenType::Plus => Ok(Some(AstNode::Operator(Operator::Plus))),
             TokenType::Minus => Ok(Some(AstNode::Operator(Operator::Minus))),
             TokenType::Multiply => Ok(Some(AstNode::Operator(Operator::Multiply))),
@@ -106,7 +102,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::calculator::tokenizer::tokenize;
+    use crate::calculator::astgen::tokenizer::tokenize;
     use super::*;
 
     #[test]

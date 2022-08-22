@@ -1,5 +1,3 @@
-mod calculator;
-
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
 use calculator::{calculate, Verbosity};
@@ -24,7 +22,10 @@ fn main() {
             .takes_value(true))
         .get_matches();
 
-    let verbosity = Verbosity::from_str(matches.get_one::<String>("verbosity"));
+    let verbosity = match matches.get_one::<String>("verbosity") {
+        Some(verbosity) => verbosity.parse::<Verbosity>().unwrap(),
+        None => Verbosity::None,
+    };
 
     // TODO: Properly handle CTRL-C
     loop {
