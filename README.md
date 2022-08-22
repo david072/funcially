@@ -1,23 +1,25 @@
 # Calculator
+
 A calculator working purely with text inputs.
 
 ## Roadmap
+
 - [x] Literals & floats
 - [ ] Operators
-  - [x] Basic
-  - [x] Extended + Bitwise
-  - [ ] Inferred multiplication
+    - [x] Basic
+    - [x] Extended + Bitwise
+    - [ ] Inferred multiplication
 - [ ] Groups
 - [ ] Functions
 - [ ] Variables
-- [ ] Percentages
-  - [x] Percentage modifier 
-  - [ ] "of" operator
+- [x] Percentages
+    - [x] Percentage modifier
+    - [x] "of" operator
 - [ ] Equality checks
 - [ ] Units
-  - [ ] Unit suffixes
-  - [ ] "in" operator
-    - [ ] Converting between representations
+    - [ ] Unit suffixes
+    - [ ] "in" operator
+        - [ ] Converting between representations
 
 # Literals
 
@@ -131,6 +133,15 @@ Builtin variables include (but are not limited to) `pi`, `e`, ...
 ```
 pi	       => 3.14159265 (...)
 e		   => <whatever>
+```
+
+## "ans" variable
+
+The "ans" variable contains the result of the previous calculation. At the start, it's value is 0.
+
+```
+3 + 4     => 7
+ans / 2   => 3.5
 ```
 
 # Percentages
