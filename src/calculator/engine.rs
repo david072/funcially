@@ -1,11 +1,11 @@
 use astgen::ast::Operator;
 use match_ast_node;
-use crate::astgen::ast::{AstNode};
+use crate::astgen::ast::{AstNode, AstNodeData};
 use crate::common::*;
 
 pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
     if ast.len() == 1 {
-        let result = match_ast_node!(AstNode::Literal(res), res, ast[0]);
+        let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
         return Ok(result);
     }
 
@@ -13,7 +13,7 @@ pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
 
     assert_eq!(ast.len(), 1);
-    let result = match_ast_node!(AstNode::Literal(res), res, ast[0]);
+    let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
     Ok(result)
 }
 
@@ -22,15 +22,15 @@ fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> 
     while i < ast.len() - 1 {
         // there has got to be a better way to do this...
         let (lhs, operator, rhs) =
-            if let [lhs, operator, rhs, ..] = &mut ast[i..=i + 2] {
+            if let [lhs, operator, rhs] = &mut ast[i..=i + 2] {
                 (lhs, operator, rhs)
             } else {
                 return Err(ErrorType::InvalidAst.with(0..0));
             };
 
-        let op = match_ast_node!(AstNode::Operator(op), op, operator);
+        let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
 
-        if operators.contains(op) {
+        if operators.contains(&op) {
             lhs.apply(operator, rhs)?;
             // remove operator and rhs
             ast.remove(i + 1);
@@ -43,6 +43,7 @@ fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> 
     Ok(())
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::common::Result;

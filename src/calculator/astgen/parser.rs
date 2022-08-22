@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::astgen::ast::{AstNode, Operator};
+use crate::astgen::ast::{AstNode, Operator, AstNodeData};
 use crate::astgen::tokenizer::{Token, TokenType};
 use strum::IntoEnumIterator;
 
@@ -87,22 +87,23 @@ impl<'a> Parser<'a> {
 
         self.last_token_ty = Some(token.ty);
 
-        match token.ty {
+        let data = match token.ty {
             TokenType::DecimalLiteral => {
                 let number = match token.text.parse() {
                     Ok(number) => number,
                     Err(_) => return Err(ErrorType::InvalidNumber.with(token.range.clone())),
                 };
-                Ok(Some(AstNode::Literal(number)))
+                Ok(AstNodeData::Literal(number))
             }
-            TokenType::HexLiteral => Ok(Some(AstNode::Literal(parse_f64_radix!(token, 16)))),
-            TokenType::BinaryLiteral => Ok(Some(AstNode::Literal(parse_f64_radix!(token, 2)))),
-            TokenType::Plus => Ok(Some(AstNode::Operator(Operator::Plus))),
-            TokenType::Minus => Ok(Some(AstNode::Operator(Operator::Minus))),
-            TokenType::Multiply => Ok(Some(AstNode::Operator(Operator::Multiply))),
-            TokenType::Divide => Ok(Some(AstNode::Operator(Operator::Divide))),
+            TokenType::HexLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(token, 16))),
+            TokenType::BinaryLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(token, 2))),
+            TokenType::Plus => Ok(AstNodeData::Operator(Operator::Plus)),
+            TokenType::Minus => Ok(AstNodeData::Operator(Operator::Minus)),
+            TokenType::Multiply => Ok(AstNodeData::Operator(Operator::Multiply)),
+            TokenType::Divide => Ok(AstNodeData::Operator(Operator::Divide)),
             _ => unreachable!(),
-        }
+        }?;
+        Ok(Some(AstNode::new(data, token.range.clone())))
     }
 }
 
@@ -114,16 +115,16 @@ mod tests {
     #[test]
     fn basic() -> Result<()> {
         let ast = parse(&tokenize("1 - 3 + 4 * 5 / 6")?)?;
-        assert_eq!(ast, vec![
-            AstNode::Literal(1.0),
-            AstNode::Operator(Operator::Minus),
-            AstNode::Literal(3.0),
-            AstNode::Operator(Operator::Plus),
-            AstNode::Literal(4.0),
-            AstNode::Operator(Operator::Multiply),
-            AstNode::Literal(5.0),
-            AstNode::Operator(Operator::Divide),
-            AstNode::Literal(6.0),
+        assert_eq!(ast.iter().map(|n| n.data).collect::<Vec<_>>(), vec![
+            AstNodeData::Literal(1.0),
+            AstNodeData::Operator(Operator::Minus),
+            AstNodeData::Literal(3.0),
+            AstNodeData::Operator(Operator::Plus),
+            AstNodeData::Literal(4.0),
+            AstNodeData::Operator(Operator::Multiply),
+            AstNodeData::Literal(5.0),
+            AstNodeData::Operator(Operator::Divide),
+            AstNodeData::Literal(6.0),
         ]);
         Ok(())
     }

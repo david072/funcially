@@ -112,7 +112,7 @@ impl<'a> Tokenizer<'a> {
         self.index += 1;
         match c {
             b'0'..=b'9' => {
-                if c == b'0' {
+                if c == b'0' && self.index < self.string.len() {
                     // check next character for different representation
                     let c = self.string[self.index];
                     self.index += 1;
