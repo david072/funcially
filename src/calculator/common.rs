@@ -5,10 +5,18 @@ pub enum ErrorType {
     /// Not actually an error. Used when e.g.
     /// a variable needs a value, but will never be used.
     Nothing,
+    // tokenizer
     InvalidCharacter,
     InvalidNumber,
+
+    // parser
     ExpectedNumber,
     ExpectedOperator,
+
+    // engine
+    DivideByZero,
+    /// This should never happen
+    InvalidAst,
 }
 
 impl ErrorType {

@@ -1,3 +1,6 @@
+extern crate calculator;
+extern crate clap;
+
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
 use calculator::{calculate, Verbosity};
