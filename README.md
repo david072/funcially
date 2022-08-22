@@ -1,3 +1,22 @@
+# Calculator
+A calculator working purely with text inputs.
+
+## Roadmap
+- [x] Literals & floats
+- [ ] Operators
+  - [x] Basic
+  - [ ] Extended + Bitwise
+  - [ ] Inferred multiplication
+- [ ] Groups
+- [ ] Functions
+- [ ] Variables
+- [ ] Percentages
+  - [ ] "of" operator
+- [ ] Equality checks
+- [ ] Units
+  - [ ] "in" operator
+    - [ ] Converting between representations
+
 # Literals
 
 Literals can be declared using different representations.
@@ -103,7 +122,7 @@ cos(30 * 2)						        => 0.5
 
 Variables are defined with a name and resolve to a value during evaluation.
 
-# Builtin Variables
+## Builtin Variables
 
 Builtin variables include (but are not limited to) `pi`, `e`, ...
 
