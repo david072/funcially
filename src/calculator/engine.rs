@@ -5,6 +5,7 @@ use crate::common::*;
 
 pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
     if ast.len() == 1 {
+        ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
         return Ok(result);
     }
@@ -14,6 +15,7 @@ pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
 
     assert_eq!(ast.len(), 1);
+    ast[0].apply_modifiers()?;
     let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
     Ok(result)
 }

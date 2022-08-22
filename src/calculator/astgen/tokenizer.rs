@@ -15,6 +15,7 @@ pub enum TokenType {
     Exponentiation,
     BitwiseAnd,
     BitwiseOr,
+    ExclamationMark,
 }
 
 impl TokenType {
@@ -30,6 +31,10 @@ impl TokenType {
             | Self::Exponentiation
             | Self::BitwiseAnd
             | Self::BitwiseOr)
+    }
+
+    pub fn is_modifier(&self) -> bool {
+        matches!(self, Self::ExclamationMark)
     }
 }
 
@@ -167,6 +172,7 @@ impl<'a> Tokenizer<'a> {
             b'^' => Some(TokenType::Exponentiation),
             b'&' => Some(TokenType::BitwiseAnd),
             b'|' => Some(TokenType::BitwiseOr),
+            b'!' => Some(TokenType::ExclamationMark),
             _ => None
         }
     }

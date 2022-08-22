@@ -5,15 +5,17 @@ A calculator working purely with text inputs.
 - [x] Literals & floats
 - [ ] Operators
   - [x] Basic
-  - [ ] Extended + Bitwise
+  - [x] Extended + Bitwise
   - [ ] Inferred multiplication
 - [ ] Groups
 - [ ] Functions
 - [ ] Variables
 - [ ] Percentages
+  - [ ] Percentage modifier 
   - [ ] "of" operator
 - [ ] Equality checks
 - [ ] Units
+  - [ ] Unit suffixes
   - [ ] "in" operator
     - [ ] Converting between representations
 

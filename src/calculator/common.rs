@@ -16,6 +16,7 @@ pub enum ErrorType {
     // engine
     DivideByZero,
     ExpectedInteger,
+    ExpectedPositiveInteger,
     /// This should never happen
     InvalidAst,
 }
@@ -38,3 +39,16 @@ pub struct Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub mod math {
+    pub fn factorial(num: i64) -> i64 {
+        match num {
+            0 => 1,
+            1 => 1,
+            _ => {
+                let factor = if num.is_negative() { -1 } else { 1 };
+                factor * factorial(num.abs() - 1) * num
+            },
+        }
+    }
+}

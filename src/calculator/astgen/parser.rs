@@ -1,24 +1,22 @@
 use crate::common::*;
-use crate::astgen::ast::{AstNode, Operator, AstNodeData};
+use crate::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
 use crate::astgen::tokenizer::{Token, TokenType};
 use strum::IntoEnumIterator;
+use std::mem;
 
 pub fn parse(tokens: &[Token]) -> Result<Vec<AstNode>> {
     let mut parser = Parser::new(tokens);
-    let mut result = Vec::new();
-
-    while let Some(node) = parser.next()? {
-        result.push(node);
-    }
-
+    let result = parser.parse()?;
     Ok(result)
 }
 
 struct Parser<'a> {
     tokens: &'a [Token],
     index: usize,
-    last_token_ty: Option<TokenType>,
     all_tokens_tys: Vec<TokenType>,
+    last_token_ty: Option<TokenType>,
+    next_token_modifiers: Vec<AstNodeModifier>,
+    result: Vec<AstNode>,
 }
 
 macro_rules! remove_elems {
@@ -43,12 +41,21 @@ impl<'a> Parser<'a> {
         Parser {
             tokens,
             index: 0,
-            last_token_ty: None,
             all_tokens_tys: TokenType::iter().collect(),
+            last_token_ty: None,
+            next_token_modifiers: Vec::new(),
+            result: Vec::new(),
         }
     }
 
-    pub fn next(&mut self) -> Result<Option<AstNode>> {
+    pub fn parse(&mut self) -> Result<Vec<AstNode>> {
+        while self.next()?.is_some() {}
+
+        let result = mem::take(&mut self.result);
+        Ok(result)
+    }
+
+    pub fn next(&mut self) -> Result<Option<()>> {
         if self.index >= self.tokens.len() {
             return Ok(None);
         }
@@ -85,6 +92,24 @@ impl<'a> Parser<'a> {
             return Err(error_type.with(token.range.clone()));
         }
 
+        // Handle modifiers
+        if token.ty == TokenType::ExclamationMark {
+            return if let Some(last_ty) = self.last_token_ty {
+                if !last_ty.is_operator() {
+                    // Exclamation mark is factorial
+                    let last_node = self.result.last_mut().unwrap();
+                    last_node.modifiers.push(AstNodeModifier::Factorial);
+                    Ok(Some(()))
+                } else {
+                    self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
+                    Ok(Some(()))
+                }
+            } else {
+                self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
+                Ok(Some(()))
+            }
+        }
+
         self.last_token_ty = Some(token.ty);
 
         let data = match token.ty {
@@ -106,7 +131,12 @@ impl<'a> Parser<'a> {
             TokenType::BitwiseOr => Ok(AstNodeData::Operator(Operator::BitwiseOr)),
             _ => unreachable!(),
         }?;
-        Ok(Some(AstNode::new(data, token.range.clone())))
+
+
+        let mut new_node = AstNode::new(data, token.range.clone());
+        new_node.modifiers = mem::take(&mut self.next_token_modifiers);
+        self.result.push(new_node);
+        Ok(Some(()))
     }
 }
 
