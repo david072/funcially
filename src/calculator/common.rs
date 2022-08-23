@@ -14,6 +14,7 @@ pub enum ErrorType {
     ExpectedOperator,
     ExpectedIn,
     ExpectedFormat,
+    MissingClosingBracket,
 
     // engine
     DivideByZero,

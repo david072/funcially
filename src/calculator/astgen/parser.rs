@@ -109,7 +109,13 @@ impl<'a> Parser<'a> {
                 TokenType::Binary => self.result.last_mut().unwrap().format = Format::Binary,
                 _ => unreachable!(),
             }
-            return Ok(Some(()))
+            return Ok(Some(()));
+        }
+
+        // Handle groups
+        if token.ty == TokenType::OpenBracket {
+            self.next_group(token)?;
+            return Ok(Some(()));
         }
 
         let data = match token.ty {
@@ -140,7 +146,51 @@ impl<'a> Parser<'a> {
         Ok(Some(()))
     }
 
+    fn next_group(&mut self, open_bracket_token: &Token) -> Result<()> {
+        let mut nesting_level = 1usize;
+
+        let group_start = self.index;
+        let mut group_end: usize = 0;
+        while let Some(token) = self.tokens.get(self.index) {
+            self.index += 1;
+            match token.ty {
+                TokenType::OpenBracket => nesting_level += 1,
+                TokenType::CloseBracket => {
+                    nesting_level -= 1;
+                    if nesting_level == 0 {
+                        group_end = self.index;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if nesting_level != 0 {
+            return Err(ErrorType::MissingClosingBracket.with(open_bracket_token.range.clone()));
+        }
+
+        let group_range = group_start - 1..group_end + 1;
+        if group_end - group_start <= 1 {
+            self.result.push(AstNode::new(AstNodeData::Literal(0.0), group_range));
+            return Ok(());
+        }
+
+        let group_tokens = &self.tokens[group_start..group_end - 1];
+        let group_ast = Parser::new(group_tokens).parse()?;
+
+        let mut new_node = AstNode::new(AstNodeData::Group(group_ast), group_range);
+        new_node.modifiers = mem::take(&mut self.next_token_modifiers);
+        self.result.push(new_node);
+
+        Ok(())
+    }
+
     fn verify_valid_token(&self, token: &Token) -> Result<()> {
+        if token.ty == TokenType::CloseBracket {
+            return Err(ErrorType::MissingClosingBracket.with(token.range.clone()));
+        }
+
         let mut allowed_tokens = self.all_tokens_tys.clone();
 
         #[allow(unused_parens)]
@@ -150,8 +200,8 @@ impl<'a> Parser<'a> {
                     remove_elems!(allowed_tokens, (|i| i.is_format()));
                 }
 
-                if ty.is_literal() {
-                    remove_elems!(allowed_tokens, (|i| i.is_literal()));
+                if ty.is_number() {
+                    remove_elems!(allowed_tokens, (|i| i.is_number()));
                     ErrorType::ExpectedOperator
                 } else if ty.is_operator() {
                     if ty == TokenType::In {

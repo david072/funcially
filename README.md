@@ -9,7 +9,7 @@ A calculator working purely with text inputs.
     - [x] Basic
     - [x] Extended + Bitwise
     - [ ] Inferred multiplication
-- [ ] Groups
+- [x] Groups
 - [ ] Functions
 - [ ] Variables
 - [x] Percentages

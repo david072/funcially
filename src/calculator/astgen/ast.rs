@@ -16,13 +16,14 @@ pub enum Operator {
     In,
 }
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum AstNodeData {
     Literal(f64),
     Operator(Operator),
+    Group(Vec<AstNode>),
 }
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum AstNodeModifier {
     Factorial,
     BitwiseNot,
@@ -45,6 +46,7 @@ impl Display for AstNodeModifier {
     }
 }
 
+#[derive(Clone)]
 pub struct AstNode {
     pub data: AstNodeData,
     pub modifiers: Vec<AstNodeModifier>,
@@ -162,6 +164,36 @@ impl AstNode {
         self.did_apply_modifiers = true;
         Ok(())
     }
+
+    fn print_prefix_modifiers(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mods = self.modifiers.iter()
+            .filter(|m| m.is_prefix())
+            .collect::<Vec<_>>();
+
+        for m in mods {
+            write!(f, "{}", m)?;
+        }
+
+        Ok(())
+    }
+
+    fn print_suffix_modifiers(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mods = self.modifiers.iter()
+            .filter(|m| !m.is_prefix())
+            .collect::<Vec<_>>();
+
+        for m in mods {
+            write!(f, "{}", m)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl PartialEq for AstNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.range == other.range
+    }
 }
 
 impl Display for AstNode {
@@ -173,14 +205,27 @@ impl Display for AstNode {
                 for ref m in prefixes {
                     write!(f, "{}", m)?;
                 }
-                write!(f, "Number: {} ({})", number, self.format)?;
+                write!(f, "Number: {}", number)?;
                 for ref m in suffixes {
                     write!(f, "{}", m)?;
                 }
-
-                Ok(())
+                write!(f, " ({})", self.format)
             }
             AstNodeData::Operator(operator) => write!(f, "Operator: {:?}", operator),
+            AstNodeData::Group(ref ast) => {
+                self.print_prefix_modifiers(f)?;
+                write!(f, "Group")?;
+                self.print_suffix_modifiers(f)?;
+                writeln!(f, " ({}): ", self.format)?;
+
+                for node in ast {
+                    for _ in 0..f.width().unwrap_or(0) + 4 {
+                        write!(f, " ")?;
+                    }
+                    writeln!(f, "{:width$}", node, width = f.width().unwrap_or(0) + 4)?;
+                }
+                Ok(())
+            }
         }
     }
 }

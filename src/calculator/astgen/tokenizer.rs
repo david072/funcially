@@ -8,6 +8,8 @@ pub enum TokenType {
     DecimalLiteral,
     HexLiteral,
     BinaryLiteral,
+    OpenBracket,
+    CloseBracket,
     Plus,
     Minus,
     Multiply,
@@ -25,8 +27,12 @@ pub enum TokenType {
 }
 
 impl TokenType {
-    pub fn is_literal(&self) -> bool {
-        matches!(self, Self::DecimalLiteral | Self::HexLiteral | Self::BinaryLiteral)
+    pub fn is_number(&self) -> bool {
+        matches!(self, Self::DecimalLiteral
+            | Self::HexLiteral
+            | Self::BinaryLiteral
+            | Self::OpenBracket     // Groups have the same rules as normal numbers,
+            | Self::CloseBracket)   // since they basically only encapsulate literals
     }
 
     pub fn is_operator(&self) -> bool {
@@ -201,6 +207,8 @@ impl<'a> Tokenizer<'a> {
             b'|' => Some(TokenType::BitwiseOr),
             b'!' => Some(TokenType::ExclamationMark),
             b'%' => Some(TokenType::PercentSign),
+            b'(' => Some(TokenType::OpenBracket),
+            b')' => Some(TokenType::CloseBracket),
             _ => None
         }
     }
