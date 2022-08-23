@@ -27,6 +27,12 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    pub fn is_literal(&self) -> bool {
+        matches!(self, Self::DecimalLiteral
+            | Self::HexLiteral
+            | Self::BinaryLiteral)
+    }
+
     pub fn is_number(&self) -> bool {
         matches!(self, Self::DecimalLiteral
             | Self::HexLiteral

@@ -98,8 +98,6 @@ impl<'a> Parser<'a> {
             _ => {}
         }
 
-        self.last_token_ty = Some(token.ty);
-
         // Handle formats
         if token.ty.is_format() {
             self.result.remove(self.result.len() - 1);
@@ -115,8 +113,11 @@ impl<'a> Parser<'a> {
         // Handle groups
         if token.ty == TokenType::OpenBracket {
             self.next_group(token)?;
+            self.last_token_ty = Some(token.ty);
             return Ok(Some(()));
         }
+
+        self.last_token_ty = Some(token.ty);
 
         let data = match token.ty {
             TokenType::DecimalLiteral => {
@@ -170,7 +171,7 @@ impl<'a> Parser<'a> {
             return Err(ErrorType::MissingClosingBracket.with(open_bracket_token.range.clone()));
         }
 
-        let group_range = group_start - 1..group_end + 1;
+        let group_range = group_start - 1..group_end;
         if group_end - group_start <= 1 {
             self.result.push(AstNode::new(AstNodeData::Literal(0.0), group_range));
             return Ok(());
@@ -181,6 +182,16 @@ impl<'a> Parser<'a> {
 
         let mut new_node = AstNode::new(AstNodeData::Group(group_ast), group_range);
         new_node.modifiers = mem::take(&mut self.next_token_modifiers);
+
+        if let Some(last_ty) = self.last_token_ty {
+            if last_ty.is_number() {
+                self.result.push(AstNode::new(
+                    AstNodeData::Operator(Operator::Multiply),
+                    group_start..group_start + 1,
+                ));
+            }
+        }
+
         self.result.push(new_node);
 
         Ok(())
@@ -201,7 +212,7 @@ impl<'a> Parser<'a> {
                 }
 
                 if ty.is_number() {
-                    remove_elems!(allowed_tokens, (|i| i.is_number()));
+                    remove_elems!(allowed_tokens, (|i| i.is_literal()));
                     ErrorType::ExpectedOperator
                 } else if ty.is_operator() {
                     if ty == TokenType::In {
@@ -233,7 +244,9 @@ impl<'a> Parser<'a> {
         #[allow(unused_parens)]
         if self.last_token_ty.is_some() && self.index == self.tokens.len() {
             remove_elems!(allowed_tokens, (|i| i.is_operator()));
-            error_type = ErrorType::ExpectedNumber;
+            if !token.ty.is_number() {
+                error_type = ErrorType::ExpectedNumber;
+            }
         }
 
         if !allowed_tokens.contains(&token.ty) {

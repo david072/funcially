@@ -9,6 +9,9 @@ A calculator working purely with text inputs.
     - [x] Basic
     - [x] Extended + Bitwise
     - [ ] Inferred multiplication
+      - [x] Groups
+      - [ ] Functions
+      - [ ] Variables
 - [x] Groups
 - [ ] Functions
 - [ ] Variables
@@ -19,7 +22,8 @@ A calculator working purely with text inputs.
 - [ ] Units
     - [ ] Unit suffixes
     - [ ] "in" operator
-        - [x] Converting between representations
+      - [ ] Converting between units
+      - [x] Converting between representations
 
 # Literals
 
