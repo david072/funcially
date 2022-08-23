@@ -15,6 +15,8 @@ A calculator working purely with text inputs.
 - [x] Groups
 - [ ] Functions
 - [ ] Variables
+  - [x] Builtin Variables
+  - [ ] "ans" variable
 - [x] Percentages
     - [x] Percentage modifier
     - [x] "of" operator
@@ -75,7 +77,7 @@ Factorial (*number*!) and Bitwise NOT [^1] (!*number*)
 
 (Higher is earlier evaluated)
 
-1. Functions
+1. Functions and variables
 2. Groups ("(...)")
 3. Extended operators
 4. Multiplication and division

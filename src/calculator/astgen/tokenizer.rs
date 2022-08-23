@@ -29,6 +29,8 @@ pub enum TokenType {
     Decimal,
     Hex,
     Binary,
+    // Identifier
+    Identifier,
 }
 
 impl TokenType {
@@ -42,8 +44,9 @@ impl TokenType {
         matches!(self, Self::DecimalLiteral
             | Self::HexLiteral
             | Self::BinaryLiteral
-            | Self::OpenBracket     // Groups have the same rules as normal numbers,
-            | Self::CloseBracket)   // since they basically only encapsulate literals
+            | Self::OpenBracket
+            | Self::CloseBracket
+            | Self::Identifier)
     }
 
     pub fn is_operator(&self) -> bool {
@@ -127,7 +130,7 @@ impl<'a> Tokenizer<'a> {
                         b"decimal" => TokenType::Decimal,
                         b"hex" => TokenType::Hex,
                         b"binary" => TokenType::Binary,
-                        _ => return Err(ErrorType::UnknownWord.with(start..end)),
+                        _ => ty,
                     };
                 }
 

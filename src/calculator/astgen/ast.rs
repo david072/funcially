@@ -21,6 +21,7 @@ pub enum AstNodeData {
     Literal(f64),
     Operator(Operator),
     Group(Vec<AstNode>),
+    VariableReference(String),
 }
 
 impl Debug for AstNodeData {
@@ -30,6 +31,7 @@ impl Debug for AstNodeData {
             AstNodeData::Literal(n) => write!(f, "Literal({:?})", n),
             AstNodeData::Operator(op) => write!(f, "Operator({:?})", op),
             AstNodeData::Group(_) => write!(f, "Group(...)"),
+            AstNodeData::VariableReference(name) => write!(f, "VariableReference({})", name),
         }
     }
 }
@@ -97,6 +99,16 @@ impl AstNode {
             modifiers: Vec::new(),
             format: Format::Decimal,
             range,
+            did_apply_modifiers: false,
+        }
+    }
+
+    pub fn from(other: &AstNode, data: AstNodeData) -> AstNode {
+        AstNode {
+            data,
+            modifiers: other.modifiers.clone(),
+            format: other.format,
+            range: other.range.clone(),
             did_apply_modifiers: false,
         }
     }
@@ -176,28 +188,30 @@ impl AstNode {
         Ok(())
     }
 
-    fn print_prefix_modifiers(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn prefix_modifiers(&self) -> String {
         let mods = self.modifiers.iter()
             .filter(|m| m.is_prefix())
             .collect::<Vec<_>>();
 
+        let mut res = String::new();
         for m in mods {
-            write!(f, "{}", m)?;
+            res += format!("{}", m).as_str();
         }
 
-        Ok(())
+        res
     }
 
-    fn print_suffix_modifiers(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn suffix_modifiers(&self) -> String {
         let mods = self.modifiers.iter()
             .filter(|m| !m.is_prefix())
             .collect::<Vec<_>>();
 
+        let mut res = String::new();
         for m in mods {
-            write!(f, "{}", m)?;
+            res += format!("{}", m).as_str();
         }
 
-        Ok(())
+        res
     }
 }
 
@@ -210,33 +224,29 @@ impl PartialEq for AstNode {
 impl Display for AstNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.data {
-            AstNodeData::Literal(number) => {
-                let (prefixes, suffixes): (Vec<AstNodeModifier>, Vec<AstNodeModifier>) =
-                    self.modifiers.iter().partition(|m| m.is_prefix());
-                for ref m in prefixes {
-                    write!(f, "{}", m)?;
-                }
-                write!(f, "Number: {}", number)?;
-                for ref m in suffixes {
-                    write!(f, "{}", m)?;
-                }
-                write!(f, " ({})", self.format)
-            }
-            AstNodeData::Operator(operator) => write!(f, "Operator: {:?}", operator),
+            AstNodeData::Literal(number) => write!(f, "Number: {}{}{} ({})",
+                                                   self.prefix_modifiers(),
+                                                   number,
+                                                   self.suffix_modifiers(),
+                                                   self.format),
+            AstNodeData::Operator(ref operator) => write!(f, "Operator: {:?}", operator),
             AstNodeData::Group(ref ast) => {
-                self.print_prefix_modifiers(f)?;
-                write!(f, "Group")?;
-                self.print_suffix_modifiers(f)?;
-                writeln!(f, " ({}): ", self.format)?;
+                write!(f, "{}Group{} ({}):", self.prefix_modifiers(), self.suffix_modifiers(), self.format)?;
 
-                for node in ast {
+                for (i, node) in ast.iter().enumerate() {
                     for _ in 0..f.width().unwrap_or(0) + 4 {
                         write!(f, " ")?;
                     }
-                    writeln!(f, "{:width$}", node, width = f.width().unwrap_or(0) + 4)?;
+                    write!(f, "{:width$}", node, width = f.width().unwrap_or(0) + 4)?;
+                    if i != ast.len() - 1 { writeln!(f)?; }
                 }
                 Ok(())
             }
+            AstNodeData::VariableReference(ref name) => write!(f, "VariableRef: {}{}{} ({})",
+                                                           self.prefix_modifiers(),
+                                                           name,
+                                                           self.suffix_modifiers(),
+                                                           self.format),
         }
     }
 }

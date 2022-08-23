@@ -1,9 +1,11 @@
 use ::Format;
-use crate::common::*;
 use crate::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
 use crate::astgen::tokenizer::{Token, TokenType};
+use crate::common::*;
+use crate::variables::is_valid_variable;
 use strum::IntoEnumIterator;
 use std::mem;
+use std::process::id;
 
 pub fn parse(tokens: &[Token]) -> Result<Vec<AstNode>> {
     let mut parser = Parser::new(tokens);
@@ -117,6 +119,13 @@ impl<'a> Parser<'a> {
             return Ok(true);
         }
 
+        // Handle variables
+        if token.ty == TokenType::Identifier {
+            self.next_identifier(token)?;
+            self.last_token_ty = Some(token.ty);
+            return Ok(true);
+        }
+
         self.last_token_ty = Some(token.ty);
 
         let data = match token.ty {
@@ -180,21 +189,47 @@ impl<'a> Parser<'a> {
         let group_tokens = &self.tokens[group_start..group_end - 1];
         let group_ast = Parser::new(group_tokens).parse()?;
 
-        let mut new_node = AstNode::new(AstNodeData::Group(group_ast), group_range);
-        new_node.modifiers = mem::take(&mut self.next_token_modifiers);
+        self.infer_multiplication(group_start..group_start + 1);
+        self.push_new_node(AstNodeData::Group(group_ast), group_range);
 
+        Ok(())
+    }
+
+    fn next_identifier(&mut self, identifier: &Token) -> Result<()> {
+        match identifier.ty {
+            TokenType::Identifier => {
+                println!("text: {}", identifier.text);
+                if !is_valid_variable(&identifier.text) {
+                    return Err(ErrorType::UnknownVariable.with(identifier.range.clone()));
+                }
+
+                self.infer_multiplication(identifier.range.start..identifier.range.start + 1);
+                self.push_new_node(
+                    AstNodeData::VariableReference(identifier.text.clone()),
+                    identifier.range.clone(),
+                );
+
+                Ok(())
+            }
+            _ => panic!("Must pass TokenType::Identifier to Parser::next_identifier()!"),
+        }
+    }
+
+    fn push_new_node(&mut self, data: AstNodeData, range: std::ops::Range<usize>) {
+        let mut new_node = AstNode::new(data, range);
+        new_node.modifiers = mem::take(&mut self.next_token_modifiers);
+        self.result.push(new_node);
+    }
+
+    fn infer_multiplication(&mut self, range: std::ops::Range<usize>) {
         if let Some(last_ty) = self.last_token_ty {
             if last_ty.is_number() {
                 self.result.push(AstNode::new(
                     AstNodeData::Operator(Operator::Multiply),
-                    group_start..group_start + 1,
+                    range,
                 ));
             }
         }
-
-        self.result.push(new_node);
-
-        Ok(())
     }
 
     fn verify_valid_token(&self, token: &Token) -> Result<()> {

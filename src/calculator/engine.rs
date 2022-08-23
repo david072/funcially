@@ -2,6 +2,7 @@ use astgen::ast::Operator;
 use ::{match_ast_node, CalculatorResult, Format};
 use crate::astgen::ast::{AstNode, AstNodeData};
 use crate::common::*;
+use crate::variables::resolve as resolve_variable;
 
 pub fn evaluate(mut ast: Vec<AstNode>) -> Result<CalculatorResult> {
     if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
@@ -10,6 +11,7 @@ pub fn evaluate(mut ast: Vec<AstNode>) -> Result<CalculatorResult> {
         return Ok(CalculatorResult::new(result, ast[0].format));
     }
 
+    eval_variables(&mut ast)?;
     eval_groups(&mut ast)?;
     eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
     eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide])?;
@@ -24,6 +26,21 @@ pub fn evaluate(mut ast: Vec<AstNode>) -> Result<CalculatorResult> {
     Ok(CalculatorResult::new(result, format))
 }
 
+fn eval_variables(ast: &mut Vec<AstNode>) -> Result<()> {
+    for node in ast {
+        let var_name = match node.data {
+            AstNodeData::VariableReference(ref name) => name.as_str(),
+            _ => continue,
+        };
+
+        let result = resolve_variable(var_name, &node.range)?;
+        let new_node = AstNode::from(node, AstNodeData::Literal(result));
+        let _ = std::mem::replace(node, new_node);
+    }
+
+    Ok(())
+}
+
 fn eval_groups(ast: &mut Vec<AstNode>) -> Result<()> {
     for node in ast {
         let group_ast = match &node.data {
@@ -33,9 +50,7 @@ fn eval_groups(ast: &mut Vec<AstNode>) -> Result<()> {
 
         let group_result = evaluate(group_ast.clone())?;
         // Construct Literal node with the evaluated result
-        let mut new_node = AstNode::new(AstNodeData::Literal(group_result.result), node.range.clone());
-        new_node.format = node.format;
-        new_node.modifiers = node.modifiers.clone();
+        let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
         let _ = std::mem::replace(node, new_node);
     }
 
