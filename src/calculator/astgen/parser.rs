@@ -70,54 +70,7 @@ impl<'a> Parser<'a> {
         let token = &self.tokens[self.index];
         self.index += 1;
 
-        let mut allowed_tokens = self.all_tokens_tys.clone();
-
-        #[allow(unused_parens)]
-            let mut error_type = match self.last_token_ty {
-            Some(ty) => {
-                if ty != TokenType::In {
-                    remove_elems!(allowed_tokens, (|i| i.is_format()));
-                }
-
-                if ty.is_literal() {
-                    remove_elems!(allowed_tokens, (|i| i.is_literal()));
-                    ErrorType::ExpectedOperator
-                } else if ty.is_operator() {
-                    if ty == TokenType::In {
-                        remove_elems!(allowed_tokens, (|i| !i.is_format()));
-                        ErrorType::ExpectedFormat
-                    } else {
-                        remove_elems!(allowed_tokens, (|i| i.is_operator() || *i == TokenType::PercentSign));
-                        ErrorType::ExpectedNumber
-                    }
-                } else if ty.is_format() {
-                    remove_elems!(allowed_tokens, (|i| i.is_format() || !i.is_operator()));
-                    ErrorType::ExpectedOperator
-                } else {
-                    unreachable!()
-                }
-            }
-            None => {
-                remove_elems!(allowed_tokens, (|i| *i == TokenType::PercentSign || i.is_format() || i.is_operator()));
-                if token.ty.is_operator() || token.ty == TokenType::PercentSign {
-                    ErrorType::ExpectedNumber
-                } else if token.ty.is_format() {
-                    ErrorType::ExpectedIn
-                } else {
-                    ErrorType::Nothing
-                }
-            }
-        };
-
-        #[allow(unused_parens)]
-        if self.last_token_ty.is_some() && self.index == self.tokens.len() {
-            remove_elems!(allowed_tokens, (|i| i.is_operator()));
-            error_type = ErrorType::ExpectedNumber;
-        }
-
-        if !allowed_tokens.contains(&token.ty) {
-            return Err(error_type.with(token.range.clone()));
-        }
+        self.verify_valid_token(token)?;
 
         // Handle modifiers
         match token.ty {
@@ -185,6 +138,59 @@ impl<'a> Parser<'a> {
         new_node.modifiers = mem::take(&mut self.next_token_modifiers);
         self.result.push(new_node);
         Ok(Some(()))
+    }
+
+    fn verify_valid_token(&self, token: &Token) -> Result<()> {
+        let mut allowed_tokens = self.all_tokens_tys.clone();
+
+        #[allow(unused_parens)]
+            let mut error_type = match self.last_token_ty {
+            Some(ty) => {
+                if ty != TokenType::In {
+                    remove_elems!(allowed_tokens, (|i| i.is_format()));
+                }
+
+                if ty.is_literal() {
+                    remove_elems!(allowed_tokens, (|i| i.is_literal()));
+                    ErrorType::ExpectedOperator
+                } else if ty.is_operator() {
+                    if ty == TokenType::In {
+                        remove_elems!(allowed_tokens, (|i| !i.is_format()));
+                        ErrorType::ExpectedFormat
+                    } else {
+                        remove_elems!(allowed_tokens, (|i| i.is_operator() || *i == TokenType::PercentSign));
+                        ErrorType::ExpectedNumber
+                    }
+                } else if ty.is_format() {
+                    remove_elems!(allowed_tokens, (|i| i.is_format() || !i.is_operator()));
+                    ErrorType::ExpectedOperator
+                } else {
+                    unreachable!()
+                }
+            }
+            None => {
+                remove_elems!(allowed_tokens, (|i| *i == TokenType::PercentSign || i.is_format() || i.is_operator()));
+                if token.ty.is_operator() || token.ty == TokenType::PercentSign {
+                    ErrorType::ExpectedNumber
+                } else if token.ty.is_format() {
+                    ErrorType::ExpectedIn
+                } else {
+                    ErrorType::Nothing
+                }
+            }
+        };
+
+        #[allow(unused_parens)]
+        if self.last_token_ty.is_some() && self.index == self.tokens.len() {
+            remove_elems!(allowed_tokens, (|i| i.is_operator()));
+            error_type = ErrorType::ExpectedNumber;
+        }
+
+        if !allowed_tokens.contains(&token.ty) {
+            return Err(error_type.with(token.range.clone()));
+        }
+
+        Ok(())
     }
 }
 
