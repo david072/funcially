@@ -98,7 +98,7 @@ impl<'a> Tokenizer<'a> {
                     range: start..std::cmp::max(0, end),
                 }))
             }
-            None => Err(ErrorType::InvalidCharacter.with(start..start)),
+            None => Err(ErrorType::InvalidCharacter.with(start..end)),
         }
     }
 
