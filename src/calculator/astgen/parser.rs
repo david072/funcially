@@ -56,15 +56,15 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Result<Vec<AstNode>> {
-        while self.next()?.is_some() {}
+        while self.next()? {}
 
         let result = mem::take(&mut self.result);
         Ok(result)
     }
 
-    pub fn next(&mut self) -> Result<Option<()>> {
+    pub fn next(&mut self) -> Result<bool> {
         if self.index >= self.tokens.len() {
-            return Ok(None);
+            return Ok(false);
         }
 
         let token = &self.tokens[self.index];
@@ -80,20 +80,20 @@ impl<'a> Parser<'a> {
                         // Exclamation mark is factorial
                         let last_node = self.result.last_mut().unwrap();
                         last_node.modifiers.push(AstNodeModifier::Factorial);
-                        Ok(Some(()))
+                        Ok(true)
                     } else {
                         self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
-                        Ok(Some(()))
+                        Ok(true)
                     }
                 } else {
                     self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
-                    Ok(Some(()))
+                    Ok(true)
                 };
             }
             TokenType::PercentSign => {
                 let last_node = self.result.last_mut().unwrap();
                 last_node.modifiers.push(AstNodeModifier::Percent);
-                return Ok(Some(()));
+                return Ok(true);
             }
             _ => {}
         }
@@ -107,14 +107,14 @@ impl<'a> Parser<'a> {
                 TokenType::Binary => self.result.last_mut().unwrap().format = Format::Binary,
                 _ => unreachable!(),
             }
-            return Ok(Some(()));
+            return Ok(true);
         }
 
         // Handle groups
         if token.ty == TokenType::OpenBracket {
             self.next_group(token)?;
             self.last_token_ty = Some(token.ty);
-            return Ok(Some(()));
+            return Ok(true);
         }
 
         self.last_token_ty = Some(token.ty);
@@ -144,7 +144,7 @@ impl<'a> Parser<'a> {
         let mut new_node = AstNode::new(data, token.range.clone());
         new_node.modifiers = mem::take(&mut self.next_token_modifiers);
         self.result.push(new_node);
-        Ok(Some(()))
+        Ok(true)
     }
 
     fn next_group(&mut self, open_bracket_token: &Token) -> Result<()> {
