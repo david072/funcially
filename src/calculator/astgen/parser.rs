@@ -89,7 +89,7 @@ impl<'a> Parser<'a> {
         };
 
         #[allow(unused_parens)]
-        if let None = self.last_token_ty {
+        if self.last_token_ty.is_none() {
             remove_elems!(allowed_tokens, (|i| *i == TokenType::PercentSign));
             error_type = ErrorType::ExpectedNumber;
         }
@@ -165,9 +165,15 @@ mod tests {
     use crate::astgen::tokenizer::tokenize;
     use super::*;
 
+    macro_rules! parse {
+        ($input:expr) => {
+            parse(&tokenize($input)?)
+        }
+    }
+
     #[test]
     fn basic() -> Result<()> {
-        let ast = parse(&tokenize("1 - 3 + 4 * 5 / 6")?)?;
+        let ast = parse!("1 - 3 + 4 * 5 / 6")?;
         assert_eq!(ast.iter().map(|n| n.data).collect::<Vec<_>>(), vec![
             AstNodeData::Literal(1.0),
             AstNodeData::Operator(Operator::Minus),
@@ -183,8 +189,38 @@ mod tests {
     }
 
     #[test]
+    fn modifiers() -> Result<()> {
+        let ast = parse!("2! + 3% + !4 + 3!%")?;
+        assert_eq!(ast.iter()
+                       .filter(|n| matches!(n.data, AstNodeData::Literal(_)))
+                       .map(|n| &n.modifiers)
+                       .collect::<Vec<_>>(), vec![
+            &vec![AstNodeModifier::Factorial],
+            &vec![AstNodeModifier::Percent],
+            &vec![AstNodeModifier::BitwiseNot],
+            &vec![AstNodeModifier::Factorial, AstNodeModifier::Percent],
+        ] as Vec<&Vec<AstNodeModifier>>);
+        Ok(())
+    }
+
+    #[test]
+    fn extended_operators() -> Result<()> {
+        let ast = parse!("20% of 3 ^ 2 & 1 | 4")?;
+        assert_eq!(ast.iter()
+                       .filter(|n| matches!(n.data, AstNodeData::Operator(_)))
+                       .map(|n| n.data)
+                       .collect::<Vec<_>>(), vec![
+            AstNodeData::Operator(Operator::Of),
+            AstNodeData::Operator(Operator::Exponentiation),
+            AstNodeData::Operator(Operator::BitwiseAnd),
+            AstNodeData::Operator(Operator::BitwiseOr),
+        ]);
+        Ok(())
+    }
+
+    #[test]
     fn expected_operand() -> Result<()> {
-        let ast = parse(&tokenize("2 3 + 4")?);
+        let ast = parse!("2 3 + 4");
         assert!(ast.is_err());
         assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedOperator);
         Ok(())
@@ -192,7 +228,18 @@ mod tests {
 
     #[test]
     fn expected_number() -> Result<()> {
-        let ast = parse(&tokenize("2 ++ 4")?);
+        let ast = parse!("2 ++ 4");
+        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        let ast = parse!("2 +");
+        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        Ok(())
+    }
+
+    #[test]
+    fn percent_expected_number() -> Result<()> {
+        let ast = parse!("3 + %");
+        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        let ast = parse!("%");
         assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
         Ok(())
     }

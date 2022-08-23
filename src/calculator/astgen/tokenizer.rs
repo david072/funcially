@@ -218,6 +218,20 @@ mod tests {
     }
 
     #[test]
+    fn extended_operators() -> Result<()> {
+        let tokens = tokenize("^ & | ! of %")?;
+        assert_eq!(tokens, vec![
+            Token::new(TokenType::Exponentiation, "^", 0..1),
+            Token::new(TokenType::BitwiseAnd, "&", 2..3),
+            Token::new(TokenType::BitwiseOr, "|", 4..5),
+            Token::new(TokenType::ExclamationMark, "!", 6..7),
+            Token::new(TokenType::Of, "of", 8..10),
+            Token::new(TokenType::PercentSign, "%", 11..12),
+        ]);
+        Ok(())
+    }
+
+    #[test]
     fn floats() -> Result<()> {
         let tokens = tokenize("0.23 .23")?;
         assert_eq!(tokens, vec![
