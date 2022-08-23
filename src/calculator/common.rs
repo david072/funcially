@@ -8,6 +8,7 @@ pub enum ErrorType {
     // tokenizer
     InvalidCharacter,
     InvalidNumber,
+    UnknownWord,
 
     // parser
     ExpectedNumber,

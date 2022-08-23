@@ -5,11 +5,14 @@ use std::ops::Range;
 #[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Whitespace,
+    // Literals
     DecimalLiteral,
     HexLiteral,
     BinaryLiteral,
+    // Brackets
     OpenBracket,
     CloseBracket,
+    // Operators
     Plus,
     Minus,
     Multiply,
@@ -17,10 +20,12 @@ pub enum TokenType {
     Exponentiation,
     BitwiseAnd,
     BitwiseOr,
-    ExclamationMark,
-    PercentSign,
     Of,
     In,
+    // Modifiers
+    ExclamationMark,
+    PercentSign,
+    // Formats
     Decimal,
     Hex,
     Binary,
@@ -80,6 +85,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 }
 
 const NUMBERS: &[u8] = b"0123456789";
+const LETTERS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const HEXADECIMAL_CHARS: &[u8] = b"0123456789abcdefABCDEF";
 const BINARY_DIGITS: &[u8] = b"01";
 const WHITESPACE: &[u8] = b" \t\r\n";
@@ -111,8 +117,20 @@ impl<'a> Tokenizer<'a> {
         let end = self.index;
 
         match next_ty {
-            Some(ty) => {
-                let slice = self.string[start..end].to_owned();
+            Some(mut ty) => {
+                let slice = self.string[start..end].to_ascii_lowercase();
+
+                if ty == TokenType::Identifier {
+                    ty = match slice.as_slice() {
+                        b"of" => TokenType::Of,
+                        b"in" => TokenType::In,
+                        b"decimal" => TokenType::Decimal,
+                        b"hex" => TokenType::Hex,
+                        b"binary" => TokenType::Binary,
+                        _ => return Err(ErrorType::UnknownWord.with(start..end)),
+                    };
+                }
+
                 Ok(Some(Token {
                     ty,
                     text: String::from_utf8(slice).unwrap(),
@@ -136,30 +154,11 @@ impl<'a> Tokenizer<'a> {
         false
     }
 
-    fn accept_str(&mut self, str: &str) -> bool {
-        for (i, c) in str.bytes().enumerate() {
-            if self.index + i >= self.string.len() { return false; }
-            let uppercase_c = c - (b'a' - b'A');
-            if self.string[self.index + i] != c && self.string[self.index + i] != uppercase_c {
-                return false;
-            }
-        }
-
-        self.index += str.len();
-        true
-    }
-
     fn next_type(&mut self) -> Option<TokenType> {
         if self.accept(any_of(WHITESPACE)) {
             while self.accept(any_of(WHITESPACE)) {}
             return Some(TokenType::Whitespace);
         }
-
-        if self.accept_str("of") { return Some(TokenType::Of); }
-        if self.accept_str("in") { return Some(TokenType::In); }
-        if self.accept_str("decimal") { return Some(TokenType::Decimal); }
-        if self.accept_str("hex") { return Some(TokenType::Hex); }
-        if self.accept_str("binary") { return Some(TokenType::Binary); }
 
         let c = self.string[self.index];
         self.index += 1;
@@ -192,6 +191,10 @@ impl<'a> Tokenizer<'a> {
                 self.accept(any_of(b"."));
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
+            }
+            b'a'..=b'z' | b'A'..=b'Z' => {
+                while self.accept(any_of(LETTERS)) {}
+                Some(TokenType::Identifier)
             }
             b'.' => {
                 while self.accept(any_of(NUMBERS)) {}
