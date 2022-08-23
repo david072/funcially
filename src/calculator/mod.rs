@@ -11,6 +11,7 @@ use common::Result;
 use astgen::parser::parse;
 use astgen::tokenizer::tokenize;
 use engine::evaluate;
+use variables::Variables;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -56,23 +57,35 @@ impl CalculatorResult {
     }
 }
 
-pub fn calculate(input: &str, verbosity: Verbosity) -> Result<CalculatorResult> {
-    let tokens = tokenize(input)?;
-    if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
-        println!("Tokens:");
-        for token in &tokens {
-            println!("{} => {:?}", token.text, token.ty);
-        }
+pub struct Calculator {
+    variables: Variables,
+}
+
+impl Calculator {
+    pub fn new() -> Calculator {
+        Calculator { variables: Variables::new() }
     }
 
-    let ast = parse(&tokens)?;
-    if matches!(verbosity, Verbosity::Ast) {
-        println!("AST:");
-        for node in &ast {
-            println!("{}", node);
+    pub fn calculate(&mut self, input: &str, verbosity: Verbosity) -> Result<CalculatorResult> {
+        let tokens = tokenize(input)?;
+        if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
+            println!("Tokens:");
+            for token in &tokens {
+                println!("{} => {:?}", token.text, token.ty);
+            }
         }
-    }
 
-    let result = evaluate(ast)?;
-    Ok(result)
+        let ast = parse(&tokens)?;
+        if matches!(verbosity, Verbosity::Ast) {
+            println!("AST:");
+            for node in &ast {
+                println!("{}", node);
+            }
+        }
+
+        let result = evaluate(ast, &self.variables)?;
+        self.variables.set("ans", result.result);
+
+        Ok(result)
+    }
 }

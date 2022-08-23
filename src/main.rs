@@ -3,7 +3,7 @@ extern crate clap;
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
-use calculator::{calculate, Verbosity, Format};
+use calculator::{Verbosity, Format, Calculator};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -30,6 +30,8 @@ fn main() {
         None => Verbosity::None,
     };
 
+    let mut calculator = Calculator::new();
+
     // TODO: Properly handle CTRL-C
     loop {
         print!("> ");
@@ -42,7 +44,7 @@ fn main() {
         match input.as_str() {
             "quit" | "exit" => break,
             _ => {
-                match calculate(&input, verbosity) {
+                match calculator.calculate(&input, verbosity) {
                     Ok(res) => {
                         let n = res.result;
                         match res.format {

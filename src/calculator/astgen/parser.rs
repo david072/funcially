@@ -5,7 +5,6 @@ use crate::common::*;
 use crate::variables::is_valid_variable;
 use strum::IntoEnumIterator;
 use std::mem;
-use std::process::id;
 
 pub fn parse(tokens: &[Token]) -> Result<Vec<AstNode>> {
     let mut parser = Parser::new(tokens);
@@ -198,7 +197,6 @@ impl<'a> Parser<'a> {
     fn next_identifier(&mut self, identifier: &Token) -> Result<()> {
         match identifier.ty {
             TokenType::Identifier => {
-                println!("text: {}", identifier.text);
                 if !is_valid_variable(&identifier.text) {
                     return Err(ErrorType::UnknownVariable.with(identifier.range.clone()));
                 }

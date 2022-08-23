@@ -11,12 +11,12 @@ A calculator working purely with text inputs.
     - [ ] Inferred multiplication
       - [x] Groups
       - [ ] Functions
-      - [ ] Variables
+      - [x] Variables
 - [x] Groups
 - [ ] Functions
-- [ ] Variables
+- [x] Variables
   - [x] Builtin Variables
-  - [ ] "ans" variable
+  - [x] "ans" variable
 - [x] Percentages
     - [x] Percentage modifier
     - [x] "of" operator
