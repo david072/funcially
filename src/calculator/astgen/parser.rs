@@ -6,18 +6,26 @@ use crate::variables::is_valid_variable;
 use strum::IntoEnumIterator;
 use std::mem;
 
-pub fn parse(tokens: &[Token]) -> Result<Vec<AstNode>> {
-    let mut parser = Parser::new(tokens);
+pub enum ParserResult {
+    Calculation(Vec<AstNode>),
+    EqualityCheck(Vec<AstNode>, Vec<AstNode>),
+}
+
+pub fn parse(tokens: &[Token]) -> Result<ParserResult> {
+    let mut parser = Parser::new(tokens, 0);
     let result = parser.parse()?;
     Ok(result)
 }
 
 struct Parser<'a> {
     tokens: &'a [Token],
+    nesting_level: usize,
+
     index: usize,
     all_tokens_tys: Vec<TokenType>,
     last_token_ty: Option<TokenType>,
     next_token_modifiers: Vec<AstNodeModifier>,
+    equals_sign_index: Option<usize>,
     result: Vec<AstNode>,
 }
 
@@ -45,22 +53,29 @@ macro_rules! ok_operator {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token]) -> Parser {
+    pub fn new(tokens: &'a [Token], nesting_level: usize) -> Parser {
         Parser {
             tokens,
+            nesting_level,
             index: 0,
             all_tokens_tys: TokenType::iter().collect(),
             last_token_ty: None,
             next_token_modifiers: Vec::new(),
+            equals_sign_index: None,
             result: Vec::new(),
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<AstNode>> {
+    pub fn parse(&mut self) -> Result<ParserResult> {
         while self.next()? {}
 
         let result = mem::take(&mut self.result);
-        Ok(result)
+        if let Some(index) = self.equals_sign_index {
+            let (lhs, rhs) = result.split_at(index);
+            Ok(ParserResult::EqualityCheck(lhs.to_vec(), rhs.to_vec()))
+        } else {
+            Ok(ParserResult::Calculation(result))
+        }
     }
 
     pub fn next(&mut self) -> Result<bool> {
@@ -121,6 +136,19 @@ impl<'a> Parser<'a> {
         // Handle variables
         if token.ty == TokenType::Identifier {
             self.next_identifier(token)?;
+            self.last_token_ty = Some(token.ty);
+            return Ok(true);
+        }
+
+        if token.ty == TokenType::EqualsSign {
+            if self.nesting_level != 0 {
+                return Err(ErrorType::UnexpectedEqualsSign.with(token.range.clone()));
+            }
+            else if self.equals_sign_index.is_some() {
+                return Err(ErrorType::UnexpectedSecondEqualsSign.with(token.range.clone()));
+            }
+
+            self.equals_sign_index = Some(self.index - 1);
             self.last_token_ty = Some(token.ty);
             return Ok(true);
         }
@@ -186,7 +214,10 @@ impl<'a> Parser<'a> {
         }
 
         let group_tokens = &self.tokens[group_start..group_end - 1];
-        let group_ast = Parser::new(group_tokens).parse()?;
+        let group_ast = match Parser::new(group_tokens, self.nesting_level + 1).parse()? {
+            ParserResult::Calculation(ast) => ast,
+            ParserResult::EqualityCheck(_, _) => unreachable!(),
+        };
 
         self.infer_multiplication(group_start..group_start + 1);
         self.push_new_node(AstNodeData::Group(group_ast), group_range);

@@ -31,6 +31,7 @@ pub enum TokenType {
     Binary,
     // Identifier
     Identifier,
+    EqualsSign
 }
 
 impl TokenType {
@@ -58,7 +59,8 @@ impl TokenType {
             | Self::BitwiseAnd
             | Self::BitwiseOr
             | Self::Of
-            | Self::In)
+            | Self::In
+            | Self::EqualsSign) // '=' has the same rules as an operator
     }
 
     pub fn is_format(&self) -> bool {
@@ -221,6 +223,7 @@ impl<'a> Tokenizer<'a> {
             b'%' => Some(TokenType::PercentSign),
             b'(' => Some(TokenType::OpenBracket),
             b')' => Some(TokenType::CloseBracket),
+            b'=' => Some(TokenType::EqualsSign),
             _ => None
         }
     }

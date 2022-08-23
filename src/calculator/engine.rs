@@ -1,14 +1,25 @@
 use astgen::ast::Operator;
-use ::{match_ast_node, CalculatorResult, Format};
+use ::{match_ast_node, Format};
 use Variables;
 use crate::astgen::ast::{AstNode, AstNodeData};
 use crate::common::*;
 
-pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<CalculatorResult> {
+pub struct CalculationResult {
+    pub result: f64,
+    pub format: Format,
+}
+
+impl CalculationResult {
+    pub fn new(result: f64, format: Format) -> CalculationResult {
+        CalculationResult { result, format }
+    }
+}
+
+pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<CalculationResult> {
     if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
         ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-        return Ok(CalculatorResult::new(result, ast[0].format));
+        return Ok(CalculationResult::new(result, ast[0].format));
     }
 
     eval_variables(&mut ast, variables)?;
@@ -23,7 +34,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
     let format = ast[0].format;
     if format != Format::Decimal { result = result.trunc(); }
 
-    Ok(CalculatorResult::new(result, format))
+    Ok(CalculationResult::new(result, format))
 }
 
 fn eval_variables(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {

@@ -20,7 +20,7 @@ A calculator working purely with text inputs.
 - [x] Percentages
     - [x] Percentage modifier
     - [x] "of" operator
-- [ ] Equality checks
+- [x] Equality checks
 - [ ] Units
     - [ ] Unit suffixes
     - [ ] "in" operator

@@ -3,7 +3,7 @@ extern crate clap;
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
-use calculator::{Verbosity, Format, Calculator};
+use calculator::{Verbosity, Format, Calculator, CalculatorResult};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -46,13 +46,17 @@ fn main() {
             _ => {
                 match calculator.calculate(&input, verbosity) {
                     Ok(res) => {
-                        let n = res.result;
-                        match res.format {
-                            Format::Decimal => println!("= {}", n),
-                            Format::Hex => println!("= {:#X}", n as i64),
-                            Format::Binary => println!("= {:#b}", n as i64),
+                        match res {
+                            CalculatorResult::Number { result: n, format } => {
+                                match format {
+                                    Format::Decimal => println!("= {}", n),
+                                    Format::Hex => println!("= {:#X}", n as i64),
+                                    Format::Binary => println!("= {:#b}", n as i64),
+                                }
+                            }
+                            CalculatorResult::Boolean(b) => println!("=> {}", if b { "True" } else { "False" }),
                         }
-                    },
+                    }
                     Err(error) => {
                         println!("An error occured: {:?}", error.error);
 

@@ -231,7 +231,7 @@ impl Display for AstNode {
                                                    self.format),
             AstNodeData::Operator(ref operator) => write!(f, "Operator: {:?}", operator),
             AstNodeData::Group(ref ast) => {
-                write!(f, "{}Group{} ({}):", self.prefix_modifiers(), self.suffix_modifiers(), self.format)?;
+                writeln!(f, "{}Group{} ({}):", self.prefix_modifiers(), self.suffix_modifiers(), self.format)?;
 
                 for (i, node) in ast.iter().enumerate() {
                     for _ in 0..f.width().unwrap_or(0) + 4 {

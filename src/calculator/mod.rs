@@ -8,12 +8,12 @@ mod variables;
 
 use std::fmt::{Display, Formatter};
 use common::Result;
-use astgen::parser::parse;
+use astgen::parser::{parse, ParserResult};
 use astgen::tokenizer::tokenize;
 use engine::evaluate;
 use variables::Variables;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Verbosity {
     None,
     Tokens,
@@ -46,19 +46,32 @@ impl Display for Format {
 }
 
 /// A struct containing information about the calculated result
-pub struct CalculatorResult {
-    pub result: f64,
-    pub format: Format,
+pub enum CalculatorResult {
+    Number {
+        result: f64,
+        format: Format,
+    },
+    Boolean(bool),
 }
 
 impl CalculatorResult {
-    pub fn new(result: f64, format: Format) -> CalculatorResult {
-        CalculatorResult { result, format }
+    pub fn number(result: f64, format: Format) -> CalculatorResult {
+        CalculatorResult::Number { result, format }
+    }
+
+    pub fn bool(bool: bool) -> CalculatorResult {
+        CalculatorResult::Boolean(bool)
     }
 }
 
 pub struct Calculator {
     variables: Variables,
+}
+
+impl Default for Calculator {
+    fn default() -> Self {
+        Calculator::new()
+    }
 }
 
 impl Calculator {
@@ -73,19 +86,36 @@ impl Calculator {
             for token in &tokens {
                 println!("{} => {:?}", token.text, token.ty);
             }
+            println!();
         }
 
-        let ast = parse(&tokens)?;
-        if matches!(verbosity, Verbosity::Ast) {
-            println!("AST:");
-            for node in &ast {
-                println!("{}", node);
+        match parse(&tokens)? {
+            ParserResult::Calculation(ast) => {
+                if verbosity == Verbosity::Ast {
+                    println!("AST:");
+                    for node in &ast { println!("{}", node); }
+                    println!();
+                }
+
+                let result = evaluate(ast, &self.variables)?;
+                self.variables.set("ans", result.result);
+
+                Ok(CalculatorResult::number(result.result, result.format))
+            }
+            ParserResult::EqualityCheck(lhs, rhs) => {
+                if verbosity == Verbosity::Ast {
+                    println!("Equality check:\nLHS:");
+                    for node in &lhs { println!("{}", node); }
+                    println!("RHS:");
+                    for node in &rhs { println!("{}", node); }
+                    println!();
+                }
+
+                let lhs_res = evaluate(lhs, &self.variables)?.result;
+                let rhs_res = evaluate(rhs, &self.variables)?.result;
+
+                Ok(CalculatorResult::bool(lhs_res == rhs_res))
             }
         }
-
-        let result = evaluate(ast, &self.variables)?;
-        self.variables.set("ans", result.result);
-
-        Ok(result)
     }
 }
