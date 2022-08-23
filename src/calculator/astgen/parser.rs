@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn basic() -> Result<()> {
         let ast = parse!("1 - 3 + 4 * 5 / 6")?;
-        assert_eq!(ast.iter().map(|n| n.data).collect::<Vec<_>>(), vec![
+        assert_eq!(ast.iter().map(|n| n.data.clone()).collect::<Vec<_>>(), vec![
             AstNodeData::Literal(1.0),
             AstNodeData::Operator(Operator::Minus),
             AstNodeData::Literal(3.0),
@@ -292,7 +292,7 @@ mod tests {
         let ast = parse!("20% of 3 ^ 2 & 1 | 4")?;
         assert_eq!(ast.iter()
                        .filter(|n| matches!(n.data, AstNodeData::Operator(_)))
-                       .map(|n| n.data)
+                       .map(|n| n.data.clone())
                        .collect::<Vec<_>>(), vec![
             AstNodeData::Operator(Operator::Of),
             AstNodeData::Operator(Operator::Exponentiation),

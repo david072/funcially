@@ -84,44 +84,44 @@ mod tests {
     #[test]
     fn only_one() -> Result<()> {
         let result = eval!("3");
-        assert_eq!(result, 3.0);
+        assert_eq!(result.result, 3.0);
         Ok(())
     }
 
     #[test]
     fn plus_and_minus() -> Result<()> {
         let result = eval!("3 + 5 - -2");
-        assert_eq!(result, 10.0);
+        assert_eq!(result.result, 10.0);
         Ok(())
     }
 
     #[test]
     fn multiply_and_divide() -> Result<()> {
         let result = eval!("3 * 2 / 3");
-        assert_eq!(result, 2.0);
+        assert_eq!(result.result, 2.0);
         Ok(())
     }
 
     #[test]
     fn extended_operators() -> Result<()> {
         let result = eval!("3 ^ 3 | 2 & 10");
-        assert_eq!(result, 10.0);
+        assert_eq!(result.result, 10.0);
         Ok(())
     }
 
     #[test]
     fn modifiers() -> Result<()> {
         let result = eval!("4!%");
-        assert_eq!(result, 0.24);
+        assert_eq!(result.result, 0.24);
         let result = eval!("!5");
-        assert_eq!(result, 2.0);
+        assert_eq!(result.result, 2.0);
         Ok(())
     }
 
     #[test]
     fn operator_order() -> Result<()> {
         let result = eval!("2% of 3 ^ 2 + 3 + 4 * 2");
-        assert_eq!(result, 0.4);
+        assert_eq!(result.result, 0.4);
         Ok(())
     }
 }

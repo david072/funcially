@@ -1,6 +1,6 @@
 use ::Format;
 use crate::common::*;
-use std::fmt::{Formatter, Display};
+use std::fmt::{Formatter, Display, Debug};
 use std::ops::Range;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -21,6 +21,17 @@ pub enum AstNodeData {
     Literal(f64),
     Operator(Operator),
     Group(Vec<AstNode>),
+}
+
+impl Debug for AstNodeData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AstNodeData::")?;
+        match self {
+            AstNodeData::Literal(n) => write!(f, "Literal({:?})", n),
+            AstNodeData::Operator(op) => write!(f, "Operator({:?})", op),
+            AstNodeData::Group(_) => write!(f, "Group(...)"),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
