@@ -2,9 +2,10 @@ extern crate strum;
 extern crate core;
 
 mod astgen;
-pub mod common;
+mod common;
 mod engine;
 
+use std::fmt::{Display, Formatter};
 use common::Result;
 use astgen::parser::parse;
 use astgen::tokenizer::tokenize;
@@ -29,7 +30,32 @@ impl std::str::FromStr for Verbosity {
     }
 }
 
-pub fn calculate(input: &str, verbosity: Verbosity) -> Result<f64> {
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum Format { Decimal, Hex, Binary }
+
+impl Display for Format {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Format::Decimal => write!(f, "decimal"),
+            Format::Hex => write!(f, "hex"),
+            Format::Binary => write!(f, "binary"),
+        }
+    }
+}
+
+/// A struct containing information about the calculated result
+pub struct CalculatorResult {
+    pub result: f64,
+    pub format: Format,
+}
+
+impl CalculatorResult {
+    pub fn new(result: f64, format: Format) -> CalculatorResult {
+        CalculatorResult { result, format }
+    }
+}
+
+pub fn calculate(input: &str, verbosity: Verbosity) -> Result<CalculatorResult> {
     let tokens = tokenize(input)?;
     if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
         println!("Tokens:");

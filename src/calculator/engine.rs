@@ -1,13 +1,13 @@
 use astgen::ast::Operator;
-use match_ast_node;
+use ::{match_ast_node, CalculatorResult, Format};
 use crate::astgen::ast::{AstNode, AstNodeData};
 use crate::common::*;
 
-pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
+pub fn evaluate(mut ast: Vec<AstNode>) -> Result<CalculatorResult> {
     if ast.len() == 1 {
         ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-        return Ok(result);
+        return Ok(CalculatorResult::new(result, ast[0].format));
     }
 
     eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
@@ -15,10 +15,12 @@ pub fn evaluate(mut ast: Vec<AstNode>) -> Result<f64> {
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
     eval_operators(&mut ast, &[Operator::Of])?;
 
-    assert_eq!(ast.len(), 1);
     ast[0].apply_modifiers()?;
-    let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-    Ok(result)
+    let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
+    let format = ast[0].format;
+    if format != Format::Decimal { result = result.trunc(); }
+
+    Ok(CalculatorResult::new(result, format))
 }
 
 fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> {

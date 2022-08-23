@@ -1,3 +1,4 @@
+use ::Format;
 use crate::common::*;
 use crate::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
 use crate::astgen::tokenizer::{Token, TokenType};
@@ -74,28 +75,42 @@ impl<'a> Parser<'a> {
         #[allow(unused_parens)]
             let mut error_type = match self.last_token_ty {
             Some(ty) => {
+                if ty != TokenType::In {
+                    remove_elems!(allowed_tokens, (|i| i.is_format()));
+                }
+
                 if ty.is_literal() {
                     remove_elems!(allowed_tokens, (|i| i.is_literal()));
                     ErrorType::ExpectedOperator
                 } else if ty.is_operator() {
-                    remove_elems!(allowed_tokens, (|i| i.is_operator() || *i == TokenType::PercentSign));
-                    ErrorType::ExpectedNumber
+                    if ty == TokenType::In {
+                        remove_elems!(allowed_tokens, (|i| !i.is_format()));
+                        ErrorType::ExpectedFormat
+                    } else {
+                        remove_elems!(allowed_tokens, (|i| i.is_operator() || *i == TokenType::PercentSign));
+                        ErrorType::ExpectedNumber
+                    }
+                } else if ty.is_format() {
+                    remove_elems!(allowed_tokens, (|i| i.is_format() || !i.is_operator()));
+                    ErrorType::ExpectedOperator
                 } else {
                     unreachable!()
                 }
             }
-            // if this is matched, there should never be an error
-            None => ErrorType::Nothing,
+            None => {
+                remove_elems!(allowed_tokens, (|i| *i == TokenType::PercentSign || i.is_format() || i.is_operator()));
+                if token.ty.is_operator() || token.ty == TokenType::PercentSign {
+                    ErrorType::ExpectedNumber
+                } else if token.ty.is_format() {
+                    ErrorType::ExpectedIn
+                } else {
+                    ErrorType::Nothing
+                }
+            }
         };
 
         #[allow(unused_parens)]
-        if self.last_token_ty.is_none() {
-            remove_elems!(allowed_tokens, (|i| *i == TokenType::PercentSign));
-            error_type = ErrorType::ExpectedNumber;
-        }
-
-        #[allow(unused_parens)]
-        if self.index == self.tokens.len() {
+        if self.last_token_ty.is_some() && self.index == self.tokens.len() {
             remove_elems!(allowed_tokens, (|i| i.is_operator()));
             error_type = ErrorType::ExpectedNumber;
         }
@@ -132,6 +147,18 @@ impl<'a> Parser<'a> {
 
         self.last_token_ty = Some(token.ty);
 
+        // Handle formats
+        if token.ty.is_format() {
+            self.result.remove(self.result.len() - 1);
+            match token.ty {
+                TokenType::Decimal => self.result.last_mut().unwrap().format = Format::Decimal,
+                TokenType::Hex => self.result.last_mut().unwrap().format = Format::Hex,
+                TokenType::Binary => self.result.last_mut().unwrap().format = Format::Binary,
+                _ => unreachable!(),
+            }
+            return Ok(Some(()))
+        }
+
         let data = match token.ty {
             TokenType::DecimalLiteral => {
                 let number = match token.text.parse() {
@@ -150,6 +177,7 @@ impl<'a> Parser<'a> {
             TokenType::BitwiseAnd => ok_operator!(BitwiseAnd),
             TokenType::BitwiseOr => ok_operator!(BitwiseOr),
             TokenType::Of => ok_operator!(Of),
+            TokenType::In => ok_operator!(In),
             _ => unreachable!(),
         }?;
 

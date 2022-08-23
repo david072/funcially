@@ -19,7 +19,7 @@ A calculator working purely with text inputs.
 - [ ] Units
     - [ ] Unit suffixes
     - [ ] "in" operator
-        - [ ] Converting between representations
+        - [x] Converting between representations
 
 # Literals
 

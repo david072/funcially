@@ -18,6 +18,10 @@ pub enum TokenType {
     ExclamationMark,
     PercentSign,
     Of,
+    In,
+    Decimal,
+    Hex,
+    Binary,
 }
 
 impl TokenType {
@@ -33,7 +37,12 @@ impl TokenType {
             | Self::Exponentiation
             | Self::BitwiseAnd
             | Self::BitwiseOr
-            | Self::Of)
+            | Self::Of
+            | Self::In)
+    }
+
+    pub fn is_format(&self) -> bool {
+        matches!(self, Self::Decimal | Self::Hex | Self::Binary)
     }
 }
 
@@ -115,11 +124,30 @@ impl<'a> Tokenizer<'a> {
         false
     }
 
+    fn accept_str(&mut self, str: &str) -> bool {
+        for (i, c) in str.bytes().enumerate() {
+            if self.index + i >= self.string.len() { return false; }
+            let uppercase_c = c - (b'a' - b'A');
+            if self.string[self.index + i] != c && self.string[self.index + i] != uppercase_c {
+                return false;
+            }
+        }
+
+        self.index += str.len();
+        true
+    }
+
     fn next_type(&mut self) -> Option<TokenType> {
         if self.accept(any_of(WHITESPACE)) {
             while self.accept(any_of(WHITESPACE)) {}
             return Some(TokenType::Whitespace);
         }
+
+        if self.accept_str("of") { return Some(TokenType::Of); }
+        if self.accept_str("in") { return Some(TokenType::In); }
+        if self.accept_str("decimal") { return Some(TokenType::Decimal); }
+        if self.accept_str("hex") { return Some(TokenType::Hex); }
+        if self.accept_str("binary") { return Some(TokenType::Binary); }
 
         let c = self.string[self.index];
         self.index += 1;
@@ -163,11 +191,6 @@ impl<'a> Tokenizer<'a> {
                 self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
-            }
-            b'o' | b'O' if self.index < self.string.len() &&
-                matches!(self.string[self.index], b'f' | b'F') => {
-                self.index += 1;
-                Some(TokenType::Of)
             }
             b'+' => Some(TokenType::Plus),
             b'-' => Some(TokenType::Minus),

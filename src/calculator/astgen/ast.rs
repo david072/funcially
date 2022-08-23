@@ -1,3 +1,4 @@
+use ::Format;
 use crate::common::*;
 use std::fmt::{Formatter, Display};
 use std::ops::Range;
@@ -12,6 +13,7 @@ pub enum Operator {
     BitwiseAnd,
     BitwiseOr,
     Of,
+    In,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -46,6 +48,7 @@ impl Display for AstNodeModifier {
 pub struct AstNode {
     pub data: AstNodeData,
     pub modifiers: Vec<AstNodeModifier>,
+    pub format: Format,
     pub range: Range<usize>,
     did_apply_modifiers: bool,
 }
@@ -79,6 +82,7 @@ impl AstNode {
         AstNode {
             data,
             modifiers: Vec::new(),
+            format: Format::Decimal,
             range,
             did_apply_modifiers: false,
         }
@@ -91,6 +95,8 @@ impl AstNode {
         let lhs = match_ast_node!(AstNodeData::Literal(ref mut lhs), lhs, self);
         let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
         let rhs_value = match_ast_node!(AstNodeData::Literal(rhs), rhs, rhs);
+
+        self.format = rhs.format;
 
         match op {
             Operator::Multiply => *lhs *= rhs_value,
@@ -116,6 +122,7 @@ impl AstNode {
                     ExpectedPercentage, self.range);
                 *lhs *= rhs_value;
             }
+            Operator::In => {}
         }
 
         Ok(())
@@ -166,7 +173,7 @@ impl Display for AstNode {
                 for ref m in prefixes {
                     write!(f, "{}", m)?;
                 }
-                write!(f, "Number: {}", number)?;
+                write!(f, "Number: {} ({})", number, self.format)?;
                 for ref m in suffixes {
                     write!(f, "{}", m)?;
                 }

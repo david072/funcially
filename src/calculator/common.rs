@@ -12,6 +12,8 @@ pub enum ErrorType {
     // parser
     ExpectedNumber,
     ExpectedOperator,
+    ExpectedIn,
+    ExpectedFormat,
 
     // engine
     DivideByZero,
@@ -49,7 +51,7 @@ pub mod math {
             _ => {
                 let factor = if num.is_negative() { -1 } else { 1 };
                 factor * factorial(num.abs() - 1) * num
-            },
+            }
         }
     }
 }
