@@ -594,7 +594,7 @@ mod tests {
     #[test]
     fn unknown_variable() -> Result<()> {
         let ast = parse!("asdf");
-        assert_error_type!(ast, UnknownVariable);
+        assert_error_type!(ast, UnknownIdentifier);
         Ok(())
     }
 }
