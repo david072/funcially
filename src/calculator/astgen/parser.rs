@@ -282,20 +282,25 @@ impl<'a> Parser<'a> {
             self.index += 1;
             match token.ty {
                 TokenType::Comma => {
+                    if argument_start == self.index - 1 {
+                        error!(ExpectedElements(self.tokens[self.index - 1].range));
+                    }
                     let argument = &self.tokens[argument_start..self.index - 1];
                     match parse(argument)? {
                         ParserResult::Calculation(ast) => arguments.push(ast),
                         ParserResult::EqualityCheck(_, _) => unreachable!(),
                     }
-                    argument_start = self.index + 1;
+                    argument_start = self.index;
                 }
                 TokenType::CloseBracket => {
                     nesting_level -= 1;
                     if nesting_level == 0 {
-                        let argument = &self.tokens[argument_start..self.index - 1];
-                        match parse(argument)? {
-                            ParserResult::Calculation(ast) => arguments.push(ast),
-                            ParserResult::EqualityCheck(_, _) => unreachable!(),
+                        if argument_start != self.index - 1 {
+                            let argument = &self.tokens[argument_start..self.index - 1];
+                            match parse(argument)? {
+                                ParserResult::Calculation(ast) => arguments.push(ast),
+                                ParserResult::EqualityCheck(_, _) => unreachable!(),
+                            }
                         }
                         finished = true;
                         break;

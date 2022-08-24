@@ -24,6 +24,7 @@ pub enum ErrorType {
     UnknownFunction,
     WrongNumberOfArguments,
     UnexpectedUnit,
+    ExpectedElements,
 
     // engine
     DivideByZero,
