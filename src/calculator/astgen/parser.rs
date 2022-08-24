@@ -247,9 +247,15 @@ impl<'a> Parser<'a> {
                     self.next_function(identifier)?;
                     Ok(())
                 } else if is_valid_unit(&identifier.text) {
+                    if matches!(self.last_token_ty, Some(TokenType::In)) {
+                        self.push_new_node(AstNodeData::Unit(identifier.text.clone()), identifier.range.clone());
+                        return Ok(());
+                    }
+
                     if !matches!(self.last_token_ty, Some(_)) || !self.last_token_ty.unwrap().is_number() {
                         error!(ExpectedNumber(identifier.range));
                     }
+
                     let last = self.result.last_mut().unwrap();
                     if last.unit.is_some() {
                         error!(UnexpectedUnit(identifier.range));
@@ -364,6 +370,7 @@ impl<'a> Parser<'a> {
                 } else if ty.is_operator() {
                     if ty == TokenType::In {
                         remove_elems!(allowed_tokens, (|i| !i.is_format()));
+                        allowed_tokens.push(TokenType::Identifier);
                         ErrorType::ExpectedFormat
                     } else {
                         remove_elems!(allowed_tokens, (|i| i.is_operator() || *i == TokenType::PercentSign));

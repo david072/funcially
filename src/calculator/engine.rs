@@ -32,7 +32,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
     eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
     eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide])?;
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
-    eval_operators(&mut ast, &[Operator::Of])?;
+    eval_operators(&mut ast, &[Operator::Of, Operator::In])?;
 
     ast[0].apply_modifiers()?;
     let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);

@@ -24,6 +24,7 @@ pub enum AstNodeData {
     Group(Vec<AstNode>),
     VariableReference(String),
     FunctionInvocation(String, Vec<Vec<AstNode>>),
+    Unit(String),
 }
 
 impl Debug for AstNodeData {
@@ -35,6 +36,7 @@ impl Debug for AstNodeData {
             AstNodeData::Group(ast) => write!(f, "Group({:?})", ast),
             AstNodeData::VariableReference(name) => write!(f, "VariableReference({})", name),
             AstNodeData::FunctionInvocation(name, args) => write!(f, "FunctionInvocation({}, {:?})", name, args),
+            AstNodeData::Unit(name) => write!(f, "Unit({})", name),
         }
     }
 }
@@ -125,14 +127,26 @@ impl AstNode {
 
         let lhs = match_ast_node!(AstNodeData::Literal(ref mut lhs), lhs, self);
         let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
+
+        if op == Operator::In {
+            let rhs_value = match_ast_node!(AstNodeData::Unit(ref name), name, rhs);
+            if self.unit.is_none() {
+                self.unit = Some(rhs_value.clone());
+                return Ok(());
+            }
+
+            *lhs = convert(self.unit.as_ref().unwrap(), rhs_value, *lhs);
+            self.unit = Some(rhs_value.clone());
+            return Ok(());
+        }
+
         let mut rhs_value = match_ast_node!(AstNodeData::Literal(rhs), rhs, rhs);
 
         self.format = rhs.format;
 
         if rhs.unit.is_some() && self.unit.is_none() {
             self.unit = rhs.unit.clone();
-        }
-        else if rhs.unit.is_some() && rhs.unit != self.unit {
+        } else if rhs.unit.is_some() && rhs.unit != self.unit {
             rhs_value = convert(rhs.unit.as_ref().unwrap(), self.unit.as_ref().unwrap(), rhs_value);
         }
 
@@ -297,6 +311,7 @@ impl Display for AstNode {
 
                 Ok(())
             }
+            AstNodeData::Unit(ref name) => write!(f, "Unit: {}", name),
         }
     }
 }

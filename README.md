@@ -25,8 +25,8 @@ A calculator working purely with text inputs.
     - [ ] Unit suffixes
       - [x] Simple Units (e.g. "m", "mi", ...)
       - [ ] Complex Units (e.g. "km/h", "W", ...)
-    - [ ] "in" operator
-      - [ ] Converting between units
+    - [x] "in" operator
+      - [x] Converting between units
       - [x] Converting between representations
 
 # Literals
