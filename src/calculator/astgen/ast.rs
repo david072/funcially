@@ -125,6 +125,8 @@ impl AstNode {
         self.apply_modifiers()?;
         rhs.apply_modifiers()?;
 
+        let full_range = self.range.start..rhs.range.end;
+
         let lhs = match_ast_node!(AstNodeData::Literal(ref mut lhs), lhs, self);
         let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
 
@@ -135,7 +137,7 @@ impl AstNode {
                 return Ok(());
             }
 
-            *lhs = convert(self.unit.as_ref().unwrap(), rhs_value, *lhs);
+            *lhs = convert(self.unit.as_ref().unwrap(), rhs_value, *lhs, &full_range)?;
             self.unit = Some(rhs_value.clone());
             return Ok(());
         }
@@ -147,7 +149,7 @@ impl AstNode {
         if rhs.unit.is_some() && self.unit.is_none() {
             self.unit = rhs.unit.clone();
         } else if rhs.unit.is_some() && rhs.unit != self.unit {
-            rhs_value = convert(rhs.unit.as_ref().unwrap(), self.unit.as_ref().unwrap(), rhs_value);
+            rhs_value = convert(rhs.unit.as_ref().unwrap(), self.unit.as_ref().unwrap(), rhs_value, &full_range)?;
         }
 
         match op {

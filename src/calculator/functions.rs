@@ -1,7 +1,7 @@
 use ::common::Result;
 use common::ErrorType;
 
-const FUNCTIONS: [(&str, usize); 16] = [
+const FUNCTIONS: [(&str, usize); 14] = [
     ("sin", 1), ("asin", 1),
     ("cos", 1), ("acos", 1),
     ("tan", 1), ("atan", 1),
@@ -9,7 +9,6 @@ const FUNCTIONS: [(&str, usize); 16] = [
     ("sqrt", 1),
     ("abs", 1),
     ("floor", 1), ("ceil", 1),
-    ("max", 2), ("min", 2),
     ("clamp", 3), ("map", 5), // map arg1 from range arg2..arg3 to range arg4..arg5
 ];
 
@@ -42,8 +41,6 @@ pub fn resolve(f: &str, args: &[f64], ast_node_range: &std::ops::Range<usize>) -
         "abs" => Ok(args[0].abs()),
         "floor" => Ok(args[0].floor()),
         "ceil" => Ok(args[0].ceil()),
-        "max" => Ok(args[0].max(args[1])),
-        "min" => Ok(args[0].min(args[1])),
         "clamp" => {
             if args[1] > args[2] {
                 return Err(ErrorType::InvalidArguments.with(ast_node_range.clone()));
