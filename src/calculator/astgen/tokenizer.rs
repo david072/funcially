@@ -125,10 +125,10 @@ impl<'a> Tokenizer<'a> {
 
         match next_ty {
             Some(mut ty) => {
-                let slice = self.string[start..end].iter().collect::<String>().to_ascii_lowercase();
+                let slice = self.string[start..end].iter().collect::<String>();
 
                 if ty == TokenType::Identifier {
-                    ty = match slice.as_str() {
+                    ty = match slice.to_lowercase().as_str() {
                         "of" => TokenType::Of,
                         "in" => TokenType::In,
                         "decimal" => TokenType::Decimal,

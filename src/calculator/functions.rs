@@ -13,6 +13,7 @@ const FUNCTIONS: [(&str, usize); 14] = [
 ];
 
 pub fn get_arguments_count(str: &str) -> Option<usize> {
+    let str = str.to_lowercase();
     for ref f in FUNCTIONS {
         if f.0 == str { return Some(f.1); }
     }

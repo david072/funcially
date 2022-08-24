@@ -4,7 +4,7 @@ use std::f64::consts::{PI, E, TAU};
 const VARIABLES: [&str; 4] = ["pi", "e", "tau", "ans"];
 
 pub fn is_valid_variable(str: &str) -> bool {
-    VARIABLES.contains(&str)
+    VARIABLES.contains(&str.to_lowercase().as_str())
 }
 
 pub struct Variables {

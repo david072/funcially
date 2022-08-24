@@ -15,12 +15,13 @@ const UNITS: [&str; 19] = [
 const PREFIXES: [(char, i32); 9] = [
     ('m', -3), ('c', -2), ('d', -1),
     ('\0', 0),
-    ('h', 2), ('k', 3), ('m', 6), ('g', 9), ('t', 12)
+    ('h', 2), ('k', 3), ('M', 6), ('g', 9), ('t', 12)
 ];
 
 pub fn is_valid_unit(s: &str) -> bool {
-    if s.is_empty() { return false; }
-    if UNITS.contains(&s) { return true; }
+    let lowercase = s.to_lowercase();
+    if lowercase.is_empty() { return false; }
+    if UNITS.contains(&lowercase.as_str()) { return true; }
 
     let first = s.chars().next().unwrap();
     for prefix in PREFIXES {
@@ -32,24 +33,24 @@ pub fn is_valid_unit(s: &str) -> bool {
     false
 }
 
-pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<usize>) -> Result<f64> {
-    fn unit_prefix_power(unit: &str) -> i32 {
-        if unit.len() < 2 { return 0; }
-        if UNITS.contains(&unit) { return 0; }
+fn unit_prefix(unit: &str) -> Option<(char, i32)> {
+    if unit.len() < 2 { return None; }
+    if UNITS.contains(&unit) { return None; }
 
-        let char = unit.chars().next().unwrap();
-        for prefix in PREFIXES {
-            if prefix.0 == char { return prefix.1; }
-        }
-        0
+    let char = unit.chars().next().unwrap();
+    for prefix in PREFIXES {
+        if prefix.0 == char { return Some(prefix); }
     }
+    None
+}
 
+pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<usize>) -> Result<f64> {
     let mut src_unit = src_unit;
     let mut dst_unit = dst_unit;
 
-    let src_power = unit_prefix_power(src_unit);
+    let src_power = unit_prefix(src_unit).map(|x| x.1).unwrap_or(0);
     if src_power != 0 { src_unit = &src_unit[1..]; }
-    let dst_power = unit_prefix_power(dst_unit);
+    let dst_power = unit_prefix(dst_unit).map(|x| x.1).unwrap_or(0);
     if dst_power != 0 { dst_unit = &dst_unit[1..]; }
 
     let n = n * 10f64.powi(src_power - dst_power);
