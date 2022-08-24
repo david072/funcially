@@ -53,6 +53,12 @@ macro_rules! ok_operator {
     }
 }
 
+macro_rules! error {
+    ($variant:ident($range:expr)) => {
+        return Err(ErrorType::$variant.with($range.clone()))
+    }
+}
+
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token], nesting_level: usize) -> Parser {
         Parser {
@@ -89,7 +95,19 @@ impl<'a> Parser<'a> {
 
         self.verify_valid_token(token)?;
 
-        // Handle modifiers
+        // Handle formats
+        if token.ty.is_format() {
+            self.result.remove(self.result.len() - 1);
+            match token.ty {
+                TokenType::Decimal => self.result.last_mut().unwrap().format = Format::Decimal,
+                TokenType::Hex => self.result.last_mut().unwrap().format = Format::Hex,
+                TokenType::Binary => self.result.last_mut().unwrap().format = Format::Binary,
+                _ => unreachable!(),
+            }
+            return Ok(true);
+        }
+
+        // Handle special tokens
         match token.ty {
             TokenType::ExclamationMark => {
                 return if let Some(last_ty) = self.last_token_ty {
@@ -112,45 +130,28 @@ impl<'a> Parser<'a> {
                 last_node.modifiers.push(AstNodeModifier::Percent);
                 return Ok(true);
             }
+            TokenType::OpenBracket => {
+                self.next_group(token)?;
+                self.last_token_ty = Some(token.ty);
+                return Ok(true);
+            }
+            TokenType::Identifier => {
+                self.next_identifier(token)?;
+                self.last_token_ty = Some(token.ty);
+                return Ok(true);
+            }
+            TokenType::EqualsSign => {
+                if self.nesting_level != 0 {
+                    error!(UnexpectedEqualsSign(token.range));
+                } else if self.equals_sign_index.is_some() {
+                    error!(UnexpectedSecondEqualsSign(token.range));
+                }
+
+                self.equals_sign_index = Some(self.index - 1);
+                self.last_token_ty = Some(token.ty);
+                return Ok(true);
+            }
             _ => {}
-        }
-
-        // Handle formats
-        if token.ty.is_format() {
-            self.result.remove(self.result.len() - 1);
-            match token.ty {
-                TokenType::Decimal => self.result.last_mut().unwrap().format = Format::Decimal,
-                TokenType::Hex => self.result.last_mut().unwrap().format = Format::Hex,
-                TokenType::Binary => self.result.last_mut().unwrap().format = Format::Binary,
-                _ => unreachable!(),
-            }
-            return Ok(true);
-        }
-
-        // Handle groups
-        if token.ty == TokenType::OpenBracket {
-            self.next_group(token)?;
-            self.last_token_ty = Some(token.ty);
-            return Ok(true);
-        }
-
-        // Handle variables
-        if token.ty == TokenType::Identifier {
-            self.next_identifier(token)?;
-            self.last_token_ty = Some(token.ty);
-            return Ok(true);
-        }
-
-        if token.ty == TokenType::EqualsSign {
-            if self.nesting_level != 0 {
-                return Err(ErrorType::UnexpectedEqualsSign.with(token.range.clone()));
-            } else if self.equals_sign_index.is_some() {
-                return Err(ErrorType::UnexpectedSecondEqualsSign.with(token.range.clone()));
-            }
-
-            self.equals_sign_index = Some(self.index - 1);
-            self.last_token_ty = Some(token.ty);
-            return Ok(true);
         }
 
         self.last_token_ty = Some(token.ty);
@@ -159,7 +160,7 @@ impl<'a> Parser<'a> {
             TokenType::DecimalLiteral => {
                 let number = match token.text.parse() {
                     Ok(number) => number,
-                    Err(_) => return Err(ErrorType::InvalidNumber.with(token.range.clone())),
+                    Err(_) => error!(InvalidNumber(token.range)),
                 };
                 Ok(AstNodeData::Literal(number))
             }
@@ -204,7 +205,7 @@ impl<'a> Parser<'a> {
         }
 
         if nesting_level != 0 {
-            return Err(ErrorType::MissingClosingBracket.with(open_bracket_token.range.clone()));
+            error!(MissingClosingBracket(open_bracket_token.range));
         }
 
         let group_range = group_start - 1..group_end;
@@ -229,7 +230,7 @@ impl<'a> Parser<'a> {
         match identifier.ty {
             TokenType::Identifier => {
                 if !is_valid_variable(&identifier.text) && !is_valid_function(&identifier.text) {
-                    return Err(ErrorType::UnknownVariable.with(identifier.range.clone()));
+                    error!(UnknownVariable(identifier.range));
                 }
 
                 self.infer_multiplication(identifier.range.start..identifier.range.start + 1);
@@ -253,7 +254,7 @@ impl<'a> Parser<'a> {
 
     fn next_function(&mut self, identifier: &Token) -> Result<()> {
         if !is_valid_function(&identifier.text) {
-            return Err(ErrorType::UnknownFunction.with(identifier.range.clone()));
+            error!(UnknownFunction(identifier.range));
         }
 
         let open_bracket = &self.tokens[self.index];
@@ -294,12 +295,12 @@ impl<'a> Parser<'a> {
         }
 
         if !finished {
-            return Err(ErrorType::MissingClosingBracket.with(open_bracket.range.clone()));
+            error!(MissingClosingBracket(open_bracket.range));
         }
 
         let range = open_bracket.range.start..self.tokens[self.index - 1].range.end;
         if arguments.len() != get_arguments_count(&identifier.text).unwrap() {
-            return Err(ErrorType::WrongNumberOfArguments.with(range));
+            error!(WrongNumberOfArguments(range));
         }
 
         self.push_new_node(
@@ -328,7 +329,7 @@ impl<'a> Parser<'a> {
 
     fn verify_valid_token(&self, token: &Token) -> Result<()> {
         if token.ty == TokenType::CloseBracket {
-            return Err(ErrorType::MissingClosingBracket.with(token.range.clone()));
+            error!(MissingOpeningBracket(token.range));
         }
 
         let mut allowed_tokens = self.all_tokens_tys.clone();
@@ -554,6 +555,15 @@ mod tests {
         assert_error_type!(ast, MissingClosingBracket);
         let ast = parse!("sin(");
         assert_error_type!(ast, MissingClosingBracket);
+        Ok(())
+    }
+
+    #[test]
+    fn missing_opening_bracket() -> Result<()> {
+        let ast = parse!(")");
+        assert_error_type!(ast, MissingOpeningBracket);
+        let ast = parse!("sin)");
+        assert_error_type!(ast, MissingOpeningBracket);
         Ok(())
     }
 

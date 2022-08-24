@@ -15,6 +15,7 @@ pub enum ErrorType {
     ExpectedOperator,
     ExpectedIn,
     ExpectedFormat,
+    MissingOpeningBracket,
     MissingClosingBracket,
     UnknownVariable,
     UnexpectedEqualsSign,
