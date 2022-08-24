@@ -8,11 +8,51 @@ const UNITS: [&str; 14] = [
     "cal", "b", // misc
 ];
 
+// Stores prefix with it's power (e.g. k => * 10^3)
+const PREFIXES: [(char, i32); 9] = [
+    ('m', -3), ('c', -2), ('d', -1),
+    ('\0', 0),
+    ('h', 2), ('k', 3), ('m', 6), ('g', 9), ('t', 12)
+];
+
 pub fn is_valid_unit(s: &str) -> bool {
-    UNITS.contains(&s)
+    if s.is_empty() { return false; }
+    if UNITS.contains(&s) { return true; }
+
+    let first = s.chars().next().unwrap();
+    for prefix in PREFIXES {
+        if prefix.0 == first {
+            let unit = &s[1..];
+            return !unit.is_empty() && UNITS.contains(&unit);
+        }
+    }
+    false
 }
 
 pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<usize>) -> Result<f64> {
+    fn unit_prefix_power(unit: &str) -> i32 {
+        if unit.len() < 2 { return 0; }
+        if UNITS.contains(&unit) { return 0; }
+
+        let char = unit.chars().next().unwrap();
+        for prefix in PREFIXES {
+            if prefix.0 == char { return prefix.1; }
+        }
+        0
+    }
+
+    let mut src_unit = src_unit;
+    let mut dst_unit = dst_unit;
+
+    let src_power = unit_prefix_power(src_unit);
+    if src_power != 0 { src_unit = &src_unit[1..]; }
+    let dst_power = unit_prefix_power(dst_unit);
+    if dst_power != 0 { dst_unit = &dst_unit[1..]; }
+
+    let n = n * 10f64.powi(src_power - dst_power);
+
+    if src_unit == dst_unit { return Ok(n); }
+
     match (src_unit, dst_unit) {
         // distance
         ("m", "mi") => Ok(n / 1609.344),

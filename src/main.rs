@@ -52,7 +52,7 @@ fn main() {
                             CalculatorResult::Number { result: n, unit, format } => {
                                 let unit = unit.unwrap_or_default();
                                 match format {
-                                    Format::Decimal => println!("= {:.5}{}", Decimal::from_f64(n).unwrap().round_dp(5).to_string(), unit),
+                                    Format::Decimal => println!("= {}{}", Decimal::from_f64(n).unwrap().round_dp(10), unit),
                                     Format::Hex => println!("= {:#X}{}", n as i64, unit),
                                     Format::Binary => println!("= {:#b}{}", n as i64, unit),
                                 }
