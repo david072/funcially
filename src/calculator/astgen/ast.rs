@@ -2,6 +2,7 @@ use ::Format;
 use crate::common::*;
 use std::fmt::{Formatter, Display, Debug};
 use std::ops::Range;
+use units::convert;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Operator {
@@ -65,6 +66,7 @@ impl Display for AstNodeModifier {
 pub struct AstNode {
     pub data: AstNodeData,
     pub modifiers: Vec<AstNodeModifier>,
+    pub unit: Option<String>,
     pub format: Format,
     pub range: Range<usize>,
     did_apply_modifiers: bool,
@@ -99,6 +101,7 @@ impl AstNode {
         AstNode {
             data,
             modifiers: Vec::new(),
+            unit: None,
             format: Format::Decimal,
             range,
             did_apply_modifiers: false,
@@ -109,6 +112,7 @@ impl AstNode {
         AstNode {
             data,
             modifiers: other.modifiers.clone(),
+            unit: other.unit.clone(),
             format: other.format,
             range: other.range.clone(),
             did_apply_modifiers: false,
@@ -121,9 +125,16 @@ impl AstNode {
 
         let lhs = match_ast_node!(AstNodeData::Literal(ref mut lhs), lhs, self);
         let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
-        let rhs_value = match_ast_node!(AstNodeData::Literal(rhs), rhs, rhs);
+        let mut rhs_value = match_ast_node!(AstNodeData::Literal(rhs), rhs, rhs);
 
         self.format = rhs.format;
+
+        if rhs.unit.is_some() && self.unit.is_none() {
+            self.unit = rhs.unit.clone();
+        }
+        else if rhs.unit.is_some() && rhs.unit != self.unit {
+            rhs_value = convert(rhs.unit.as_ref().unwrap(), self.unit.as_ref().unwrap(), rhs_value);
+        }
 
         match op {
             Operator::Multiply => *lhs *= rhs_value,
@@ -215,6 +226,13 @@ impl AstNode {
 
         res
     }
+
+    fn unit(&self) -> &str {
+        match self.unit {
+            Some(ref unit) => unit.as_str(),
+            None => "",
+        }
+    }
 }
 
 impl PartialEq for AstNode {
@@ -232,14 +250,19 @@ impl Debug for AstNode {
 impl Display for AstNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.data {
-            AstNodeData::Literal(number) => write!(f, "Number: {}{}{} ({})",
-                                                   self.prefix_modifiers(),
-                                                   number,
-                                                   self.suffix_modifiers(),
-                                                   self.format),
+            AstNodeData::Literal(number) => write!(f, "Number: {p}{n}{s} {unit} ({fmt})",
+                                                   p = self.prefix_modifiers(),
+                                                   n = number,
+                                                   s = self.suffix_modifiers(),
+                                                   unit = self.unit(),
+                                                   fmt = self.format),
             AstNodeData::Operator(ref operator) => write!(f, "Operator: {:?}", operator),
             AstNodeData::Group(ref ast) => {
-                writeln!(f, "{}Group{} ({}):", self.prefix_modifiers(), self.suffix_modifiers(), self.format)?;
+                writeln!(f, "{p}Group{s} {unit} ({fmt}):",
+                         p = self.prefix_modifiers(),
+                         s = self.suffix_modifiers(),
+                         unit = self.unit(),
+                         fmt = self.format)?;
 
                 for (i, node) in ast.iter().enumerate() {
                     for _ in 0..f.width().unwrap_or(0) + 4 {
@@ -250,17 +273,19 @@ impl Display for AstNode {
                 }
                 Ok(())
             }
-            AstNodeData::VariableReference(ref name) => write!(f, "VariableRef: {}{}{} ({})",
-                                                               self.prefix_modifiers(),
-                                                               name,
-                                                               self.suffix_modifiers(),
-                                                               self.format),
+            AstNodeData::VariableReference(ref name) => write!(f, "VariableRef: {p}{name}{s} {unit} ({fmt})",
+                                                               p = self.prefix_modifiers(),
+                                                               name = name,
+                                                               s = self.suffix_modifiers(),
+                                                               unit = self.unit(),
+                                                               fmt = self.format),
             AstNodeData::FunctionInvocation(ref name, ref args) => {
-                writeln!(f, "FunctionInv: {}{}{} ({}):",
-                       self.prefix_modifiers(),
-                       name,
-                       self.suffix_modifiers(),
-                       self.format)?;
+                writeln!(f, "FunctionInv: {p}{name}{s} {unit} ({fmt}):",
+                         p = self.prefix_modifiers(),
+                         name = name,
+                         s = self.suffix_modifiers(),
+                         unit = self.unit(),
+                         fmt = self.format)?;
                 for arg in args {
                     for node in arg {
                         for _ in 0..f.width().unwrap_or(0) + 4 {

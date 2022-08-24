@@ -6,6 +6,7 @@ use crate::variables::is_valid_variable;
 use strum::IntoEnumIterator;
 use std::mem;
 use functions::{get_arguments_count, is_valid_function};
+use units::is_valid_unit;
 
 pub enum ParserResult {
     Calculation(Vec<AstNode>),
@@ -229,24 +230,35 @@ impl<'a> Parser<'a> {
     fn next_identifier(&mut self, identifier: &Token) -> Result<()> {
         match identifier.ty {
             TokenType::Identifier => {
-                if !is_valid_variable(&identifier.text) && !is_valid_function(&identifier.text) {
-                    error!(UnknownVariable(identifier.range));
-                }
+                let multiplication_range = identifier.range.start..identifier.range.start + 1;
 
-                self.infer_multiplication(identifier.range.start..identifier.range.start + 1);
-
-                // If identifier is followed by an open bracket, it's a function
-                if self.index < self.tokens.len() && matches!(self.tokens[self.index].ty, TokenType::OpenBracket) {
+                if is_valid_variable(&identifier.text) {
+                    self.infer_multiplication(multiplication_range);
+                    self.push_new_node(
+                        AstNodeData::VariableReference(identifier.text.clone()),
+                        identifier.range.clone(),
+                    );
+                    Ok(())
+                } else if is_valid_function(&identifier.text) {
+                    if self.index >= self.tokens.len() || !matches!(self.tokens[self.index].ty, TokenType::OpenBracket) {
+                        error!(MissingOpeningBracket(identifier.range.end..identifier.range.end + 1));
+                    }
+                    self.infer_multiplication(multiplication_range);
                     self.next_function(identifier)?;
-                    return Ok(());
+                    Ok(())
+                } else if is_valid_unit(&identifier.text) {
+                    if !matches!(self.last_token_ty, Some(_)) || !self.last_token_ty.unwrap().is_number() {
+                        error!(ExpectedNumber(identifier.range));
+                    }
+                    let last = self.result.last_mut().unwrap();
+                    if last.unit.is_some() {
+                        error!(UnexpectedUnit(identifier.range));
+                    }
+                    self.result.last_mut().unwrap().unit = Some(identifier.text.clone());
+                    Ok(())
+                } else {
+                    error!(UnknownIdentifier(identifier.range));
                 }
-
-                self.push_new_node(
-                    AstNodeData::VariableReference(identifier.text.clone()),
-                    identifier.range.clone(),
-                );
-
-                Ok(())
             }
             _ => panic!("Must pass TokenType::Identifier to Parser::next_identifier()!"),
         }

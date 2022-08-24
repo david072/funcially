@@ -1,3 +1,4 @@
+use std::mem::{take, replace};
 use astgen::ast::Operator;
 use ::{match_ast_node, Format};
 use Variables;
@@ -7,12 +8,13 @@ use ::functions::resolve as resolve_function;
 
 pub struct CalculationResult {
     pub result: f64,
+    pub unit: Option<String>,
     pub format: Format,
 }
 
 impl CalculationResult {
-    pub fn new(result: f64, format: Format) -> CalculationResult {
-        CalculationResult { result, format }
+    pub fn new(result: f64, unit: Option<String>, format: Format) -> CalculationResult {
+        CalculationResult { result, unit, format }
     }
 }
 
@@ -20,7 +22,8 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
     if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
         ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-        return Ok(CalculationResult::new(result, ast[0].format));
+        let unit = take(&mut ast[0].unit);
+        return Ok(CalculationResult::new(result, unit, ast[0].format));
     }
 
     eval_functions(&mut ast, variables)?;
@@ -36,7 +39,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
     let format = ast[0].format;
     if format != Format::Decimal { result = result.trunc(); }
 
-    Ok(CalculationResult::new(result, format))
+    Ok(CalculationResult::new(result, take(&mut ast[0].unit), format))
 }
 
 fn eval_functions(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
@@ -52,7 +55,7 @@ fn eval_functions(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
         }
         let result = resolve_function(func_name, &args, &node.range)?;
         let new_node = AstNode::from(node, AstNodeData::Literal(result));
-        let _ = std::mem::replace(node, new_node);
+        let _ = replace(node, new_node);
     }
     Ok(())
 }
@@ -66,7 +69,7 @@ fn eval_variables(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
 
         let result = variables.resolve(var_name, &node.range)?;
         let new_node = AstNode::from(node, AstNodeData::Literal(result));
-        let _ = std::mem::replace(node, new_node);
+        let _ = replace(node, new_node);
     }
 
     Ok(())
@@ -82,7 +85,7 @@ fn eval_groups(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
         let group_result = evaluate(group_ast.clone(), variables)?;
         // Construct Literal node with the evaluated result
         let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
-        let _ = std::mem::replace(node, new_node);
+        let _ = replace(node, new_node);
     }
 
     Ok(())

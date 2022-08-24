@@ -23,6 +23,8 @@ A calculator working purely with text inputs.
 - [x] Equality checks
 - [ ] Units
     - [ ] Unit suffixes
+      - [x] Simple Units (e.g. "m", "mi", ...)
+      - [ ] Complex Units (e.g. "km/h", "W", ...)
     - [ ] "in" operator
       - [ ] Converting between units
       - [x] Converting between representations

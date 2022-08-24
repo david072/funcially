@@ -47,11 +47,12 @@ fn main() {
                 match calculator.calculate(&input, verbosity) {
                     Ok(res) => {
                         match res {
-                            CalculatorResult::Number { result: n, format } => {
+                            CalculatorResult::Number { result: n, unit, format } => {
+                                let unit = unit.unwrap_or_default();
                                 match format {
-                                    Format::Decimal => println!("= {}", n),
-                                    Format::Hex => println!("= {:#X}", n as i64),
-                                    Format::Binary => println!("= {:#b}", n as i64),
+                                    Format::Decimal => println!("= {}{}", n, unit),
+                                    Format::Hex => println!("= {:#X}{}", n as i64, unit),
+                                    Format::Binary => println!("= {:#b}{}", n as i64, unit),
                                 }
                             }
                             CalculatorResult::Boolean(b) => println!("=> {}", if b { "True" } else { "False" }),

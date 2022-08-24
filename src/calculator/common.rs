@@ -17,11 +17,13 @@ pub enum ErrorType {
     ExpectedFormat,
     MissingOpeningBracket,
     MissingClosingBracket,
+    UnknownIdentifier,
     UnknownVariable,
     UnexpectedEqualsSign,
     UnexpectedSecondEqualsSign,
     UnknownFunction,
     WrongNumberOfArguments,
+    UnexpectedUnit,
 
     // engine
     DivideByZero,

@@ -6,6 +6,7 @@ mod common;
 mod engine;
 mod variables;
 mod functions;
+mod units;
 
 use std::fmt::{Display, Formatter};
 use common::Result;
@@ -50,14 +51,15 @@ impl Display for Format {
 pub enum CalculatorResult {
     Number {
         result: f64,
+        unit: Option<String>,
         format: Format,
     },
     Boolean(bool),
 }
 
 impl CalculatorResult {
-    pub fn number(result: f64, format: Format) -> CalculatorResult {
-        CalculatorResult::Number { result, format }
+    pub fn number(result: f64, unit: Option<String>, format: Format) -> CalculatorResult {
+        CalculatorResult::Number { result, unit, format }
     }
 
     pub fn bool(bool: bool) -> CalculatorResult {
@@ -101,7 +103,7 @@ impl Calculator {
                 let result = evaluate(ast, &self.variables)?;
                 self.variables.set("ans", result.result);
 
-                Ok(CalculatorResult::number(result.result, result.format))
+                Ok(CalculatorResult::number(result.result, result.unit, result.format))
             }
             ParserResult::EqualityCheck(lhs, rhs) => {
                 if verbosity == Verbosity::Ast {
