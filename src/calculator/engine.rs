@@ -23,7 +23,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
         return Ok(CalculationResult::new(result, ast[0].format));
     }
 
-    eval_functions(&mut ast, variables);
+    eval_functions(&mut ast, variables)?;
     eval_variables(&mut ast, variables)?;
     eval_groups(&mut ast, variables)?;
     eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
@@ -117,57 +117,76 @@ fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::Result;
-    use crate::parse;
-    use crate::tokenize;
+    use ::common::Result;
+    use ::parse;
+    use ::tokenize;
+    use ::ParserResult;
 
-    macro_rules! eval {
-        ($str:expr) => {
-            evaluate(parse(&tokenize($str)?)?)?
+    macro_rules! expect {
+        ($str:expr, $res:expr) => {
+            assert_eq!(evaluate(
+                if let ParserResult::Calculation(ast) = parse(&tokenize($str)?)? { ast }
+                else { panic!("Expected ParserResult::Calculation"); },
+                &Variables::new()
+            )?.result, $res)
         }
     }
 
     #[test]
     fn only_one() -> Result<()> {
-        let result = eval!("3");
-        assert_eq!(result.result, 3.0);
+        expect!("3", 3.0);
         Ok(())
     }
 
     #[test]
     fn plus_and_minus() -> Result<()> {
-        let result = eval!("3 + 5 - -2");
-        assert_eq!(result.result, 10.0);
+        expect!("3 + 5 - -2", 10.0);
         Ok(())
     }
 
     #[test]
     fn multiply_and_divide() -> Result<()> {
-        let result = eval!("3 * 2 / 3");
-        assert_eq!(result.result, 2.0);
+        expect!("3 * 2 / 3", 2.0);
         Ok(())
     }
 
     #[test]
     fn extended_operators() -> Result<()> {
-        let result = eval!("3 ^ 3 | 2 & 10");
-        assert_eq!(result.result, 10.0);
+        expect!("3 ^ 3 | 2 & 10", 10.0);
         Ok(())
     }
 
     #[test]
     fn modifiers() -> Result<()> {
-        let result = eval!("4!%");
-        assert_eq!(result.result, 0.24);
-        let result = eval!("!5");
-        assert_eq!(result.result, 2.0);
+        expect!("4!%", 0.24);
+        expect!("!5", 2.0);
         Ok(())
     }
 
     #[test]
     fn operator_order() -> Result<()> {
-        let result = eval!("2% of 3 ^ 2 + 3 + 4 * 2");
-        assert_eq!(result.result, 0.4);
+        expect!("2% of 3 ^ 2 + 3 + 4 * 2", 0.4);
+        Ok(())
+    }
+
+    #[test]
+    fn groups() -> Result<()> {
+        expect!("2 * (2 + 2)", 8.0);
+        expect!("2 * (2 + (1 + 1))", 8.0);
+        Ok(())
+    }
+
+    #[test]
+    fn variables() -> Result<()> {
+        expect!("pi", std::f64::consts::PI);
+        expect!("2 * pi", std::f64::consts::PI * 2.0);
+        Ok(())
+    }
+
+    #[test]
+    fn functions() -> Result<()> {
+        expect!("sin(30)", 30.0f64.to_radians().sin());
+        expect!("sin(15 * 2)", 30.0f64.to_radians().sin());
         Ok(())
     }
 }

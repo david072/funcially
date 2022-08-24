@@ -397,9 +397,25 @@ mod tests {
         }
     }
 
+    macro_rules! assert_error_type {
+        ($result:expr, $variant:ident) => {
+            assert_eq!($result.err().unwrap().error, ErrorType::$variant)
+        }
+    }
+
+    macro_rules! calculation {
+        ($parser_res:expr) => {
+            if let ParserResult::Calculation(ast) = $parser_res {
+                ast
+            } else {
+                panic!("Expected ParserResult::Calculation");
+            }
+        }
+    }
+
     #[test]
     fn basic() -> Result<()> {
-        let ast = parse!("1 - 3 + 4 * 5 / 6")?;
+        let ast = calculation!(parse!("1 - 3 + 4 * 5 / 6")?);
         assert_eq!(ast.iter().map(|n| n.data.clone()).collect::<Vec<_>>(), vec![
             AstNodeData::Literal(1.0),
             AstNodeData::Operator(Operator::Minus),
@@ -416,7 +432,7 @@ mod tests {
 
     #[test]
     fn modifiers() -> Result<()> {
-        let ast = parse!("2! + 3% + !4 + 3!%")?;
+        let ast = calculation!(parse!("2! + 3% + !4 + 3!%")?);
         assert_eq!(ast.iter()
                        .filter(|n| matches!(n.data, AstNodeData::Literal(_)))
                        .map(|n| &n.modifiers)
@@ -431,7 +447,7 @@ mod tests {
 
     #[test]
     fn extended_operators() -> Result<()> {
-        let ast = parse!("20% of 3 ^ 2 & 1 | 4")?;
+        let ast = calculation!(parse!("20% of 3 ^ 2 & 1 | 4")?);
         assert_eq!(ast.iter()
                        .filter(|n| matches!(n.data, AstNodeData::Operator(_)))
                        .map(|n| n.data.clone())
@@ -445,28 +461,106 @@ mod tests {
     }
 
     #[test]
+    fn groups() -> Result<()> {
+        let ast = calculation!(parse!("(1 + (1 + 1)) * 2")?);
+        assert_eq!(ast.len(), 3);
+        let group = match ast[0].data {
+            AstNodeData::Group(ref group) => group,
+            _ => unreachable!(),
+        };
+        assert_eq!(group.len(), 3);
+        assert!(matches!(group.last().unwrap().data, AstNodeData::Group(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn equality_check() -> Result<()> {
+        let res = parse!("3 = 3")?;
+        match res {
+            ParserResult::EqualityCheck(lhs, rhs) => {
+                assert!(matches!(lhs[0].data, AstNodeData::Literal(_)));
+                assert!(matches!(rhs[0].data, AstNodeData::Literal(_)));
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn variables() -> Result<()> {
+        let ast = calculation!(parse!("pi")?);
+        match ast[0].data {
+            AstNodeData::VariableReference(ref s) => {
+                assert_eq!("pi".to_string(), *s);
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn functions() -> Result<()> {
+        let ast = calculation!(parse!("sin(30)")?);
+        match ast[0].data {
+            AstNodeData::FunctionInvocation(ref name, ref args) => {
+                assert_eq!("sin".to_string(), *name);
+                assert!(args.len() == 1 && args[0].len() == 1);
+                assert!(matches!(args[0][0].data, AstNodeData::Literal(_)));
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn inferred_multiplication() -> Result<()> {
+        let ast = calculation!(parse!("2(1)")?);
+        assert!(ast.len() == 3 && matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
+        let ast = calculation!(parse!("2pi")?);
+        assert!(ast.len() == 3 && matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
+        let ast = calculation!(parse!("2sin(30)")?);
+        assert!(ast.len() == 3 && matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
+        Ok(())
+    }
+
+    #[test]
     fn expected_operand() -> Result<()> {
         let ast = parse!("2 3 + 4");
-        assert!(ast.is_err());
-        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedOperator);
+        assert_error_type!(ast, ExpectedOperator);
         Ok(())
     }
 
     #[test]
     fn expected_number() -> Result<()> {
         let ast = parse!("2 ++ 4");
-        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        assert_error_type!(ast, ExpectedNumber);
         let ast = parse!("2 +");
-        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        assert_error_type!(ast, ExpectedNumber);
         Ok(())
     }
 
     #[test]
     fn percent_expected_number() -> Result<()> {
         let ast = parse!("3 + %");
-        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        assert_error_type!(ast, ExpectedNumber);
         let ast = parse!("%");
-        assert_eq!(ast.err().unwrap().error, ErrorType::ExpectedNumber);
+        assert_error_type!(ast, ExpectedNumber);
+        Ok(())
+    }
+
+    #[test]
+    fn missing_closing_bracket() -> Result<()> {
+        let ast = parse!("(");
+        assert_error_type!(ast, MissingClosingBracket);
+        let ast = parse!("sin(");
+        assert_error_type!(ast, MissingClosingBracket);
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_variable() -> Result<()> {
+        let ast = parse!("asdf");
+        assert_error_type!(ast, UnknownVariable);
         Ok(())
     }
 }

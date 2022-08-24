@@ -247,7 +247,7 @@ mod tests {
         assert_eq!(tokens, vec![
             Token::new(TokenType::DecimalLiteral, "3", 0..1),
             Token::new(TokenType::HexLiteral, "0x0123456789", 2..14),
-            Token::new(TokenType::HexLiteral, "0xABCdef", 15..23),
+            Token::new(TokenType::HexLiteral, "0xabcdef", 15..23),
             Token::new(TokenType::BinaryLiteral, "0b110", 24..29),
         ]);
         Ok(())
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn extended_operators() -> Result<()> {
-        let tokens = tokenize("^ & | ! of %")?;
+        let tokens = tokenize("^ & | ! of % =")?;
         assert_eq!(tokens, vec![
             Token::new(TokenType::Exponentiation, "^", 0..1),
             Token::new(TokenType::BitwiseAnd, "&", 2..3),
@@ -275,6 +275,7 @@ mod tests {
             Token::new(TokenType::ExclamationMark, "!", 6..7),
             Token::new(TokenType::Of, "of", 8..10),
             Token::new(TokenType::PercentSign, "%", 11..12),
+            Token::new(TokenType::EqualsSign, "=", 13..14),
         ]);
         Ok(())
     }
@@ -296,6 +297,26 @@ mod tests {
             Token::new(TokenType::DecimalLiteral, "-3", 0..2),
             Token::new(TokenType::DecimalLiteral, "+3", 3..5),
             Token::new(TokenType::DecimalLiteral, "-.3", 6..9),
+        ]);
+        Ok(())
+    }
+
+    #[test]
+    fn groups() -> Result<()> {
+        let tokens = tokenize("()")?;
+        assert_eq!(tokens, vec![
+            Token::new(TokenType::OpenBracket, "(", 0..1),
+            Token::new(TokenType::CloseBracket, ")", 1..2),
+        ]);
+        Ok(())
+    }
+
+    #[test]
+    fn identifiers() -> Result<()> {
+        let tokens = tokenize("1 test tset")?;
+        assert_eq!(tokens[1..], vec![
+            Token::new(TokenType::Identifier, "test", 2..6),
+            Token::new(TokenType::Identifier, "tset", 7..11),
         ]);
         Ok(())
     }
