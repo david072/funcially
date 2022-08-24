@@ -31,6 +31,7 @@ pub enum ErrorType {
     ExpectedInteger,
     ExpectedPositiveInteger,
     ExpectedPercentage,
+    InvalidArguments,
     /// This should never happen
     InvalidAst,
 }

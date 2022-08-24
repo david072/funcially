@@ -321,7 +321,7 @@ impl<'a> Parser<'a> {
             error!(MissingClosingBracket(open_bracket.range));
         }
 
-        let range = open_bracket.range.start..self.tokens[self.index - 1].range.end;
+        let range = identifier.range.start..self.tokens[self.index - 1].range.end;
         if arguments.len() != get_arguments_count(&identifier.text).unwrap() {
             error!(WrongNumberOfArguments(range));
         }
