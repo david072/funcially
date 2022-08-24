@@ -1,10 +1,13 @@
+use std::f64::consts::PI;
 use ::common::{Result, ErrorType};
 
-const UNITS: [&str; 14] = [
+const UNITS: [&str; 19] = [
     "m", "mi", "ft", "in", "yd", // distance
     "s", "min", "h", // time
     "g", "lb", // mass
     "pa", "bar", // pressure
+    "°", "rad", // angle
+    "°c", "°f", "k", // temperature
     "cal", "b", // misc
 ];
 
@@ -97,6 +100,20 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         // pressure
         ("pa", "bar") => Ok(n / 100_000.0),
         ("bar", "pa") => Ok(n * 100_000.0),
+
+        // angle
+        ("°", "rad") => Ok(n * PI / 180.0),
+        ("rad", "°") => Ok(n * 180.0 / PI),
+
+        // temperature
+        ("°c", "°f") => Ok((n * 9.0 / 5.0) + 32.0),
+        ("°c", "k") => Ok(n + 273.15),
+
+        ("°f", "°c") => Ok((n - 32.0) * 5.0 / 9.0),
+        ("°f", "k") => Ok((n - 32.0) * 5.0 / 9.0 - 273.15),
+
+        ("k", "°c") => Ok(n - 273.15),
+        ("k", "°f") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
         _ => Err(ErrorType::UnknownConversion.with(range.clone())),
     }
 }
