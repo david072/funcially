@@ -5,6 +5,7 @@ mod astgen;
 mod common;
 mod engine;
 mod variables;
+mod functions;
 
 use std::fmt::{Display, Formatter};
 use common::Result;

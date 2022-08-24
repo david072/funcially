@@ -3,6 +3,7 @@ use ::{match_ast_node, Format};
 use Variables;
 use crate::astgen::ast::{AstNode, AstNodeData};
 use crate::common::*;
+use ::functions::resolve as resolve_function;
 
 pub struct CalculationResult {
     pub result: f64,
@@ -22,6 +23,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
         return Ok(CalculationResult::new(result, ast[0].format));
     }
 
+    eval_functions(&mut ast, variables);
     eval_variables(&mut ast, variables)?;
     eval_groups(&mut ast, variables)?;
     eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
@@ -35,6 +37,24 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
     if format != Format::Decimal { result = result.trunc(); }
 
     Ok(CalculationResult::new(result, format))
+}
+
+fn eval_functions(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
+    for node in ast {
+        let (func_name, arg_asts) = match node.data {
+            AstNodeData::FunctionInvocation(ref name, ref args) => (name, args),
+            _ => continue,
+        };
+
+        let mut args = Vec::new();
+        for ast in arg_asts {
+            args.push(evaluate(ast.clone(), variables)?.result);
+        }
+        let result = resolve_function(func_name, &args, &node.range)?;
+        let new_node = AstNode::from(node, AstNodeData::Literal(result));
+        let _ = std::mem::replace(node, new_node);
+    }
+    Ok(())
 }
 
 fn eval_variables(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {

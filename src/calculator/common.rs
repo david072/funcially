@@ -19,6 +19,8 @@ pub enum ErrorType {
     UnknownVariable,
     UnexpectedEqualsSign,
     UnexpectedSecondEqualsSign,
+    UnknownFunction,
+    WrongNumberOfArguments,
 
     // engine
     DivideByZero,

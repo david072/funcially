@@ -5,15 +5,15 @@ A calculator working purely with text inputs.
 ## Roadmap
 
 - [x] Literals & floats
-- [ ] Operators
+- [x] Operators
     - [x] Basic
     - [x] Extended + Bitwise
-    - [ ] Inferred multiplication
+    - [x] Inferred multiplication
       - [x] Groups
-      - [ ] Functions
+      - [x] Functions
       - [x] Variables
 - [x] Groups
-- [ ] Functions
+- [x] Functions
 - [x] Variables
   - [x] Builtin Variables
   - [x] "ans" variable

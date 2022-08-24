@@ -22,6 +22,7 @@ pub enum AstNodeData {
     Operator(Operator),
     Group(Vec<AstNode>),
     VariableReference(String),
+    FunctionInvocation(String, Vec<Vec<AstNode>>),
 }
 
 impl Debug for AstNodeData {
@@ -30,8 +31,9 @@ impl Debug for AstNodeData {
         match self {
             AstNodeData::Literal(n) => write!(f, "Literal({:?})", n),
             AstNodeData::Operator(op) => write!(f, "Operator({:?})", op),
-            AstNodeData::Group(_) => write!(f, "Group(...)"),
+            AstNodeData::Group(ast) => write!(f, "Group({:?})", ast),
             AstNodeData::VariableReference(name) => write!(f, "VariableReference({})", name),
+            AstNodeData::FunctionInvocation(name, args) => write!(f, "FunctionInvocation({}, {:?})", name, args),
         }
     }
 }
@@ -221,6 +223,12 @@ impl PartialEq for AstNode {
     }
 }
 
+impl Debug for AstNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl Display for AstNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.data {
@@ -243,10 +251,27 @@ impl Display for AstNode {
                 Ok(())
             }
             AstNodeData::VariableReference(ref name) => write!(f, "VariableRef: {}{}{} ({})",
-                                                           self.prefix_modifiers(),
-                                                           name,
-                                                           self.suffix_modifiers(),
-                                                           self.format),
+                                                               self.prefix_modifiers(),
+                                                               name,
+                                                               self.suffix_modifiers(),
+                                                               self.format),
+            AstNodeData::FunctionInvocation(ref name, ref args) => {
+                writeln!(f, "FunctionInv: {}{}{} ({}):",
+                       self.prefix_modifiers(),
+                       name,
+                       self.suffix_modifiers(),
+                       self.format)?;
+                for arg in args {
+                    for node in arg {
+                        for _ in 0..f.width().unwrap_or(0) + 4 {
+                            write!(f, " ")?;
+                        }
+                        writeln!(f, "{:>width$}", node, width = f.width().unwrap_or(0) + 4)?;
+                    }
+                }
+
+                Ok(())
+            }
         }
     }
 }

@@ -31,7 +31,8 @@ pub enum TokenType {
     Binary,
     // Identifier
     Identifier,
-    EqualsSign
+    Comma,
+    EqualsSign,
 }
 
 impl TokenType {
@@ -224,6 +225,7 @@ impl<'a> Tokenizer<'a> {
             b'(' => Some(TokenType::OpenBracket),
             b')' => Some(TokenType::CloseBracket),
             b'=' => Some(TokenType::EqualsSign),
+            b',' => Some(TokenType::Comma),
             _ => None
         }
     }

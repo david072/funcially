@@ -5,6 +5,7 @@ use crate::common::*;
 use crate::variables::is_valid_variable;
 use strum::IntoEnumIterator;
 use std::mem;
+use functions::{get_arguments_count, is_valid_function};
 
 pub enum ParserResult {
     Calculation(Vec<AstNode>),
@@ -143,8 +144,7 @@ impl<'a> Parser<'a> {
         if token.ty == TokenType::EqualsSign {
             if self.nesting_level != 0 {
                 return Err(ErrorType::UnexpectedEqualsSign.with(token.range.clone()));
-            }
-            else if self.equals_sign_index.is_some() {
+            } else if self.equals_sign_index.is_some() {
                 return Err(ErrorType::UnexpectedSecondEqualsSign.with(token.range.clone()));
             }
 
@@ -228,11 +228,18 @@ impl<'a> Parser<'a> {
     fn next_identifier(&mut self, identifier: &Token) -> Result<()> {
         match identifier.ty {
             TokenType::Identifier => {
-                if !is_valid_variable(&identifier.text) {
+                if !is_valid_variable(&identifier.text) && !is_valid_function(&identifier.text) {
                     return Err(ErrorType::UnknownVariable.with(identifier.range.clone()));
                 }
 
                 self.infer_multiplication(identifier.range.start..identifier.range.start + 1);
+
+                // If identifier is followed by an open bracket, it's a function
+                if self.index < self.tokens.len() && matches!(self.tokens[self.index].ty, TokenType::OpenBracket) {
+                    self.next_function(identifier)?;
+                    return Ok(());
+                }
+
                 self.push_new_node(
                     AstNodeData::VariableReference(identifier.text.clone()),
                     identifier.range.clone(),
@@ -242,6 +249,64 @@ impl<'a> Parser<'a> {
             }
             _ => panic!("Must pass TokenType::Identifier to Parser::next_identifier()!"),
         }
+    }
+
+    fn next_function(&mut self, identifier: &Token) -> Result<()> {
+        if !is_valid_function(&identifier.text) {
+            return Err(ErrorType::UnknownFunction.with(identifier.range.clone()));
+        }
+
+        let open_bracket = &self.tokens[self.index];
+        self.index += 1;
+
+        let mut arguments: Vec<Vec<AstNode>> = Vec::new();
+        let mut argument_start = self.index;
+
+        let mut finished = false;
+        let mut nesting_level = 1usize;
+
+        while let Some(token) = self.tokens.get(self.index) {
+            self.index += 1;
+            match token.ty {
+                TokenType::Comma => {
+                    let argument = &self.tokens[argument_start..self.index - 1];
+                    match parse(argument)? {
+                        ParserResult::Calculation(ast) => arguments.push(ast),
+                        ParserResult::EqualityCheck(_, _) => unreachable!(),
+                    }
+                    argument_start = self.index + 1;
+                }
+                TokenType::CloseBracket => {
+                    nesting_level -= 1;
+                    if nesting_level == 0 {
+                        let argument = &self.tokens[argument_start..self.index - 1];
+                        match parse(argument)? {
+                            ParserResult::Calculation(ast) => arguments.push(ast),
+                            ParserResult::EqualityCheck(_, _) => unreachable!(),
+                        }
+                        finished = true;
+                        break;
+                    }
+                }
+                TokenType::OpenBracket => nesting_level += 1,
+                _ => {}
+            }
+        }
+
+        if !finished {
+            return Err(ErrorType::MissingClosingBracket.with(open_bracket.range.clone()));
+        }
+
+        let range = open_bracket.range.start..self.tokens[self.index - 1].range.end;
+        if arguments.len() != get_arguments_count(&identifier.text).unwrap() {
+            return Err(ErrorType::WrongNumberOfArguments.with(range));
+        }
+
+        self.push_new_node(
+            AstNodeData::FunctionInvocation(identifier.text.clone(), arguments),
+            range,
+        );
+        Ok(())
     }
 
     fn push_new_node(&mut self, data: AstNodeData, range: std::ops::Range<usize>) {
