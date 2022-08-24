@@ -30,11 +30,11 @@ pub fn is_valid_function(str: &str) -> bool {
 pub fn resolve(f: &str, args: &[f64], ast_node_range: &std::ops::Range<usize>) -> Result<f64> {
     match f {
         "sin" => Ok((args[0].to_radians()).sin()),
-        "asin" => Ok((args[0].to_radians()).asin()),
+        "asin" => Ok((args[0].to_radians()).asin().to_degrees()), // FIXME: Doesn't give expected results...
         "cos" => Ok((args[0].to_radians()).cos()),
-        "acos" => Ok((args[0].to_radians()).acos()),
+        "acos" => Ok((args[0].to_radians()).acos().to_degrees()),
         "tan" => Ok((args[0].to_radians()).tan()),
-        "atan" => Ok((args[0].to_radians()).atan()),
+        "atan" => Ok((args[0].to_radians()).atan().to_degrees()),
         "ln" => Ok(args[0].ln()),
         "log" => Ok(args[1].log(args[0])),
         "sqrt" => Ok(args[0].sqrt()),
