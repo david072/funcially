@@ -57,7 +57,7 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
 
     if src_unit == dst_unit { return Ok(n); }
 
-    match (src_unit, dst_unit) {
+    match (src_unit.to_lowercase().as_str(), dst_unit.to_lowercase().as_str()) {
         // distance
         ("m", "mi") => Ok(n / 1609.344),
         ("m", "ft") => Ok(n * 3.281),
@@ -117,4 +117,91 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         ("k", "°f") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
         _ => Err(ErrorType::UnknownConversion.with(range.clone())),
     }
+}
+
+pub fn format(unit: &str, plural: bool) -> String {
+    fn lowercase_first(s: &str) -> String {
+        let mut chars = s.chars();
+        match chars.next() {
+            Some(char) => char.to_lowercase().chain(chars).collect(),
+            None => String::new(),
+        }
+    }
+
+    let prefix = unit_prefix(unit).map(|x| x.0);
+    let unit = if prefix.is_some() { &unit[1..] } else { unit };
+
+    let mut result = " ".to_string();
+
+    if let Some(prefix) = prefix {
+        result.push_str(match prefix {
+            'm' => "Milli",
+            'c' => "Centi",
+            'd' => "Deci",
+            'h' => "Hecto",
+            'k' => "Kilo",
+            'M' => "Mega",
+            'g' => "Giga",
+            't' => "Tera",
+            _ => unreachable!()
+        });
+    }
+
+    let unit_str = if plural {
+        match unit {
+            "ft" => "Feet",
+            "in" => "Inches",
+            "pa" => "Pascal",
+            "°c" => "Degrees Celsius",
+            "°f" => "Degrees Fahrenheit",
+            "k" => "Kelvin",
+            _ => "",
+        }
+    } else { "" };
+
+    if unit_str.is_empty() {
+        let singular = match unit {
+            "m" => "Meter",
+            "mi" => "Mile",
+            "ft" => "Foot",
+            "in" => "Inch",
+            "yd" => "Yard",
+            "s" => "Second",
+            "min" => "Minute",
+            "h" => "Hour",
+            "g" => "Gram",
+            "lb" => "Pound",
+            "pa" => "Pascal",
+            "bar" => "Bar",
+            "°" => "Degree",
+            "rad" => "Radian",
+            "°c" => "Degree Celsius",
+            "°f" => "Degree Fahrenheit",
+            "k" => "Kelvin",
+            "cal" => "Calorie",
+            "b" => "Byte",
+            _ => unreachable!(),
+        };
+
+        if !plural {
+            if prefix.is_some() {
+                result.push_str(lowercase_first(singular).as_str());
+            } else {
+                result.push_str(singular);
+            }
+        } else {
+            if prefix.is_some() {
+                result.push_str(lowercase_first(singular).as_str());
+            } else {
+                result.push_str(singular);
+            }
+            result.push('s');
+        }
+    } else if prefix.is_some() {
+        result.push_str(lowercase_first(unit_str).as_str());
+    } else {
+        result.push_str(unit_str);
+    }
+
+    result
 }

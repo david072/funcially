@@ -5,6 +5,7 @@ use Variables;
 use crate::astgen::ast::{AstNode, AstNodeData};
 use crate::common::*;
 use ::functions::resolve as resolve_function;
+use ::units::format as format_unit;
 
 pub struct CalculationResult {
     pub result: f64,
@@ -22,7 +23,8 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
     if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
         ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-        let unit = take(&mut ast[0].unit);
+        let unit = take(&mut ast[0].unit)
+            .map(|x| format_unit(&x, result != 1.0));
         return Ok(CalculationResult::new(result, unit, ast[0].format));
     }
 
