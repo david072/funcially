@@ -127,13 +127,28 @@ mod tests {
     use ::tokenize;
     use ::ParserResult;
 
-    macro_rules! expect {
-        ($str:expr, $res:expr) => {
-            assert_eq!(evaluate(
+    macro_rules! eval {
+        ($str:expr) => {
+            evaluate(
                 if let ParserResult::Calculation(ast) = parse(&tokenize($str)?)? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Variables::new()
-            )?.result, $res)
+            )
+        }
+    }
+
+    macro_rules! expect {
+        ($str:expr, $res:expr) => {
+            assert_eq!(eval!($str)?.result, $res)
+        }
+    }
+
+    macro_rules! expect_error {
+        ($str:expr, $error:ident) => {
+            match eval!($str) {
+                Err(e) => assert!(matches!(e.error, ErrorType::$error)),
+                _ => unreachable!(),
+            }
         }
     }
 
@@ -192,6 +207,38 @@ mod tests {
     fn functions() -> Result<()> {
         expect!("sin(30)", 30.0f64.to_radians().sin());
         expect!("sin(15 * 2)", 30.0f64.to_radians().sin());
+        Ok(())
+    }
+
+    #[test]
+    fn units() -> Result<()> {
+        let res = eval!("3 + 3m")?;
+        assert_eq!(res.unit.unwrap(), "m");
+        assert_eq!(res.result, 6.0);
+        Ok(())
+    }
+
+    #[test]
+    fn print_full_unit() -> Result<()> {
+        let res = eval!("1min")?;
+        assert_eq!(res.unit.unwrap(), " Minute");
+        let res = eval!("3m")?;
+        assert_eq!(res.unit.unwrap(), " Meters");
+        let res = eval!("3km")?;
+        assert_eq!(res.unit.unwrap(), " Kilometers");
+        Ok(())
+    }
+
+    #[test]
+    fn unit_conversions() -> Result<()> {
+        expect!("3min in h", 0.05);
+        expect!("3m in km", 0.003);
+        Ok(())
+    }
+
+    #[test]
+    fn divide_by_zero() -> Result<()> {
+        expect_error!("3 / 0", DivideByZero);
         Ok(())
     }
 }

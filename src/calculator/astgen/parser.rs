@@ -429,8 +429,8 @@ mod tests {
     }
 
     macro_rules! calculation {
-        ($parser_res:expr) => {
-            if let ParserResult::Calculation(ast) = $parser_res {
+        ($input:expr) => {
+            if let ParserResult::Calculation(ast) = parse!($input)? {
                 ast
             } else {
                 panic!("Expected ParserResult::Calculation");
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn basic() -> Result<()> {
-        let ast = calculation!(parse!("1 - 3 + 4 * 5 / 6")?);
+        let ast = calculation!("1 - 3 + 4 * 5 / 6");
         assert_eq!(ast.iter().map(|n| n.data.clone()).collect::<Vec<_>>(), vec![
             AstNodeData::Literal(1.0),
             AstNodeData::Operator(Operator::Minus),
@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn modifiers() -> Result<()> {
-        let ast = calculation!(parse!("2! + 3% + !4 + 3!%")?);
+        let ast = calculation!("2! + 3% + !4 + 3!%");
         assert_eq!(ast.iter()
                        .filter(|n| matches!(n.data, AstNodeData::Literal(_)))
                        .map(|n| &n.modifiers)
@@ -472,7 +472,7 @@ mod tests {
 
     #[test]
     fn extended_operators() -> Result<()> {
-        let ast = calculation!(parse!("20% of 3 ^ 2 & 1 | 4")?);
+        let ast = calculation!("20% of 3 ^ 2 & 1 | 4");
         assert_eq!(ast.iter()
                        .filter(|n| matches!(n.data, AstNodeData::Operator(_)))
                        .map(|n| n.data.clone())
@@ -487,7 +487,7 @@ mod tests {
 
     #[test]
     fn groups() -> Result<()> {
-        let ast = calculation!(parse!("(1 + (1 + 1)) * 2")?);
+        let ast = calculation!("(1 + (1 + 1)) * 2");
         assert_eq!(ast.len(), 3);
         let group = match ast[0].data {
             AstNodeData::Group(ref group) => group,
@@ -513,7 +513,7 @@ mod tests {
 
     #[test]
     fn variables() -> Result<()> {
-        let ast = calculation!(parse!("pi")?);
+        let ast = calculation!("pi");
         match ast[0].data {
             AstNodeData::VariableReference(ref s) => {
                 assert_eq!("pi".to_string(), *s);
@@ -525,7 +525,7 @@ mod tests {
 
     #[test]
     fn functions() -> Result<()> {
-        let ast = calculation!(parse!("sin(30)")?);
+        let ast = calculation!("sin(30)");
         match ast[0].data {
             AstNodeData::FunctionInvocation(ref name, ref args) => {
                 assert_eq!("sin".to_string(), *name);
@@ -539,12 +539,33 @@ mod tests {
 
     #[test]
     fn inferred_multiplication() -> Result<()> {
-        let ast = calculation!(parse!("2(1)")?);
+        let ast = calculation!("2(1)");
         assert!(ast.len() == 3 && matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
-        let ast = calculation!(parse!("2pi")?);
+        let ast = calculation!("2pi");
         assert!(ast.len() == 3 && matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
-        let ast = calculation!(parse!("2sin(30)")?);
+        let ast = calculation!("2sin(30)");
         assert!(ast.len() == 3 && matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
+        Ok(())
+    }
+
+    #[test]
+    fn units() -> Result<()> {
+        let ast = calculation!("3m");
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].unit.as_ref().unwrap(), "m");
+        let ast = calculation!("3km");
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].unit.as_ref().unwrap(), "km");
+        Ok(())
+    }
+
+    #[test]
+    fn unit_conversions() -> Result<()> {
+        let ast = calculation!("3m in km");
+        assert_eq!(ast.len(), 3);
+        assert_eq!(ast[0].unit.as_ref().unwrap(), "m");
+        assert!(matches!(ast[1].data, AstNodeData::Operator(Operator::In)));
+        assert!(matches!(ast[2].data, AstNodeData::Unit(_)));
         Ok(())
     }
 
@@ -573,6 +594,7 @@ mod tests {
         Ok(())
     }
 
+
     #[test]
     fn missing_closing_bracket() -> Result<()> {
         let ast = parse!("(");
@@ -592,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn unknown_variable() -> Result<()> {
+    fn unknown_identifier() -> Result<()> {
         let ast = parse!("asdf");
         assert_error_type!(ast, UnknownIdentifier);
         Ok(())

@@ -253,7 +253,7 @@ mod tests {
         assert_eq!(tokens, vec![
             Token::new(TokenType::DecimalLiteral, "3", 0..1),
             Token::new(TokenType::HexLiteral, "0x0123456789", 2..14),
-            Token::new(TokenType::HexLiteral, "0xabcdef", 15..23),
+            Token::new(TokenType::HexLiteral, "0xABCdef", 15..23),
             Token::new(TokenType::BinaryLiteral, "0b110", 24..29),
         ]);
         Ok(())
@@ -324,6 +324,13 @@ mod tests {
             Token::new(TokenType::Identifier, "test", 2..6),
             Token::new(TokenType::Identifier, "tset", 7..11),
         ]);
+        Ok(())
+    }
+
+    #[test]
+    fn non_ascii_chars() -> Result<()> {
+        let tokens = tokenize("°")?;
+        assert_eq!(tokens, vec![Token::new(TokenType::Identifier, "°", 0..1)]);
         Ok(())
     }
 }
