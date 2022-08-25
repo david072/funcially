@@ -241,7 +241,7 @@ impl<'a> Parser<'a> {
                     Ok(())
                 } else if is_valid_function(&identifier.text) {
                     if self.index >= self.tokens.len() || !matches!(self.tokens[self.index].ty, TokenType::OpenBracket) {
-                        error!(MissingOpeningBracket(identifier.range.end..identifier.range.end + 1));
+                        error!(MissingOpeningBracket(identifier.range.end - 1..identifier.range.end));
                     }
                     self.infer_multiplication(multiplication_range);
                     self.next_function(identifier)?;
@@ -323,7 +323,8 @@ impl<'a> Parser<'a> {
 
         let range = identifier.range.start..self.tokens[self.index - 1].range.end;
         if arguments.len() != get_arguments_count(&identifier.text).unwrap() {
-            error!(WrongNumberOfArguments(range));
+            println!("t: {:?}", self.tokens);
+            error!(WrongNumberOfArguments(open_bracket.range.start..self.tokens[self.index - 1].range.end));
         }
 
         self.push_new_node(

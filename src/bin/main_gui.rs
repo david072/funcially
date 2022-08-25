@@ -3,9 +3,11 @@
 extern crate eframe;
 extern crate calculator;
 
+use std::collections::HashMap;
 use eframe::{egui, Frame};
 use egui::*;
 use calculator::{Calculator, CalculatorResult, Format, round_dp, Verbosity};
+use std::ops::Range;
 
 const FONT_SIZE: f32 = 16.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
@@ -28,7 +30,9 @@ struct App {
 
     source_old: String,
     source: String,
+
     output: String,
+    error_ranges: HashMap<usize, Range<usize>>,
 
     first_frame: bool,
 }
@@ -40,13 +44,14 @@ impl Default for App {
             source_old: String::new(),
             source: String::new(),
             output: String::new(),
+            error_ranges: HashMap::new(),
             first_frame: true,
         }
     }
 }
 
 impl App {
-    fn calculate(&mut self, str: &str) -> String {
+    fn calculate(&mut self, line: usize, str: &str) -> String {
         let str = str.to_string();
         let str = str.trim();
         if str.is_empty() { return String::new(); }
@@ -54,6 +59,7 @@ impl App {
         let result = self.calculator.calculate(str, Verbosity::None);
         match result {
             Ok(res) => {
+                self.error_ranges.remove(&line);
                 match res {
                     CalculatorResult::Number { result, unit, format } => {
                         let unit = unit.unwrap_or_default();
@@ -66,7 +72,10 @@ impl App {
                     CalculatorResult::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
                 }
             }
-            Err(e) => format!("{:?}", e.error), // TODO: Highlight error in red
+            Err(e) => {
+                self.error_ranges.insert(line, e.start..e.end);
+                format!("{:?}", e.error)
+            }
         }
     }
 }
@@ -80,13 +89,63 @@ impl eframe::App for App {
                 ui.horizontal(|ui| {
                     let font_id = FontId::monospace(FONT_SIZE);
 
-                    // TODO: Make this fill the whole screen on startup
+                    let error_ranges = &mut self.error_ranges;
+                    println!("error_ranges: {error_ranges:?}");
+                    let mut layouter = |ui: &Ui, string: &str, wrap_width: f32| {
+                        fn layout_section(range: Range<usize>, font_id: FontId, color: Color32) -> text::LayoutSection {
+                            text::LayoutSection {
+                                leading_space: 0.0,
+                                byte_range: range,
+                                format: TextFormat {
+                                    font_id,
+                                    color,
+                                    ..Default::default()
+                                },
+                            }
+                        }
+
+                        let mut job = text::LayoutJob {
+                            text: string.into(),
+                            ..Default::default()
+                        };
+
+                        if error_ranges.is_empty() {
+                            job.sections.push(layout_section(0..string.len(), font_id.clone(), Color32::GRAY));
+                        }
+                        else {
+                            let mut end = 0usize;
+                            let mut offset = 0usize;
+                            for (i, line) in string.lines().enumerate() {
+                                println!("i: {i}, line: {line}, offset: {offset}");
+                                if let Some(range) = error_ranges.get(&i) {
+                                    let range_start = range.start + offset;
+                                    let range_end = range.end + offset;
+                                    if range_end > string.len() { break; }
+
+                                    job.sections.push(layout_section(end..range_start, font_id.clone(), Color32::GRAY));
+                                    job.sections.push(layout_section(range_start..range_end, font_id.clone(), Color32::RED));
+                                    end = range_end;
+                                }
+
+                                offset += line.len() + 1;
+                            }
+
+                            if end != string.len() {
+                                job.sections.push(layout_section(end..string.len(), font_id.clone(), Color32::GRAY));
+                            }
+                        }
+
+                        job.wrap.max_width = wrap_width;
+                        ui.fonts().layout_job(job)
+                    };
+
                     let output = TextEdit::multiline(&mut self.source)
                         .lock_focus(true)
                         .hint_text("Calculate something")
                         .frame(false)
                         .font(FontSelection::from(font_id.clone()))
                         .desired_rows(rows)
+                        .layouter(&mut layouter)
                         .show(ui);
 
                     if self.first_frame {
@@ -102,21 +161,21 @@ impl eframe::App for App {
                             let mut line = String::new();
                             let mut newlines = String::new();
 
+                            let mut line_index = 0usize;
                             for row in &output.galley.rows {
-                                if row.glyphs.is_empty() { continue; }
-
                                 newlines.push('\n');
                                 line += row.glyphs.iter().map(|g| g.chr).collect::<String>().as_str();
 
                                 if row.ends_with_newline {
-                                    output_str = format!("{}{}{}", output_str, self.calculate(&line), newlines);
+                                    output_str = format!("{}{}{}", output_str, self.calculate(line_index, &line), newlines);
                                     newlines.clear();
                                     line.clear();
+                                    line_index += 1;
                                 }
                             }
 
                             if !line.is_empty() {
-                                let res = self.calculate(&line);
+                                let res = self.calculate(line_index, &line);
                                 output_str = format!("{}{}{}", output_str, res, newlines);
                             }
 
@@ -127,6 +186,8 @@ impl eframe::App for App {
                     }
 
                     spacer(ui);
+
+
                     TextEdit::multiline(&mut self.output)
                         .interactive(false)
                         .frame(false)
