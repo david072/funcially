@@ -1,11 +1,9 @@
 extern crate calculator;
 extern crate clap;
-extern crate rust_decimal;
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
-use calculator::{Verbosity, Format, Calculator, CalculatorResult};
-use rust_decimal::prelude::*;
+use calculator::{Verbosity, Format, Calculator, CalculatorResult, round_dp};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -52,7 +50,7 @@ fn main() {
                             CalculatorResult::Number { result: n, unit, format } => {
                                 let unit = unit.unwrap_or_default();
                                 match format {
-                                    Format::Decimal => println!("= {}{}", Decimal::from_f64(n).unwrap().round_dp(10), unit),
+                                    Format::Decimal => println!("= {}{}", round_dp(n, 10), unit),
                                     Format::Hex => println!("= {:#X}{}", n as i64, unit),
                                     Format::Binary => println!("= {:#b}{}", n as i64, unit),
                                 }

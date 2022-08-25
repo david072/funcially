@@ -1,5 +1,6 @@
 extern crate strum;
 extern crate core;
+extern crate rust_decimal;
 
 mod astgen;
 mod common;
@@ -9,11 +10,13 @@ mod functions;
 mod units;
 
 use std::fmt::{Display, Formatter};
+use rust_decimal::Decimal;
 use common::Result;
 use astgen::parser::{parse, ParserResult};
 use astgen::tokenizer::tokenize;
 use engine::evaluate;
 use variables::Variables;
+use rust_decimal::prelude::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -121,4 +124,8 @@ impl Calculator {
             }
         }
     }
+}
+
+pub fn round_dp(n: f64, dp: u32) -> String {
+    Decimal::from_f64(n).unwrap().round_dp(dp).to_string()
 }
