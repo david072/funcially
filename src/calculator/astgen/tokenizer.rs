@@ -77,8 +77,7 @@ pub struct Token {
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>> {
-    let chars = input.chars().collect::<Vec<_>>();
-    let mut tokenizer = Tokenizer::new(&chars);
+    let mut tokenizer = Tokenizer::new(input.as_bytes());
     let mut result = Vec::new();
 
     while let Some(token) = tokenizer.next()? {
@@ -92,22 +91,22 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 }
 
 const NUMBERS: &str = "0123456789";
-const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°";
+const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\u{C2}\u{B0}"; // last two are the bytes a "°" is made out of
 const HEXADECIMAL_CHARS: &str = "0123456789abcdefABCDEF";
 const BINARY_DIGITS: &str = "01";
 const WHITESPACE: &str = " \t\r\n";
 
-fn any_of(chars: &str) -> impl Fn(char) -> bool + '_ {
-    move |c| chars.contains(&String::from(c))
+fn any_of(chars: &str) -> impl Fn(u8) -> bool + '_ {
+    move |c| chars.contains(c as char)
 }
 
 struct Tokenizer<'a> {
-    string: &'a [char],
+    string: &'a [u8],
     index: usize,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(string: &'a [char]) -> Tokenizer {
+    pub fn new(string: &'a [u8]) -> Tokenizer {
         Tokenizer {
             string,
             index: 0,
@@ -125,7 +124,7 @@ impl<'a> Tokenizer<'a> {
 
         match next_ty {
             Some(mut ty) => {
-                let slice = self.string[start..end].iter().collect::<String>();
+                let slice = String::from_utf8(self.string[start..end].to_owned()).unwrap();
 
                 if ty == TokenType::Identifier {
                     ty = match slice.to_lowercase().as_str() {
@@ -148,7 +147,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn accept<F: Fn(char) -> bool>(&mut self, predicate: F) -> bool {
+    fn accept<F: Fn(u8) -> bool>(&mut self, predicate: F) -> bool {
         if self.index >= self.string.len() {
             return false;
         }
@@ -170,22 +169,22 @@ impl<'a> Tokenizer<'a> {
         let c = self.string[self.index];
         self.index += 1;
         let res = match c {
-            '0'..='9' => {
-                if c == '0' && self.index < self.string.len() {
+            b'0'..=b'9' => {
+                if c == b'0' && self.index < self.string.len() {
                     // check next character for different representation
                     let c = self.string[self.index];
                     self.index += 1;
                     match c {
-                        'x' | 'X' => {
+                        b'x' | b'X' => {
                             while self.accept(any_of(HEXADECIMAL_CHARS)) {}
                             return Some(TokenType::HexLiteral);
                         }
-                        'b' | 'B' => {
+                        b'b' | b'B' => {
                             while self.accept(any_of(BINARY_DIGITS)) {}
                             return Some(TokenType::BinaryLiteral);
                         }
                         // fall through to after the if
-                        '0'..='9' | '.' => {}
+                        b'0'..=b'9' | b'.' => {}
                         _ => {
                             // the character needs to be processed in the next iteration
                             self.index -= 1;
@@ -199,36 +198,36 @@ impl<'a> Tokenizer<'a> {
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
             }
-            '.' => {
+            b'.' => {
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
             }
             // number sign
-            '+' | '-' if self.index < self.string.len() &&
-                matches!(self.string[self.index], '0'..='9' | '.') => {
+            b'+' | b'-' if self.index < self.string.len() &&
+                matches!(self.string[self.index], b'0'..=b'9' | b'.') => {
                 self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
             }
-            '+' => Some(TokenType::Plus),
-            '-' => Some(TokenType::Minus),
-            '*' => Some(TokenType::Multiply),
-            '/' => Some(TokenType::Divide),
-            '^' => Some(TokenType::Exponentiation),
-            '&' => Some(TokenType::BitwiseAnd),
-            '|' => Some(TokenType::BitwiseOr),
-            '!' => Some(TokenType::ExclamationMark),
-            '%' => Some(TokenType::PercentSign),
-            '(' => Some(TokenType::OpenBracket),
-            ')' => Some(TokenType::CloseBracket),
-            '=' => Some(TokenType::EqualsSign),
-            ',' => Some(TokenType::Comma),
+            b'+' => Some(TokenType::Plus),
+            b'-' => Some(TokenType::Minus),
+            b'*' => Some(TokenType::Multiply),
+            b'/' => Some(TokenType::Divide),
+            b'^' => Some(TokenType::Exponentiation),
+            b'&' => Some(TokenType::BitwiseAnd),
+            b'|' => Some(TokenType::BitwiseOr),
+            b'!' => Some(TokenType::ExclamationMark),
+            b'%' => Some(TokenType::PercentSign),
+            b'(' => Some(TokenType::OpenBracket),
+            b')' => Some(TokenType::CloseBracket),
+            b'=' => Some(TokenType::EqualsSign),
+            b',' => Some(TokenType::Comma),
             _ => None
         };
 
         if res.is_some() { return res; }
 
-        if LETTERS.contains(&String::from(c)) {
+        if LETTERS.contains(c as char) {
             while self.accept(any_of(LETTERS)) {}
             return Some(TokenType::Identifier);
         }

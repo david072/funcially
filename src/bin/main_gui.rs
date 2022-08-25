@@ -6,7 +6,7 @@ extern crate calculator;
 use std::collections::HashMap;
 use eframe::{egui, Frame};
 use egui::*;
-use calculator::{Calculator, CalculatorResult, Format, round_dp, Verbosity};
+use calculator::{Calculator, CalculatorResultData, Format, round_dp, Verbosity, Segment};
 use std::ops::Range;
 
 const FONT_SIZE: f32 = 16.0;
@@ -32,6 +32,7 @@ struct App {
     source: String,
 
     output: String,
+    color_segments: HashMap<usize, Vec<Segment>>,
     error_ranges: HashMap<usize, Range<usize>>,
 
     first_frame: bool,
@@ -44,6 +45,7 @@ impl Default for App {
             source_old: String::new(),
             source: String::new(),
             output: String::new(),
+            color_segments: HashMap::new(),
             error_ranges: HashMap::new(),
             first_frame: true,
         }
@@ -59,9 +61,11 @@ impl App {
         let result = self.calculator.calculate(str, Verbosity::None);
         match result {
             Ok(res) => {
+                self.color_segments.insert(line, res.color_segments);
                 self.error_ranges.remove(&line);
-                match res {
-                    CalculatorResult::Number { result, unit, format } => {
+
+                match res.data {
+                    CalculatorResultData::Number { result, unit, format } => {
                         let unit = unit.unwrap_or_default();
                         match format {
                             Format::Decimal => format!("= {}{}", round_dp(result, 10), unit),
@@ -69,10 +73,11 @@ impl App {
                             Format::Hex => format!("= {:#X}{}", result as i64, unit),
                         }
                     }
-                    CalculatorResult::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
+                    CalculatorResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
                 }
             }
             Err(e) => {
+                self.color_segments.remove(&line);
                 self.error_ranges.insert(line, e.start..e.end);
                 format!("{:?}", e.error)
             }
@@ -89,49 +94,59 @@ impl eframe::App for App {
                 ui.horizontal(|ui| {
                     let font_id = FontId::monospace(FONT_SIZE);
 
+                    let color_segments = &mut self.color_segments;
                     let error_ranges = &mut self.error_ranges;
-                    println!("error_ranges: {error_ranges:?}");
                     let mut layouter = |ui: &Ui, string: &str, wrap_width: f32| {
-                        fn layout_section(range: Range<usize>, font_id: FontId, color: Color32) -> text::LayoutSection {
+                        let layout_section = |range: Range<usize>, color: Color32| {
                             text::LayoutSection {
                                 leading_space: 0.0,
                                 byte_range: range,
                                 format: TextFormat {
-                                    font_id,
+                                    font_id: font_id.clone(),
                                     color,
                                     ..Default::default()
                                 },
                             }
-                        }
+                        };
 
                         let mut job = text::LayoutJob {
                             text: string.into(),
                             ..Default::default()
                         };
 
-                        if error_ranges.is_empty() {
-                            job.sections.push(layout_section(0..string.len(), font_id.clone(), Color32::GRAY));
-                        }
-                        else {
+                        if error_ranges.is_empty() && color_segments.is_empty() {
+                            job.sections.push(layout_section(0..string.len(), Color32::GRAY));
+                        } else {
                             let mut end = 0usize;
                             let mut offset = 0usize;
-                            for (i, line) in string.lines().enumerate() {
-                                println!("i: {i}, line: {line}, offset: {offset}");
+                            'outer: for (i, line) in string.lines().enumerate() {
                                 if let Some(range) = error_ranges.get(&i) {
                                     let range_start = range.start + offset;
                                     let range_end = range.end + offset;
                                     if range_end > string.len() { break; }
 
-                                    job.sections.push(layout_section(end..range_start, font_id.clone(), Color32::GRAY));
-                                    job.sections.push(layout_section(range_start..range_end, font_id.clone(), Color32::RED));
+                                    job.sections.push(layout_section(end..range_start, Color32::GRAY));
+                                    job.sections.push(layout_section(range_start..range_end, Color32::RED));
                                     end = range_end;
+                                } else if let Some(segments) = color_segments.get(&i) {
+                                    for segment in segments {
+                                        let range_start = segment.range.start + offset;
+                                        let range_end = segment.range.end + offset;
+                                        if range_end > string.len() { break 'outer; }
+                                        if range_start != end {
+                                            job.sections.push(layout_section(end..range_start, Color32::GRAY));
+                                        }
+
+                                        job.sections.push(layout_section(range_start..range_end, segment.color));
+                                        end = range_end;
+                                    }
                                 }
 
                                 offset += line.len() + 1;
                             }
 
                             if end != string.len() {
-                                job.sections.push(layout_section(end..string.len(), font_id.clone(), Color32::GRAY));
+                                job.sections.push(layout_section(end..string.len(), Color32::GRAY));
                             }
                         }
 

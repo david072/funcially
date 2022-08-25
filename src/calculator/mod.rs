@@ -1,6 +1,7 @@
 extern crate strum;
 extern crate core;
 extern crate rust_decimal;
+extern crate eframe;
 
 mod astgen;
 mod common;
@@ -8,6 +9,7 @@ mod engine;
 mod variables;
 mod functions;
 mod units;
+pub mod color;
 
 use std::fmt::{Display, Formatter};
 use rust_decimal::Decimal;
@@ -17,6 +19,7 @@ use astgen::tokenizer::tokenize;
 use engine::evaluate;
 use variables::Variables;
 use rust_decimal::prelude::*;
+pub use color::Segment;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -25,7 +28,7 @@ pub enum Verbosity {
     Ast,
 }
 
-impl std::str::FromStr for Verbosity {
+impl FromStr for Verbosity {
     type Err = ();
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
@@ -51,7 +54,7 @@ impl Display for Format {
 }
 
 /// A struct containing information about the calculated result
-pub enum CalculatorResult {
+pub enum CalculatorResultData {
     Number {
         result: f64,
         unit: Option<String>,
@@ -60,13 +63,24 @@ pub enum CalculatorResult {
     Boolean(bool),
 }
 
+pub struct CalculatorResult {
+    pub data: CalculatorResultData,
+    pub color_segments: Vec<Segment>,
+}
+
 impl CalculatorResult {
-    pub fn number(result: f64, unit: Option<String>, format: Format) -> CalculatorResult {
-        CalculatorResult::Number { result, unit, format }
+    pub fn number(result: f64, unit: Option<String>, format: Format, segments: Vec<Segment>) -> CalculatorResult {
+        CalculatorResult {
+            data: CalculatorResultData::Number { result, unit, format },
+            color_segments: segments,
+        }
     }
 
-    pub fn bool(bool: bool) -> CalculatorResult {
-        CalculatorResult::Boolean(bool)
+    pub fn bool(bool: bool, segments: Vec<Segment>) -> CalculatorResult {
+        CalculatorResult {
+            data: CalculatorResultData::Boolean(bool),
+            color_segments: segments,
+        }
     }
 }
 
@@ -95,6 +109,9 @@ impl Calculator {
             println!();
         }
 
+        let color_segments = tokens.iter().map(Segment::from).collect::<Vec<_>>();
+        println!("{:?}", color_segments);
+
         match parse(&tokens)? {
             ParserResult::Calculation(ast) => {
                 if verbosity == Verbosity::Ast {
@@ -106,7 +123,8 @@ impl Calculator {
                 let result = evaluate(ast, &self.variables)?;
                 self.variables.set("ans", result.result);
 
-                Ok(CalculatorResult::number(result.result, result.unit, result.format))
+                Ok(CalculatorResult::number(result.result, result.unit,
+                                            result.format, color_segments))
             }
             ParserResult::EqualityCheck(lhs, rhs) => {
                 if verbosity == Verbosity::Ast {
@@ -120,7 +138,7 @@ impl Calculator {
                 let lhs_res = evaluate(lhs, &self.variables)?.result;
                 let rhs_res = evaluate(rhs, &self.variables)?.result;
 
-                Ok(CalculatorResult::bool(lhs_res == rhs_res))
+                Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
             }
         }
     }

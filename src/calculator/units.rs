@@ -129,7 +129,8 @@ pub fn format(unit: &str, plural: bool) -> String {
     }
 
     let prefix = unit_prefix(unit).map(|x| x.0);
-    let unit = if prefix.is_some() { &unit[1..] } else { unit };
+    let unit = if prefix.is_some() { unit[1..].to_lowercase() } else { unit.to_lowercase() };
+    let unit = unit.as_str();
 
     let mut result = " ".to_string();
 

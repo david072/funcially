@@ -3,7 +3,7 @@ extern crate clap;
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
-use calculator::{Verbosity, Format, Calculator, CalculatorResult, round_dp};
+use calculator::{Verbosity, Format, Calculator, round_dp, CalculatorResultData};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -46,8 +46,8 @@ fn main() {
             _ => {
                 match calculator.calculate(&input, verbosity) {
                     Ok(res) => {
-                        match res {
-                            CalculatorResult::Number { result: n, unit, format } => {
+                        match res.data {
+                            CalculatorResultData::Number { result: n, unit, format } => {
                                 let unit = unit.unwrap_or_default();
                                 match format {
                                     Format::Decimal => println!("= {}{}", round_dp(n, 10), unit),
@@ -55,7 +55,7 @@ fn main() {
                                     Format::Binary => println!("= {:#b}{}", n as i64, unit),
                                 }
                             }
-                            CalculatorResult::Boolean(b) => println!("=> {}", if b { "True" } else { "False" }),
+                            CalculatorResultData::Boolean(b) => println!("=> {}", if b { "True" } else { "False" }),
                         }
                     }
                     Err(error) => {
