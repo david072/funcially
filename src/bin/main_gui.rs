@@ -7,6 +7,9 @@ use eframe::{egui, Frame};
 use egui::*;
 use calculator::{Calculator, CalculatorResult, Format, round_dp, Verbosity};
 
+const FONT_SIZE: f32 = 16.0;
+const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
+
 fn main() {
     let options = eframe::NativeOptions {
         resizable: false,
@@ -71,14 +74,19 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         CentralPanel::default().show(ctx, |ui| {
+            let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y) / FONT_SIZE) as usize;
+
             ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal(|ui| {
+                    let font_id = FontId::monospace(FONT_SIZE);
+
                     // TODO: Make this fill the whole screen on startup
                     let output = TextEdit::multiline(&mut self.source)
                         .lock_focus(true)
                         .hint_text("Calculate something")
                         .frame(false)
-                        .font(FontSelection::from(FontId::new(18.0, FontFamily::Monospace)))
+                        .font(FontSelection::from(font_id.clone()))
+                        .desired_rows(rows)
                         .show(ui);
 
                     if self.first_frame {
@@ -108,7 +116,8 @@ impl eframe::App for App {
                             }
 
                             if !line.is_empty() {
-                                output_str = format!("{}{}{}", output_str, self.calculate(&line), newlines);
+                                let res = self.calculate(&line);
+                                output_str = format!("{}{}{}", output_str, res, newlines);
                             }
 
                             self.output = output_str;
@@ -121,7 +130,8 @@ impl eframe::App for App {
                     TextEdit::multiline(&mut self.output)
                         .interactive(false)
                         .frame(false)
-                        .font(FontSelection::from(FontId::new(18.0, FontFamily::Monospace)))
+                        .font(FontSelection::from(font_id))
+                        .desired_rows(rows)
                         .show(ui);
                 });
             });
