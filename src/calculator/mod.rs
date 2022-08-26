@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2022, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 extern crate strum;
 extern crate core;
 extern crate rust_decimal;

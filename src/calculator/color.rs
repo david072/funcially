@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2022, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 use std::ops::Range;
 use eframe::egui::Color32;
 use ::astgen::tokenizer::{Token, TokenType};

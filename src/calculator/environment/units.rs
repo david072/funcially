@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2022, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 use std::f64::consts::PI;
 use ::common::{Result, ErrorType};
 

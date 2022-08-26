@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2022, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 use std::mem::{take, replace};
 use astgen::ast::Operator;
 use ::{match_ast_node, Format};

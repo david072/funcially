@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2022, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 use ::Format;
 use crate::common::*;
 use std::fmt::{Formatter, Display, Debug};
