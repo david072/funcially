@@ -77,6 +77,10 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> Result<ParserResult> {
         while self.next()? {}
 
+        if !self.next_token_modifiers.is_empty() {
+            return Err(ErrorType::ExpectedNumber.with(self.tokens.last().unwrap().range.clone()));
+        }
+
         let result = mem::take(&mut self.result);
         if let Some(index) = self.equals_sign_index {
             let (lhs, rhs) = result.split_at(index);
@@ -130,6 +134,28 @@ impl<'a> Parser<'a> {
                 let last_node = self.result.last_mut().unwrap();
                 last_node.modifiers.push(AstNodeModifier::Percent);
                 return Ok(true);
+            }
+            TokenType::Minus => {
+                if let Some(last_ty) = self.last_token_ty {
+                    if last_ty.is_operator() {
+                        self.next_token_modifiers.push(AstNodeModifier::Minus);
+                        return Ok(true);
+                    }
+                } else {
+                    self.next_token_modifiers.push(AstNodeModifier::Minus);
+                    return Ok(true);
+                }
+            }
+            TokenType::Plus => {
+                if let Some(last_ty) = self.last_token_ty {
+                    if last_ty.is_operator() {
+                        self.next_token_modifiers.push(AstNodeModifier::Plus);
+                        return Ok(true);
+                    }
+                } else {
+                    self.next_token_modifiers.push(AstNodeModifier::Plus);
+                    return Ok(true);
+                }
             }
             TokenType::OpenBracket => {
                 self.next_group(token)?;
@@ -373,7 +399,10 @@ impl<'a> Parser<'a> {
                         allowed_tokens.push(TokenType::Identifier);
                         ErrorType::ExpectedFormat
                     } else {
-                        remove_elems!(allowed_tokens, (|i| i.is_operator() || *i == TokenType::PercentSign));
+                        remove_elems!(allowed_tokens, (|i| {
+                            (i.is_operator() && *i != TokenType::Minus && *i != TokenType::Plus)
+                            || *i == TokenType::PercentSign
+                        }));
                         ErrorType::ExpectedNumber
                     }
                 } else if ty.is_format() {
@@ -384,7 +413,10 @@ impl<'a> Parser<'a> {
                 }
             }
             None => {
-                remove_elems!(allowed_tokens, (|i| *i == TokenType::PercentSign || i.is_format() || i.is_operator()));
+                remove_elems!(allowed_tokens, (|i| {
+                    (i.is_operator() && *i != TokenType::Minus && *i != TokenType::Plus) ||
+                    *i == TokenType::PercentSign || i.is_format()
+                }));
                 if token.ty.is_operator() || token.ty == TokenType::PercentSign {
                     ErrorType::ExpectedNumber
                 } else if token.ty.is_format() {

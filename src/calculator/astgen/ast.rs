@@ -46,11 +46,15 @@ pub enum AstNodeModifier {
     Factorial,
     BitwiseNot,
     Percent,
+    Minus,
+    Plus,
 }
 
 impl AstNodeModifier {
     pub fn is_prefix(&self) -> bool {
-        matches!(self, AstNodeModifier::BitwiseNot)
+        matches!(self, AstNodeModifier::BitwiseNot
+            | AstNodeModifier::Minus
+            | AstNodeModifier::Plus)
     }
 }
 
@@ -60,6 +64,8 @@ impl Display for AstNodeModifier {
             AstNodeModifier::Factorial => write!(f, "!"),
             AstNodeModifier::BitwiseNot => write!(f, "!"),
             AstNodeModifier::Percent => write!(f, "%"),
+            AstNodeModifier::Minus => write!(f, "-"),
+            AstNodeModifier::Plus => write!(f, "+"),
         }
     }
 }
@@ -210,6 +216,8 @@ impl AstNode {
                     } as f64;
                 }
                 AstNodeModifier::Percent => *value /= 100.0,
+                AstNodeModifier::Minus => *value *= -1.0,
+                AstNodeModifier::Plus => *value *= 1.0,
             }
         }
 
