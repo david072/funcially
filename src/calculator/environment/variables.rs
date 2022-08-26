@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2022, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 use crate::common::{Result, ErrorType};
 use std::f64::consts::{PI, E, TAU};
 
