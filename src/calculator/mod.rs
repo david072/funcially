@@ -6,9 +6,7 @@ extern crate eframe;
 mod astgen;
 mod common;
 mod engine;
-mod variables;
-mod functions;
-mod units;
+mod environment;
 pub mod color;
 
 use std::fmt::{Display, Formatter};
@@ -17,6 +15,7 @@ use common::Result;
 use astgen::parser::{parse, ParserResult};
 use astgen::tokenizer::tokenize;
 use engine::evaluate;
+use environment::*;
 use variables::Variables;
 use rust_decimal::prelude::*;
 pub use color::Segment;
