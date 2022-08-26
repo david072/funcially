@@ -143,5 +143,6 @@ impl Calculator {
 }
 
 pub fn round_dp(n: f64, dp: u32) -> String {
+    if n.is_nan() { return "NaN".to_owned(); }
     Decimal::from_f64(n).unwrap().round_dp(dp).to_string()
 }

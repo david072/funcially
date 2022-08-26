@@ -33,6 +33,7 @@ pub enum ErrorType {
     ExpectedPercentage,
     InvalidArguments,
     UnknownConversion,
+    NotANumber,
     /// This should never happen
     InvalidAst,
 }
