@@ -123,13 +123,15 @@ impl eframe::App for App {
                                 if let Some(range) = error_ranges.get(&i) {
                                     let range_start = range.start + offset;
                                     let range_end = range.end + offset;
+
+                                    if range_end > string.len() { break; }
+                                    if range_start >= range_end { break 'outer; }
+
                                     // There is an error in the data because the text was edited. It will be updated
                                     // by the code further down imminently, we just have to try to not crash here
                                     if !string.is_char_boundary(range_start) || !string.is_char_boundary(range_end) {
                                         break 'outer;
                                     }
-
-                                    if range_end > string.len() { break; }
 
                                     job.sections.push(layout_section(end..range_start, Color32::GRAY));
                                     job.sections.push(layout_section(range_start..range_end, Color32::RED));
@@ -138,7 +140,9 @@ impl eframe::App for App {
                                     for segment in segments {
                                         let range_start = segment.range.start + offset;
                                         let range_end = segment.range.end + offset;
+
                                         if range_end > string.len() { break 'outer; }
+                                        if range_start >= range_end { break 'outer; }
 
                                         // There is an error in the data because the text was edited. It will be updated
                                         // by the code further down imminently, we just have to try to not crash here
@@ -146,6 +150,7 @@ impl eframe::App for App {
                                             break 'outer;
                                         }
 
+                                        if end > range_start { break 'outer; }
                                         if range_start != end {
                                             job.sections.push(layout_section(end..range_start, Color32::GRAY));
                                         }
@@ -158,7 +163,7 @@ impl eframe::App for App {
                                 offset += line.len() + 1;
                             }
 
-                            if end != string.len() {
+                            if end < string.len() {
                                 job.sections.push(layout_section(end..string.len(), Color32::GRAY));
                             }
                         }
@@ -182,6 +187,7 @@ impl eframe::App for App {
                     }
 
                     if self.source != self.source_old {
+                        self.color_segments.clear();
                         self.source_old = self.source.clone();
 
                         if !output.galley.rows.is_empty() && !output.galley.rows[0].glyphs.is_empty() {
