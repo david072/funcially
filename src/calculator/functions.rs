@@ -37,7 +37,13 @@ pub fn resolve(f: &str, args: &[f64], ast_node_range: &std::ops::Range<usize>) -
         "tan" => Ok(args[0].to_radians().tan()),
         "atan" => Ok(args[0].atan().to_degrees()),
         "ln" => Ok(args[0].ln()),
-        "log" => Ok(args[1].log(args[0])),
+        "log" => Ok(if args[0] == 2.0 {
+            args[1].log2()
+        } else if args[0] == 10.0 {
+            args[1].log10()
+        } else {
+            args[1].log(args[0])
+        }),
         "sqrt" => Ok(args[0].sqrt()),
         "abs" => Ok(args[0].abs()),
         "floor" => Ok(args[0].floor()),
@@ -47,7 +53,7 @@ pub fn resolve(f: &str, args: &[f64], ast_node_range: &std::ops::Range<usize>) -
                 return Err(ErrorType::InvalidArguments.with(ast_node_range.clone()));
             }
             Ok(args[0].clamp(args[1], args[2]))
-        },
+        }
         "map" => {
             let a1 = args[1];
             let b1 = args[2];
