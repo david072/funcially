@@ -221,12 +221,44 @@ impl eframe::App for App {
 
                     spacer(ui);
 
+                    let mut layouter = |ui: &Ui, string: &str, wrap_width: f32| {
+                        let mut new_string = String::new();
+                        let wrap_width = wrap_width as usize;
+
+                        for line in string.split('\n') {
+                            if line.len() >= wrap_width {
+                                new_string += &line[0..wrap_width];
+                            }
+                            else {
+                                new_string += line;
+                            }
+                            new_string.push('\n');
+                        }
+
+                        let len = new_string.len();
+                        let mut job = text::LayoutJob {
+                            text: new_string,
+                            ..Default::default()
+                        };
+
+                        job.sections.push(text::LayoutSection {
+                            leading_space: 0.0,
+                            byte_range: 0..len,
+                            format: TextFormat {
+                                font_id: font_id.clone(),
+                                ..Default::default()
+                            },
+                        });
+
+                        ui.fonts().layout_job(job)
+                    };
 
                     TextEdit::multiline(&mut self.output)
                         .interactive(false)
                         .frame(false)
-                        .font(FontSelection::from(font_id))
+                        .font(FontSelection::from(font_id.clone()))
                         .desired_rows(rows)
+                        .layouter(&mut layouter)
                         .show(ui);
                 });
             });
