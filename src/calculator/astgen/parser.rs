@@ -323,7 +323,6 @@ impl<'a> Parser<'a> {
 
         let range = identifier.range.start..self.tokens[self.index - 1].range.end;
         if arguments.len() != get_arguments_count(&identifier.text).unwrap() {
-            println!("t: {:?}", self.tokens);
             error!(WrongNumberOfArguments(open_bracket.range.start..self.tokens[self.index - 1].range.end));
         }
 

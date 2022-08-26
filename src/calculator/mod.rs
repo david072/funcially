@@ -110,7 +110,6 @@ impl Calculator {
         }
 
         let color_segments = tokens.iter().map(Segment::from).collect::<Vec<_>>();
-        println!("{:?}", color_segments);
 
         match parse(&tokens)? {
             ParserResult::Calculation(ast) => {
