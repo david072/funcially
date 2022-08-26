@@ -17,12 +17,12 @@ pub struct Variables {
     pi: f64,
     e: f64,
     tau: f64,
-    ans: f64,
+    pub(crate) ans: (f64, Option<String>),
 }
 
 impl Variables {
     pub fn new() -> Variables {
-        Variables { pi: PI, e: E, tau: TAU, ans: 0.0 }
+        Variables { pi: PI, e: E, tau: TAU, ans: (0.0, None) }
     }
 
     pub fn resolve(&self, var: &str, ast_node_range: &std::ops::Range<usize>) -> Result<f64> {
@@ -30,16 +30,8 @@ impl Variables {
             "pi" => Ok(self.pi),
             "e" => Ok(self.e),
             "tau" => Ok(self.tau),
-            "ans" => Ok(self.ans),
+            "ans" => Ok(self.ans.0),
             _ => Err(ErrorType::UnknownVariable.with(ast_node_range.clone())),
         }
-    }
-
-    pub fn set(&mut self, var: &str, value: f64) {
-        if var != "ans" {
-            panic!("Can't set variable {}", var);
-        }
-
-        self.ans = value;
     }
 }

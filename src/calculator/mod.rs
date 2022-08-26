@@ -125,7 +125,7 @@ impl Calculator {
                 }
 
                 let result = evaluate(ast, &self.variables)?;
-                self.variables.set("ans", result.result);
+                self.variables.ans = (result.result, result.unit.clone());
 
                 Ok(CalculatorResult::number(result.result, result.unit,
                                             result.format, color_segments))

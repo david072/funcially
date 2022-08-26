@@ -98,7 +98,7 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         ("min", "h") => Ok(n / 60.0),
 
         ("h", "s") => Ok(n * 3600.0),
-        ("h", "min") => Ok(n / 60.0),
+        ("h", "min") => Ok(n * 60.0),
 
         // mass
         ("g", "lb") => Ok(n / 453.59237),

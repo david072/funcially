@@ -75,8 +75,17 @@ fn eval_variables(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
             _ => continue,
         };
 
-        let result = variables.resolve(var_name, &node.range)?;
-        let new_node = AstNode::from(node, AstNodeData::Literal(result));
+        let unit: Option<String>;
+        let number: f64;
+        if var_name == "ans" {
+            unit = variables.ans.1.clone();
+            number = variables.ans.0;
+        } else {
+            unit = None;
+            number = variables.resolve(var_name, &node.range)?;
+        }
+        let mut new_node = AstNode::from(node, AstNodeData::Literal(number));
+        new_node.unit = unit;
         let _ = replace(node, new_node);
     }
 
