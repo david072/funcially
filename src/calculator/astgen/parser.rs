@@ -148,7 +148,7 @@ impl<'a> Parser<'a> {
                     error!(UnexpectedSecondEqualsSign(token.range));
                 }
 
-                self.equals_sign_index = Some(self.index - 1);
+                self.equals_sign_index = Some(self.result.len());
                 self.last_token_ty = Some(token.ty);
                 return Ok(true);
             }
