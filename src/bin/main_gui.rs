@@ -207,14 +207,24 @@ impl eframe::App for App {
                                 line += row.glyphs.iter().map(|g| g.chr).collect::<String>().as_str();
 
                                 if row.ends_with_newline {
-                                    output_str = format!("{}{}{}", output_str, self.calculate(line_index, &line), newlines);
+                                    if !line.trim().starts_with('#') {
+                                        let line = if let Some(index) = line.find('#') {
+                                            &line[0..index]
+                                        } else { &line };
+                                        output_str = format!("{}{}{}", output_str, self.calculate(line_index, line), newlines);
+                                    } else {
+                                        output_str += &newlines;
+                                    }
                                     newlines.clear();
                                     line.clear();
                                     line_index += 1;
                                 }
                             }
 
-                            if !line.is_empty() {
+                            if !line.is_empty() && !line.trim().starts_with('#') {
+                                let line = if let Some(index) = line.find('#') {
+                                    &line[0..index]
+                                } else { &line };
                                 let res = self.calculate(line_index, &line);
                                 output_str = format!("{}{}{}", output_str, res, newlines);
                             }
@@ -234,8 +244,7 @@ impl eframe::App for App {
                         for line in string.split('\n') {
                             if line.len() >= wrap_width {
                                 new_string += &line[0..wrap_width];
-                            }
-                            else {
+                            } else {
                                 new_string += line;
                             }
                             new_string.push('\n');
@@ -252,6 +261,7 @@ impl eframe::App for App {
                             byte_range: 0..len,
                             format: TextFormat {
                                 font_id: font_id.clone(),
+                                color: Color32::WHITE,
                                 ..Default::default()
                             },
                         });

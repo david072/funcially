@@ -97,7 +97,8 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 }
 
 const NUMBERS: &str = "0123456789";
-const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\u{C2}\u{B0}"; // last two are the bytes a "°" is made out of
+// last two are the bytes a "°" is made out of
+const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\u{C2}\u{B0}";
 const HEXADECIMAL_CHARS: &str = "0123456789abcdefABCDEF";
 const BINARY_DIGITS: &str = "01";
 const WHITESPACE: &str = " \t\r\n";
@@ -130,7 +131,12 @@ impl<'a> Tokenizer<'a> {
 
         match next_ty {
             Some(mut ty) => {
-                let slice = String::from_utf8(self.string[start..end].to_owned()).unwrap();
+                let slice = self.string[start..end].to_owned();
+                let slice = match String::from_utf8(slice) {
+                    Ok(v) => v,
+                    Err(e) => panic!("Failed to parse string '{:?}' ({})",
+                                     &self.string[start..end], e),
+                };
 
                 if ty == TokenType::Identifier {
                     ty = match slice.to_lowercase().as_str() {
