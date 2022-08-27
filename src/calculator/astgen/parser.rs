@@ -386,6 +386,9 @@ impl<'a> Parser<'a> {
         if token.ty == TokenType::CloseBracket {
             error!(MissingOpeningBracket(token.range));
         }
+        else if token.ty == TokenType::Comma {
+            error!(UnexpectedComma(token.range));
+        }
 
         let mut allowed_tokens = self.all_tokens_tys.clone();
 

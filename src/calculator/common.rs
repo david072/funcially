@@ -31,6 +31,7 @@ pub enum ErrorType {
     WrongNumberOfArguments,
     UnexpectedUnit,
     ExpectedElements,
+    UnexpectedComma,
 
     // engine
     DivideByZero,
