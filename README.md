@@ -1,6 +1,6 @@
 # Calculator
 
-An advanced calculator engine for calculating text inputs.
+A calculator working purely with text inputs.
 
 ![Image](/media/image.png)
 
@@ -50,20 +50,5 @@ While it should also work on Linux, it has only been tested on Windows and Mac s
 
 ## Contributing
 
-### Issues
-
-The simplest way to contribute is by using the application and reporting bugs and making feature requests.
-
-For reporting a bug:
-
-- Try to provide a concise explanation of what happened
-- Make a minimal example that can be used to reproduce the bug / crash / etc. The smaller, the better, while still
-  yielding the same result
-- See if there already exists an issue with your bug! Duplicate issues only scatter information for no reason. If you
-  have something to add to the existing issue, place it in a comment.
-- If you're submitting a feature request, try to answer the following questions:
-    - Does it need to be a completely new feature or can it be integrated into existing features?
-    - How should the feature work from the perspective of the user?
-
-Alternatively, you can, of course, also fork the project and hack on it yourself. After you're done with your feature,
-create a PR, and it will be reviewed as soon as possible.
+You can contribute either by using the application and reporting issues and submitting feature requests, 
+or by forking the project and working on it yourself.
