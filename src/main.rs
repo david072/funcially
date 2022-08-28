@@ -62,6 +62,7 @@ fn main() {
                                 }
                             }
                             CalculatorResultData::Boolean(b) => println!("=> {}", if b { "True" } else { "False" }),
+                            CalculatorResultData::Nothing => {}
                         }
                     }
                     Err(error) => {

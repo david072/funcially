@@ -59,6 +59,7 @@ impl Display for Format {
 
 /// A struct containing information about the calculated result
 pub enum CalculatorResultData {
+    Nothing,
     Number {
         result: f64,
         unit: Option<String>,
@@ -73,21 +74,27 @@ pub struct CalculatorResult {
 }
 
 impl CalculatorResult {
-    pub fn number(result: f64, unit: Option<String>, format: Format, segments: Vec<Segment>) -> CalculatorResult {
-        CalculatorResult {
+    pub fn nothing(color_segments: Vec<Segment>) -> CalculatorResult {
+        Self {
+            data: CalculatorResultData::Nothing,
+            color_segments,
+        }
+    }
+
+    pub fn number(result: f64, unit: Option<String>, format: Format, segments: Vec<Segment>) -> Self {
+        Self {
             data: CalculatorResultData::Number { result, unit, format },
             color_segments: segments,
         }
     }
 
-    pub fn bool(bool: bool, segments: Vec<Segment>) -> CalculatorResult {
-        CalculatorResult {
+    pub fn bool(bool: bool, segments: Vec<Segment>) -> Self {
+        Self {
             data: CalculatorResultData::Boolean(bool),
             color_segments: segments,
         }
     }
 }
-
 
 pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosity) -> Result<CalculatorResult> {
     let tokens = tokenize(input)?;
@@ -110,7 +117,7 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
             }
 
             let result = evaluate(ast, &environment)?;
-            environment.ans = Variable(result.result, result.unit.clone());
+            environment.set_variable("ans", Variable(result.result, result.unit.clone())).unwrap();
 
             Ok(CalculatorResult::number(result.result, result.unit,
                                         result.format, color_segments))
@@ -128,6 +135,19 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
             let rhs_res = evaluate(rhs, &environment)?.result;
 
             Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
+        }
+        ParserResult::VariableDefinition(name, ast) => {
+            match ast {
+                Some(ast) => {
+                    let res = evaluate(ast, environment)?;
+                    environment.set_variable(&name, Variable(res.result, res.unit)).unwrap();
+                    Ok(CalculatorResult::nothing(color_segments))
+                }
+                None => {
+                    environment.remove_variable(&name).unwrap();
+                    Ok(CalculatorResult::nothing(color_segments))
+                }
+            }
         }
     }
 }

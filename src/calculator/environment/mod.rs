@@ -3,6 +3,7 @@ use std::f64::consts::{PI, E, TAU};
 
 pub mod units;
 
+#[derive(Debug)]
 pub struct Variable(pub f64, pub Option<String>);
 
 const STANDARD_VARIABLES: [&str; 4] = ["pi", "e", "tau", "ans"];
@@ -22,7 +23,8 @@ const STANDARD_FUNCTIONS: [(&str, usize); 14] = [
 ];
 
 pub struct Environment {
-    pub ans: Variable,
+    ans: Variable,
+    variables: Vec<(String, Variable)>,
 }
 
 impl Default for Environment {
@@ -33,10 +35,22 @@ impl Default for Environment {
 
 impl Environment {
     pub fn new() -> Environment {
-        Environment { ans: Variable(0.0, None) }
+        Environment {
+            ans: Variable(0.0, None),
+            variables: Vec::new(),
+        }
     }
 
     pub fn is_valid_variable(&self, var: &str) -> bool {
+        if STANDARD_VARIABLES.contains(&var) { true } else {
+            for (name, _) in &self.variables {
+                if var == name { return true; }
+            }
+            false
+        }
+    }
+
+    pub fn is_standard_variable(&self, var: &str) -> bool {
         STANDARD_VARIABLES.contains(&var)
     }
 
@@ -46,8 +60,50 @@ impl Environment {
             "e" => Ok(VAR_E),
             "tau" => Ok(VAR_TAU),
             "ans" => Ok(&self.ans),
-            _ => Err(ErrorType::UnknownVariable),
+            _ => {
+                for (name, variable) in &self.variables {
+                    if name == var { return Ok(variable); }
+                }
+                Err(ErrorType::UnknownVariable)
+            }
         }
+    }
+
+    pub fn set_variable(&mut self, var: &str, value: Variable) -> Result<(), ErrorType> {
+        if var == "ans" {
+            self.ans = value;
+            return Ok(());
+        } else if self.is_standard_variable(var) {
+            return Err(ErrorType::ReservedVariable);
+        }
+
+        for (i, (name, _)) in self.variables.iter().enumerate() {
+            if name == var {
+                self.variables[i].1 = value;
+                return Ok(());
+            }
+        }
+
+        self.variables.push((var.to_string(), value));
+        Ok(())
+    }
+
+    pub fn remove_variable(&mut self, var: &str) -> Result<(), ErrorType> {
+        if var == "ans" {
+            self.ans = Variable(0.0, None);
+            return Ok(());
+        } else if self.is_standard_variable(var) {
+            return Err(ErrorType::ReservedVariable);
+        }
+
+        for (i, (name, _)) in self.variables.iter().enumerate() {
+            if name == var {
+                self.variables.remove(i);
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn is_valid_function(&self, name: &str) -> bool {

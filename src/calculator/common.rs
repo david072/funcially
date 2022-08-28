@@ -23,6 +23,7 @@ pub enum ErrorType {
     ExpectedFormat,
     MissingOpeningBracket,
     MissingClosingBracket,
+    ExpectedIdentifier,
     UnknownIdentifier,
     UnknownVariable,
     UnexpectedEqualsSign,
@@ -31,7 +32,10 @@ pub enum ErrorType {
     WrongNumberOfArguments,
     UnexpectedUnit,
     ExpectedElements,
+    UnexpectedElements,
     UnexpectedComma,
+    UnexpectedDefinition,
+    ExpectedExpression,
 
     // engine
     DivideByZero,
@@ -41,6 +45,7 @@ pub enum ErrorType {
     InvalidArguments,
     UnknownConversion,
     NotANumber,
+    ReservedVariable,
     /// This should never happen
     InvalidAst,
 }

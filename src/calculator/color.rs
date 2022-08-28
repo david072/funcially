@@ -24,7 +24,7 @@ impl Segment {
             Plus | Minus | Multiply | Divide | Exponentiation | BitwiseAnd | BitwiseOr | Of | In => Color32::GOLD,
             ExclamationMark | PercentSign => Color32::WHITE,
             Decimal | Hex | Binary | Identifier => Color32::LIGHT_BLUE,
-            Comma | EqualsSign => Color32::WHITE,
+            Comma | EqualsSign | DefinitionSign => Color32::WHITE,
         };
         Segment {
             range: token.range.clone(),

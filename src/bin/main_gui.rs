@@ -80,6 +80,7 @@ impl App {
                         }
                     }
                     CalculatorResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
+                    CalculatorResultData::Nothing => String::new(),
                 }
             }
             Err(e) => {

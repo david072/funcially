@@ -39,6 +39,7 @@ pub enum TokenType {
     Identifier,
     Comma,
     EqualsSign,
+    DefinitionSign,
 }
 
 impl TokenType {
@@ -234,6 +235,10 @@ impl<'a> Tokenizer<'a> {
             b')' => Some(TokenType::CloseBracket),
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),
+            b':' if self.index < self.string.len() && self.string[self.index] == b'=' => {
+                self.index += 1;
+                Some(TokenType::DefinitionSign)
+            }
             _ => None
         };
 
