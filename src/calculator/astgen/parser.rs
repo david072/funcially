@@ -8,24 +8,25 @@ use ::Format;
 use crate::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
 use crate::astgen::tokenizer::{Token, TokenType};
 use crate::common::*;
-use crate::variables::is_valid_variable;
 use strum::IntoEnumIterator;
 use std::mem;
-use functions::{get_arguments_count, is_valid_function};
-use units::is_valid_unit;
+use ::environment::units::is_valid_unit;
+use ::environment::Environment;
 
 pub enum ParserResult {
     Calculation(Vec<AstNode>),
     EqualityCheck(Vec<AstNode>, Vec<AstNode>),
 }
 
-pub fn parse(tokens: &[Token]) -> Result<ParserResult> {
-    let mut parser = Parser::new(tokens, 0);
+pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
+    let mut parser = Parser::new(tokens, 0, env);
     let result = parser.parse()?;
     Ok(result)
 }
 
 struct Parser<'a> {
+    env: &'a Environment,
+
     tokens: &'a [Token],
     nesting_level: usize,
 
@@ -67,8 +68,9 @@ macro_rules! error {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token], nesting_level: usize) -> Parser {
+    pub fn new(tokens: &'a [Token], nesting_level: usize, env: &'a Environment) -> Parser<'a> {
         Parser {
+            env,
             tokens,
             nesting_level,
             index: 0,
@@ -248,7 +250,7 @@ impl<'a> Parser<'a> {
         }
 
         let group_tokens = &self.tokens[group_start..group_end - 1];
-        let group_ast = match Parser::new(group_tokens, self.nesting_level + 1).parse()? {
+        let group_ast = match Parser::new(group_tokens, self.nesting_level + 1, self.env).parse()? {
             ParserResult::Calculation(ast) => ast,
             ParserResult::EqualityCheck(_, _) => unreachable!(),
         };
@@ -264,14 +266,14 @@ impl<'a> Parser<'a> {
             TokenType::Identifier => {
                 let multiplication_range = identifier.range.start..identifier.range.start + 1;
 
-                if is_valid_variable(&identifier.text) {
+                if self.env.is_valid_variable(&identifier.text) {
                     self.infer_multiplication(multiplication_range);
                     self.push_new_node(
                         AstNodeData::VariableReference(identifier.text.clone()),
                         identifier.range.clone(),
                     );
                     Ok(())
-                } else if is_valid_function(&identifier.text) {
+                } else if self.env.is_valid_function(&identifier.text) {
                     if self.index >= self.tokens.len() || !matches!(self.tokens[self.index].ty, TokenType::OpenBracket) {
                         error!(MissingOpeningBracket(identifier.range.end - 1..identifier.range.end));
                     }
@@ -303,7 +305,7 @@ impl<'a> Parser<'a> {
     }
 
     fn next_function(&mut self, identifier: &Token) -> Result<()> {
-        if !is_valid_function(&identifier.text) {
+        if !self.env.is_valid_function(&identifier.text) {
             error!(UnknownFunction(identifier.range));
         }
 
@@ -324,7 +326,7 @@ impl<'a> Parser<'a> {
                         error!(ExpectedElements(self.tokens[self.index - 1].range));
                     }
                     let argument = &self.tokens[argument_start..self.index - 1];
-                    match parse(argument)? {
+                    match parse(argument, self.env)? {
                         ParserResult::Calculation(ast) => arguments.push(ast),
                         ParserResult::EqualityCheck(_, _) => unreachable!(),
                     }
@@ -335,7 +337,7 @@ impl<'a> Parser<'a> {
                     if nesting_level == 0 {
                         if argument_start != self.index - 1 {
                             let argument = &self.tokens[argument_start..self.index - 1];
-                            match parse(argument)? {
+                            match parse(argument, self.env)? {
                                 ParserResult::Calculation(ast) => arguments.push(ast),
                                 ParserResult::EqualityCheck(_, _) => unreachable!(),
                             }
@@ -354,7 +356,7 @@ impl<'a> Parser<'a> {
         }
 
         let range = identifier.range.start..self.tokens[self.index - 1].range.end;
-        if arguments.len() != get_arguments_count(&identifier.text).unwrap() {
+        if arguments.len() != self.env.function_argument_count(&identifier.text).unwrap() {
             error!(WrongNumberOfArguments(open_bracket.range.start..self.tokens[self.index - 1].range.end));
         }
 
@@ -385,8 +387,7 @@ impl<'a> Parser<'a> {
     fn verify_valid_token(&self, token: &Token) -> Result<()> {
         if token.ty == TokenType::CloseBracket {
             error!(MissingOpeningBracket(token.range));
-        }
-        else if token.ty == TokenType::Comma {
+        } else if token.ty == TokenType::Comma {
             error!(UnexpectedComma(token.range));
         }
 
@@ -459,7 +460,7 @@ mod tests {
 
     macro_rules! parse {
         ($input:expr) => {
-            parse(&tokenize($input)?)
+            parse(&tokenize($input)?, &Environment::new())
         }
     }
 
@@ -656,7 +657,7 @@ mod tests {
 
     #[test]
     fn unknown_identifier() -> Result<()> {
-        let ast = parse!("asdf");
+        let ast = parse!("something");
         assert_error_type!(ast, UnknownIdentifier);
         Ok(())
     }

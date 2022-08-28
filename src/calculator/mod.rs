@@ -13,7 +13,7 @@ mod astgen;
 mod common;
 mod engine;
 mod environment;
-pub mod color;
+mod color;
 
 use std::fmt::{Display, Formatter};
 use rust_decimal::Decimal;
@@ -21,8 +21,7 @@ use common::Result;
 use astgen::parser::{parse, ParserResult};
 use astgen::tokenizer::tokenize;
 use engine::evaluate;
-use environment::*;
-use variables::Variables;
+pub use environment::{Environment, Variable};
 use rust_decimal::prelude::*;
 pub use color::Segment;
 
@@ -89,61 +88,46 @@ impl CalculatorResult {
     }
 }
 
-pub struct Calculator {
-    variables: Variables,
-}
 
-impl Default for Calculator {
-    fn default() -> Self {
-        Calculator::new()
-    }
-}
-
-impl Calculator {
-    pub fn new() -> Calculator {
-        Calculator { variables: Variables::new() }
-    }
-
-    pub fn calculate(&mut self, input: &str, verbosity: Verbosity) -> Result<CalculatorResult> {
-        let tokens = tokenize(input)?;
-        if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
-            println!("Tokens:");
-            for token in &tokens {
-                println!("{} => {:?}", token.text, token.ty);
-            }
-            println!();
+pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosity) -> Result<CalculatorResult> {
+    let tokens = tokenize(input)?;
+    if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
+        println!("Tokens:");
+        for token in &tokens {
+            println!("{} => {:?}", token.text, token.ty);
         }
+        println!();
+    }
 
-        let color_segments = tokens.iter().map(Segment::from).collect::<Vec<_>>();
+    let color_segments = tokens.iter().map(Segment::from).collect::<Vec<_>>();
 
-        match parse(&tokens)? {
-            ParserResult::Calculation(ast) => {
-                if verbosity == Verbosity::Ast {
-                    println!("AST:");
-                    for node in &ast { println!("{}", node); }
-                    println!();
-                }
-
-                let result = evaluate(ast, &self.variables)?;
-                self.variables.ans = (result.result, result.unit.clone());
-
-                Ok(CalculatorResult::number(result.result, result.unit,
-                                            result.format, color_segments))
+    match parse(&tokens, &environment)? {
+        ParserResult::Calculation(ast) => {
+            if verbosity == Verbosity::Ast {
+                println!("AST:");
+                for node in &ast { println!("{}", node); }
+                println!();
             }
-            ParserResult::EqualityCheck(lhs, rhs) => {
-                if verbosity == Verbosity::Ast {
-                    println!("Equality check:\nLHS:");
-                    for node in &lhs { println!("{}", node); }
-                    println!("RHS:");
-                    for node in &rhs { println!("{}", node); }
-                    println!();
-                }
 
-                let lhs_res = evaluate(lhs, &self.variables)?.result;
-                let rhs_res = evaluate(rhs, &self.variables)?.result;
+            let result = evaluate(ast, &environment)?;
+            environment.ans = Variable(result.result, result.unit.clone());
 
-                Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
+            Ok(CalculatorResult::number(result.result, result.unit,
+                                        result.format, color_segments))
+        }
+        ParserResult::EqualityCheck(lhs, rhs) => {
+            if verbosity == Verbosity::Ast {
+                println!("Equality check:\nLHS:");
+                for node in &lhs { println!("{}", node); }
+                println!("RHS:");
+                for node in &rhs { println!("{}", node); }
+                println!();
             }
+
+            let lhs_res = evaluate(lhs, &environment)?.result;
+            let rhs_res = evaluate(rhs, &environment)?.result;
+
+            Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
         }
     }
 }

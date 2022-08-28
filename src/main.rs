@@ -9,7 +9,7 @@ extern crate clap;
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
-use calculator::{Verbosity, Format, Calculator, round_dp, CalculatorResultData};
+use calculator::{calculate, Environment, Verbosity, Format, round_dp, CalculatorResultData};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -36,7 +36,7 @@ fn main() {
         None => Verbosity::None,
     };
 
-    let mut calculator = Calculator::new();
+    let mut environment = Environment::new();
 
     // TODO: Properly handle CTRL-C
     loop {
@@ -50,7 +50,7 @@ fn main() {
         match input.as_str() {
             "quit" | "exit" => break,
             _ => {
-                match calculator.calculate(&input, verbosity) {
+                match calculate(&input, &mut environment, verbosity) {
                     Ok(res) => {
                         match res.data {
                             CalculatorResultData::Number { result: n, unit, format } => {
@@ -65,7 +65,7 @@ fn main() {
                         }
                     }
                     Err(error) => {
-                        println!("An error occured: {:?}", error.error);
+                        println!("An error occurred: {:?}", error.error);
 
                         let slice_start = std::cmp::max(0, error.start as isize - 5) as usize;
                         let slice_end = std::cmp::min(input.len(), error.end + 5);

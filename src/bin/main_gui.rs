@@ -12,7 +12,7 @@ extern crate calculator;
 use std::collections::HashMap;
 use eframe::{egui, Frame};
 use egui::*;
-use calculator::{Calculator, CalculatorResultData, Format, round_dp, Verbosity, Segment};
+use calculator::{calculate, Environment, CalculatorResultData, Format, round_dp, Verbosity, Segment};
 use std::ops::Range;
 
 const FONT_SIZE: f32 = 16.0;
@@ -32,7 +32,7 @@ fn main() {
 }
 
 struct App {
-    calculator: Calculator,
+    environment: Environment,
 
     source_old: String,
     source: String,
@@ -47,7 +47,7 @@ struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            calculator: Calculator::new(),
+            environment: Environment::new(),
             source_old: String::new(),
             source: String::new(),
             output: String::new(),
@@ -64,7 +64,7 @@ impl App {
         let str = str.trim();
         if str.is_empty() { return String::new(); }
 
-        let result = self.calculator.calculate(str, Verbosity::None);
+        let result = calculate(str, &mut self.environment, Verbosity::None);
         match result {
             Ok(res) => {
                 self.color_segments.insert(line, res.color_segments);
@@ -225,7 +225,7 @@ impl eframe::App for App {
                                 let line = if let Some(index) = line.find('#') {
                                     &line[0..index]
                                 } else { &line };
-                                let res = self.calculate(line_index, &line);
+                                let res = self.calculate(line_index, line);
                                 output_str = format!("{}{}{}", output_str, res, newlines);
                             }
 

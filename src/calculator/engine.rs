@@ -7,11 +7,10 @@
 use std::mem::{take, replace};
 use astgen::ast::Operator;
 use ::{match_ast_node, Format};
-use Variables;
+use ::environment::{Environment, Variable};
 use crate::astgen::ast::{AstNode, AstNodeData};
 use crate::common::*;
-use ::functions::resolve as resolve_function;
-use ::units::format as format_unit;
+use ::environment::units::format as format_unit;
 
 pub struct CalculationResult {
     pub result: f64,
@@ -25,7 +24,7 @@ impl CalculationResult {
     }
 }
 
-pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<CalculationResult> {
+pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment) -> Result<CalculationResult> {
     if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
         ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
@@ -34,9 +33,9 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
         return Ok(CalculationResult::new(result, unit, ast[0].format));
     }
 
-    eval_functions(&mut ast, variables)?;
-    eval_variables(&mut ast, variables)?;
-    eval_groups(&mut ast, variables)?;
+    eval_functions(&mut ast, env)?;
+    eval_variables(&mut ast, env)?;
+    eval_groups(&mut ast, env)?;
     eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
     eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide])?;
     eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
@@ -50,7 +49,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, variables: &Variables) -> Result<Calculat
     Ok(CalculationResult::new(result, take(&mut ast[0].unit), format))
 }
 
-fn eval_functions(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
+fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
     for node in ast {
         let (func_name, arg_asts) = match node.data {
             AstNodeData::FunctionInvocation(ref name, ref args) => (name, args),
@@ -59,47 +58,45 @@ fn eval_functions(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
 
         let mut args = Vec::new();
         for ast in arg_asts {
-            args.push(evaluate(ast.clone(), variables)?.result);
+            args.push(evaluate(ast.clone(), env)?.result);
         }
-        let result = resolve_function(func_name, &args, &node.range)?;
+        let result = match env.resolve_function(func_name, &args) {
+            Ok(res) => res,
+            Err(ty) => return Err(ty.with(node.range.clone())),
+        };
         let new_node = AstNode::from(node, AstNodeData::Literal(result));
         let _ = replace(node, new_node);
     }
     Ok(())
 }
 
-fn eval_variables(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
+fn eval_variables(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
     for node in ast {
         let var_name = match node.data {
             AstNodeData::VariableReference(ref name) => name.as_str(),
             _ => continue,
         };
 
-        let unit: Option<String>;
-        let number: f64;
-        if var_name == "ans" {
-            unit = variables.ans.1.clone();
-            number = variables.ans.0;
-        } else {
-            unit = None;
-            number = variables.resolve(var_name, &node.range)?;
-        }
-        let mut new_node = AstNode::from(node, AstNodeData::Literal(number));
-        new_node.unit = unit;
+        let Variable(number, unit) = match env.resolve_variable(var_name) {
+            Ok(var) => var,
+            Err(ty) => return Err(ty.with(node.range.clone())),
+        };
+        let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
+        new_node.unit = unit.clone();
         let _ = replace(node, new_node);
     }
 
     Ok(())
 }
 
-fn eval_groups(ast: &mut Vec<AstNode>, variables: &Variables) -> Result<()> {
+fn eval_groups(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
     for node in ast {
         let group_ast = match &node.data {
             AstNodeData::Group(ast) => ast,
             _ => continue,
         };
 
-        let group_result = evaluate(group_ast.clone(), variables)?;
+        let group_result = evaluate(group_ast.clone(), env)?;
         // Construct Literal node with the evaluated result
         let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
         let _ = replace(node, new_node);
@@ -145,9 +142,9 @@ mod tests {
     macro_rules! eval {
         ($str:expr) => {
             evaluate(
-                if let ParserResult::Calculation(ast) = parse(&tokenize($str)?)? { ast }
+                if let ParserResult::Calculation(ast) = parse(&tokenize($str)?, &Environment::new())? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
-                &Variables::new()
+                &Environment::new()
             )
         }
     }
