@@ -12,9 +12,11 @@ A calculator working purely with text inputs.
 - Extended operators (`^`, Bitwise operators, ...)
 - Groups and nested groups (`(2 + 2) * 2`)
 - Functions (such as `sin` or `cos`)
+    - Custom Functions (`f(x) := 3x`)
 - Variables
     - Builtin variables such as `pi` or `e`
     - `ans` variable, holding the result of the last computation
+    - Custom variables (`x := 3 + 4`)
 - Inferred multiplication before groups, functions and variables (`2pi`)
 - Number modifiers (such as `!` for factorial or Bitwise NOT or `%` as a shorthand for `n / 100`)
 - `of` operator for taking a percentage from a number
@@ -50,5 +52,5 @@ While it should also work on Linux, it has only been tested on Windows and Mac s
 
 ## Contributing
 
-You can contribute either by using the application and reporting issues and submitting feature requests, 
+You can contribute either by using the application and reporting issues and submitting feature requests,
 or by forking the project and working on it yourself.
