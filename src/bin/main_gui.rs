@@ -195,6 +195,9 @@ impl eframe::App for App {
 
                     if self.source != self.source_old {
                         self.color_segments.clear();
+                        // Since we re-calculate everything from the beginning,
+                        // we need to start with a fresh environment
+                        self.environment.clear();
                         self.source_old = self.source.clone();
 
                         if !output.galley.rows.is_empty() && !output.galley.rows[0].glyphs.is_empty() {

@@ -41,6 +41,11 @@ impl Environment {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.ans = Variable(0.0, None);
+        self.variables.clear();
+    }
+
     pub fn is_valid_variable(&self, var: &str) -> bool {
         if STANDARD_VARIABLES.contains(&var) { true } else {
             for (name, _) in &self.variables {
