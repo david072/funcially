@@ -23,6 +23,11 @@ pub enum ParserResult {
     Calculation(Vec<AstNode>),
     EqualityCheck(Vec<AstNode>, Vec<AstNode>),
     VariableDefinition(String, Option<Vec<AstNode>>),
+    FunctionDefinition {
+        name: String,
+        args: Vec<String>,
+        ast: Option<Vec<AstNode>>,
+    },
 }
 
 pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
@@ -38,20 +43,49 @@ pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
         let definition_sign_index = definition_signs[0].0;
 
         let lhs = &tokens[0..definition_sign_index];
-        let variable_name = parse_definition_identifier(lhs, env)?;
-
-        if definition_sign_index + 1 == tokens.len() {
-            return Ok(ParserResult::VariableDefinition(variable_name, None));
-        }
-
         let rhs = &tokens[definition_sign_index + 1..];
-        let variable_ast = match Parser::new(rhs, 1, env).parse()? {
-            ParserResult::Calculation(ast) => ast,
-            ParserResult::EqualityCheck(_, _) | ParserResult::VariableDefinition(_, _) =>
-                error!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end)),
-        };
 
-        return Ok(ParserResult::VariableDefinition(variable_name, Some(variable_ast)));
+        return match parse_definition_identifier(lhs, env)? {
+            DefinitionIdentifier::Variable(name) => {
+                if definition_sign_index + 1 == tokens.len() {
+                    return Ok(ParserResult::VariableDefinition(name, None));
+                }
+
+                let variable_ast = match Parser::new(rhs, 1, env).parse()? {
+                    ParserResult::Calculation(ast) => ast,
+                    ParserResult::EqualityCheck(_, _)
+                    | ParserResult::VariableDefinition(_, _)
+                    | ParserResult::FunctionDefinition { name: _, args: _, ast: _ } =>
+                        error!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end)),
+                };
+
+                Ok(ParserResult::VariableDefinition(name, Some(variable_ast)))
+            }
+            DefinitionIdentifier::Function(name, args) => {
+                if definition_sign_index + 1 == tokens.len() {
+                    return Ok(ParserResult::FunctionDefinition {
+                        name,
+                        args,
+                        ast: None,
+                    });
+                }
+
+                let mut parser = Parser::new(rhs, 1, env);
+                parser.extra_allowed_variables = Some(&args);
+                let function_ast = match parser.parse()? {
+                    ParserResult::Calculation(ast) => ast,
+                    ParserResult::EqualityCheck(_, _)
+                    | ParserResult::VariableDefinition(_, _)
+                    | ParserResult::FunctionDefinition { name: _, args: _, ast: _ } =>
+                        error!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end)),
+                };
+                Ok(ParserResult::FunctionDefinition {
+                    name,
+                    args,
+                    ast: Some(function_ast),
+                })
+            }
+        };
     }
 
     let mut parser = Parser::new(tokens, 0, env);
@@ -59,22 +93,79 @@ pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
     Ok(result)
 }
 
-fn parse_definition_identifier(tokens: &[Token], env: &Environment) -> Result<String> {
-    match tokens {
-        [ident] => {
-            if ident.ty != TokenType::Identifier {
-                error!(ExpectedIdentifier(ident.range));
-            } else if env.is_standard_variable(&ident.text) {
-                error!(ReservedVariable(ident.range));
-            }
-            Ok(ident.text.clone())
-        }
-        _ => error!(UnexpectedElements(tokens[1].range.start..tokens.last().unwrap().range.end)),
+enum DefinitionIdentifier {
+    Variable(String),
+    Function(String, Vec<String>),
+}
+
+fn parse_definition_identifier(tokens: &[Token], env: &Environment) -> Result<DefinitionIdentifier> {
+    if tokens.is_empty() {
+        error!(ExpectedElements(0..1));
+    } else if tokens[0].ty != TokenType::Identifier {
+        error!(ExpectedIdentifier(tokens[0].range));
     }
+
+    let name = tokens[0].text.clone();
+    if env.is_standard_variable(&name) {
+        error!(ReservedVariable(tokens[0].range));
+    } else if env.is_standard_function(&name) {
+        error!(ReservedFunction(tokens[0].range));
+    }
+
+    if tokens.len() == 1 {
+        return Ok(DefinitionIdentifier::Variable(name));
+    }
+
+    // We're parsing a function!
+    if tokens[1].ty != TokenType::OpenBracket {
+        error!(ExpectedOpenBracket(tokens[1].range));
+    }
+
+    let mut args = Vec::new();
+    let mut last_token_ty: Option<TokenType> = None;
+
+    let mut i = 2usize;
+    for token in &tokens[2..] {
+        if let Some(ty) = last_token_ty {
+            match ty {
+                TokenType::Identifier => {
+                    if token.ty == TokenType::CloseBracket {
+                        break;
+                    } else if token.ty != TokenType::Comma {
+                        error!(ExpectedComma(token.range));
+                    }
+                }
+                TokenType::Comma => {
+                    if token.ty != TokenType::Identifier { error!(ExpectedIdentifier(token.range)); }
+                    if args.contains(&token.text) { error!(AlreadyExists(token.range)); }
+                    args.push(token.text.clone());
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            if token.ty != TokenType::Identifier {
+                error!(ExpectedIdentifier(token.range));
+            }
+
+            args.push(token.text.clone());
+        }
+
+        last_token_ty = Some(token.ty);
+        i += 1;
+    }
+
+    if i == tokens.len() || tokens[i].ty != TokenType::CloseBracket {
+        error!(MissingClosingBracket(tokens[1].range));
+    } else if i + 1 != tokens.len() {
+        error!(UnexpectedElements(tokens[i + 1].range.start..tokens.last().unwrap().range.end));
+    }
+
+    Ok(DefinitionIdentifier::Function(name, args))
 }
 
 struct Parser<'a> {
     env: &'a Environment,
+    extra_allowed_variables: Option<&'a [String]>,
 
     tokens: &'a [Token],
     nesting_level: usize,
@@ -115,6 +206,7 @@ impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token], nesting_level: usize, env: &'a Environment) -> Parser<'a> {
         Parser {
             env,
+            extra_allowed_variables: None,
             tokens,
             nesting_level,
             index: 0,
@@ -297,7 +389,7 @@ impl<'a> Parser<'a> {
         let group_tokens = &self.tokens[group_start..group_end - 1];
         let group_ast = match Parser::new(group_tokens, self.nesting_level + 1, self.env).parse()? {
             ParserResult::Calculation(ast) => ast,
-            ParserResult::EqualityCheck(_, _) | ParserResult::VariableDefinition(_, _) => unreachable!(),
+            _ => unreachable!(),
         };
 
         self.infer_multiplication(group_start..group_start + 1);
@@ -311,7 +403,8 @@ impl<'a> Parser<'a> {
             TokenType::Identifier => {
                 let multiplication_range = identifier.range.start..identifier.range.start + 1;
 
-                if self.env.is_valid_variable(&identifier.text) {
+                if self.env.is_valid_variable(&identifier.text) ||
+                    self.extra_allowed_variables.map_or(false, |vars| vars.contains(&identifier.text)) {
                     self.infer_multiplication(multiplication_range);
                     self.push_new_node(
                         AstNodeData::VariableReference(identifier.text.clone()),
@@ -373,8 +466,7 @@ impl<'a> Parser<'a> {
                     let argument = &self.tokens[argument_start..self.index - 1];
                     match parse(argument, self.env)? {
                         ParserResult::Calculation(ast) => arguments.push(ast),
-                        ParserResult::EqualityCheck(_, _) | ParserResult::VariableDefinition(_, _) =>
-                            error!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end)),
+                        _ => error!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end)),
                     }
                     argument_start = self.index;
                 }
@@ -385,8 +477,7 @@ impl<'a> Parser<'a> {
                             let argument = &self.tokens[argument_start..self.index - 1];
                             match parse(argument, self.env)? {
                                 ParserResult::Calculation(ast) => arguments.push(ast),
-                                ParserResult::EqualityCheck(_, _) | ParserResult::VariableDefinition(_, _) =>
-                                    error!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end)),
+                                _ => error!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end)),
                             }
                         }
                         finished = true;

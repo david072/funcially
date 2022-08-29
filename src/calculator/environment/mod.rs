@@ -1,15 +1,20 @@
 use ::common::{ErrorType};
 use std::f64::consts::{PI, E, TAU};
+use astgen::ast::AstNode;
+use evaluate;
 
 pub mod units;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Variable(pub f64, pub Option<String>);
 
 const STANDARD_VARIABLES: [&str; 4] = ["pi", "e", "tau", "ans"];
 const VAR_PI: &Variable = &Variable(PI, None);
 const VAR_E: &Variable = &Variable(E, None);
 const VAR_TAU: &Variable = &Variable(TAU, None);
+
+#[derive(Debug)]
+pub struct Function(pub Vec<String>, pub Vec<AstNode>);
 
 const STANDARD_FUNCTIONS: [(&str, usize); 14] = [
     ("sin", 1), ("asin", 1),
@@ -25,6 +30,7 @@ const STANDARD_FUNCTIONS: [(&str, usize); 14] = [
 pub struct Environment {
     ans: Variable,
     variables: Vec<(String, Variable)>,
+    functions: Vec<(String, Function)>,
 }
 
 impl Default for Environment {
@@ -38,12 +44,14 @@ impl Environment {
         Environment {
             ans: Variable(0.0, None),
             variables: Vec::new(),
+            functions: Vec::new(),
         }
     }
 
     pub fn clear(&mut self) {
         self.ans = Variable(0.0, None);
         self.variables.clear();
+        self.functions.clear();
     }
 
     pub fn is_valid_variable(&self, var: &str) -> bool {
@@ -115,12 +123,25 @@ impl Environment {
         for (f, _) in STANDARD_FUNCTIONS {
             if f == name { return true; }
         }
+        for (f, _) in &self.functions {
+            if f == name { return true; }
+        }
+        false
+    }
+
+    pub fn is_standard_function(&self, f: &str) -> bool {
+        for (name, _) in STANDARD_FUNCTIONS {
+            if name == f { return true; }
+        }
         false
     }
 
     pub fn function_argument_count(&self, name: &str) -> Option<usize> {
         for (f, arg_count) in STANDARD_FUNCTIONS {
             if f == name { return Some(arg_count); }
+        }
+        for (f, Function(args, _)) in &self.functions {
+            if f == name { return Some(args.len()); }
         }
         None
     }
@@ -170,5 +191,56 @@ impl Environment {
             }
             _ => Err(ErrorType::UnknownFunction),
         }
+    }
+
+    pub fn resolve_custom_function(&self, f: &str, args: &[f64]) -> Result<(f64, Option<String>), ErrorType> {
+        for (name, Function(function_args, ast)) in &self.functions {
+            if name == f {
+                let mut temp_env = Environment::new();
+                temp_env.ans = self.ans.clone();
+                temp_env.variables = self.variables.clone();
+
+                for i in 0..args.len() {
+                    temp_env.set_variable(&function_args[i], Variable(args[i], None))?;
+                }
+
+                let value = evaluate(ast.clone(), &mut temp_env);
+                for name in function_args { temp_env.remove_variable(name)?; }
+
+                return match value {
+                    Ok(res) => Ok((res.result, res.unit)),
+                    Err(e) => Err(e.error)
+                };
+            }
+        }
+
+        Err(ErrorType::UnknownFunction)
+    }
+
+    pub fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {
+        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction); }
+
+        for (i, (name, _)) in self.functions.iter().enumerate() {
+            if name == f {
+                self.functions[i].1 = value;
+                return Ok(());
+            }
+        }
+
+        self.functions.push((f.to_string(), value));
+        Ok(())
+    }
+
+    pub fn remove_function(&mut self, f: &str) -> Result<(), ErrorType> {
+        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction); }
+
+        for (i, (name, _)) in self.functions.iter().enumerate() {
+            if name == f {
+                self.functions.remove(i);
+                return Ok(());
+            }
+        }
+
+        Ok(())
     }
 }

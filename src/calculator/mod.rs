@@ -24,6 +24,7 @@ use engine::evaluate;
 pub use environment::{Environment, Variable};
 use rust_decimal::prelude::*;
 pub use color::Segment;
+use environment::Function;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -108,7 +109,7 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
 
     let color_segments = tokens.iter().map(Segment::from).collect::<Vec<_>>();
 
-    match parse(&tokens, &environment)? {
+    match parse(&tokens, environment)? {
         ParserResult::Calculation(ast) => {
             if verbosity == Verbosity::Ast {
                 println!("AST:");
@@ -116,7 +117,7 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
                 println!();
             }
 
-            let result = evaluate(ast, &environment)?;
+            let result = evaluate(ast, environment)?;
             environment.set_variable("ans", Variable(result.result, result.unit.clone())).unwrap();
 
             Ok(CalculatorResult::number(result.result, result.unit,
@@ -131,8 +132,8 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
                 println!();
             }
 
-            let lhs_res = evaluate(lhs, &environment)?.result;
-            let rhs_res = evaluate(rhs, &environment)?.result;
+            let lhs_res = evaluate(lhs, environment)?.result;
+            let rhs_res = evaluate(rhs, environment)?.result;
 
             Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
         }
@@ -145,6 +146,18 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
                 }
                 None => {
                     environment.remove_variable(&name).unwrap();
+                    Ok(CalculatorResult::nothing(color_segments))
+                }
+            }
+        }
+        ParserResult::FunctionDefinition { name, args, ast } => {
+            match ast {
+                Some(ast) => {
+                    environment.set_function(&name, Function(args, ast)).unwrap();
+                    Ok(CalculatorResult::nothing(color_segments))
+                }
+                None => {
+                    environment.remove_function(&name).unwrap();
                     Ok(CalculatorResult::nothing(color_segments))
                 }
             }

@@ -60,11 +60,21 @@ fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
         for ast in arg_asts {
             args.push(evaluate(ast.clone(), env)?.result);
         }
-        let result = match env.resolve_function(func_name, &args) {
-            Ok(res) => res,
-            Err(ty) => return Err(ty.with(node.range.clone())),
+        let (result, unit) = match env.resolve_function(func_name, &args) {
+            Ok(res) => (res, None),
+            Err(ty) => {
+                if ty == ErrorType::UnknownFunction {
+                    match env.resolve_custom_function(func_name, &args) {
+                        Ok(res) => res,
+                        Err(ty) => return Err(ty.with(node.range.clone())),
+                    }
+                } else {
+                    return Err(ty.with(node.range.clone()))
+                }
+            }
         };
-        let new_node = AstNode::from(node, AstNodeData::Literal(result));
+        let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
+        new_node.unit = unit;
         let _ = replace(node, new_node);
     }
     Ok(())

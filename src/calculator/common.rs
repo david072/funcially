@@ -36,6 +36,13 @@ pub enum ErrorType {
     UnexpectedComma,
     UnexpectedDefinition,
     ExpectedExpression,
+    ExpectedOpenBracket,
+    ExpectedCloseBracket,
+    InvalidElement,
+    ExpectedComma,
+    ReservedVariable,
+    ReservedFunction,
+    AlreadyExists,
 
     // engine
     DivideByZero,
@@ -45,7 +52,6 @@ pub enum ErrorType {
     InvalidArguments,
     UnknownConversion,
     NotANumber,
-    ReservedVariable,
     /// This should never happen
     InvalidAst,
 }
