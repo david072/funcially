@@ -205,6 +205,7 @@ fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option
     let text: WidgetText = str.into();
     let valign = ui.layout().vertical_align();
 
+    let font_width = (&*ui.fonts()).glyph_width(&font_id, '0');
     let mut text_job = text.into_text_job(
         ui.style(), FontSelection::FontId(font_id), valign,
     );
@@ -215,20 +216,25 @@ fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option
     let width = if ui.available_width() > galley.size().x { ui.available_width() } else { galley.size().x };
     let height = galley.size().y;
 
+    // rect spanning the entire available width
+    let (length_rect, length_rect_response) = ui.allocate_exact_size(
+        vec2(ui.available_width(), 0.0), Sense::hover(),
+    );
+
     let (rect, response) = ui.allocate_exact_size(
         vec2(width, height), Sense::click(),
     );
 
-    let max = rect.right_bottom();
-    let min = pos2(max.x - galley.size().x, max.y - galley.size().y);
+    let max = pos2(length_rect.right_top().x, rect.right_bottom().y);
+    let min = pos2(f32::max(max.x - galley.size().x, length_rect.left_top().x), max.y - galley.size().y);
     let bg_rect = Rect::from_min_max(min, max).expand(2.0);
 
+    let mut is_right = ui.ctx().data().get_persisted(length_rect_response.id).unwrap_or(true);
     let mut show_copied_text = false;
 
     if ui.is_rect_visible(rect) {
         let mut text_color = Color32::GREEN;
-        if response.hovered() {
-            let hover_pos = response.hover_pos().unwrap();
+        if let Some(hover_pos) = response.hover_pos() {
             if bg_rect.contains(hover_pos) {
                 text_color = Color32::BLACK;
                 ui.painter().rect(
@@ -241,7 +247,18 @@ fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option
             }
         }
 
-        ui.painter().galley_with_color(rect.right_top(), galley.galley, text_color);
+        let pos = if galley.size().x <= ui.available_width() {
+            rect.right_top()
+        } else {
+            let time = (galley.galley.text().len() as f32 - (ui.available_width() / font_width)) * 2.0;
+            let how_right = ui.ctx().animate_bool_with_time(length_rect_response.id, is_right, time);
+            if how_right == 1.0 || how_right == 0.0 {
+                is_right = !is_right;
+            }
+            pos2(lerp(length_rect.right_top().x - 5.0..=rect.right_top().x + 5.0, how_right), rect.right_top().y)
+        };
+
+        ui.painter().with_clip_rect(bg_rect).galley_with_color(pos, galley.galley, text_color);
 
         if response.clicked() {
             let hover_pos = response.hover_pos().unwrap();
@@ -257,6 +274,7 @@ fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option
         *bottom_text = Some("Copied!".into());
     }
 
+    ui.ctx().data().insert_persisted(length_rect_response.id, is_right);
     response
 }
 
