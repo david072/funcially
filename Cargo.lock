@@ -153,6 +153,7 @@ dependencies = [
  "eframe",
  "rust_decimal",
  "strum",
+ "thiserror",
 ]
 
 [[package]]

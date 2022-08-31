@@ -104,9 +104,17 @@ macro_rules! expect {
     }
 }
 
+macro_rules! expect_args {
+    ($bool:expr, $error_variant:ident($($arg:expr),+), $range:expr) => {
+        if !($bool) {
+            return Err(ErrorType::$error_variant($($arg),+).with($range.clone()));
+        }
+    }
+}
+
 macro_rules! expect_int {
-    ($val:expr, $range:expr) => {
-        expect!($val.fract() == 0.0, ExpectedInteger, $range);
+    ($val:expr, $range:expr, $operator:expr) => {
+        expect_args!($val.fract() == 0.0, ExpectedInteger(format!("{:?}", $operator)), $range);
     }
 }
 
@@ -174,8 +182,8 @@ impl AstNode {
             Operator::Minus => *lhs -= rhs_value,
             Operator::Exponentiation => *lhs = lhs.powf(rhs_value),
             Operator::BitwiseAnd | Operator::BitwiseOr => {
-                expect_int!(lhs, self.range);
-                expect_int!(rhs_value, self.range);
+                expect_int!(lhs, self.range, op);
+                expect_int!(rhs_value, self.range, op);
 
                 match op {
                     Operator::BitwiseAnd => *lhs = (*lhs as i64 & rhs_value as i64) as f64,
@@ -203,11 +211,11 @@ impl AstNode {
         for m in &self.modifiers {
             match m {
                 AstNodeModifier::Factorial => {
-                    expect_int!(value, self.range);
+                    expect_int!(value, self.range, m);
                     *value = math::factorial(*value as i64) as f64;
                 }
                 AstNodeModifier::BitwiseNot => {
-                    expect_int!(value, self.range);
+                    expect_int!(value, self.range, m);
                     let inverted = format!("{:b}", *value as i64)
                         .chars()
                         .map(|c| match c {

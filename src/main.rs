@@ -81,7 +81,7 @@ fn main() {
                             print!("-");
                         }
 
-                        println!(" {:?}", error.error);
+                        println!(" {}", error.error);
                     }
                 }
             }

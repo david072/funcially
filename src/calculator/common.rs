@@ -5,54 +5,87 @@
  */
 
 use std::ops::Range;
+use thiserror::Error;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum ErrorType {
     /// Not actually an error. Used when e.g.
     /// a variable needs a value, but will never be used.
+    #[error("")]
     Nothing,
     // tokenizer
-    InvalidCharacter,
+    #[error("Invalid Character {0}")]
+    InvalidCharacter(String),
+    #[error("Could not parse number")]
     InvalidNumber,
-    UnknownWord,
 
     // parser
+    #[error("Expected Number")]
     ExpectedNumber,
+    #[error("Expected Operator")]
     ExpectedOperator,
+    #[error("Expected 'in'")]
     ExpectedIn,
+    #[error("Expected a format (hex/binary/decimal)")]
     ExpectedFormat,
+    #[error("Missing opening bracket")]
     MissingOpeningBracket,
+    #[error("Missing closing bracket")]
     MissingClosingBracket,
+    #[error("Expected an identifier")]
     ExpectedIdentifier,
+    #[error("Unknown Identifier")]
     UnknownIdentifier,
+    #[error("Unknown Variable")]
     UnknownVariable,
+    #[error("Equals signs are only allowed at the top level")]
     UnexpectedEqualsSign,
+    #[error("Second equals sign")]
     UnexpectedSecondEqualsSign,
+    #[error("Unknown function")]
     UnknownFunction,
-    WrongNumberOfArguments,
+    #[error("Wrong number of arguments (expected {0} arguments)")]
+    WrongNumberOfArguments(usize),
+    #[error("Unexpected unit")]
     UnexpectedUnit,
+    #[error("Expected text")]
     ExpectedElements,
+    #[error("Expected end")]
     UnexpectedElements,
+    #[error("Unexpected comma")]
     UnexpectedComma,
+    #[error("Definitions are only allowed at the top level")]
     UnexpectedDefinition,
-    ExpectedExpression,
+    #[error("Expected expression, found {0}")]
+    ExpectedExpression(String),
+    #[error("Expected opening bracket")]
     ExpectedOpenBracket,
+    #[error("Expected closing bracket")]
     ExpectedCloseBracket,
-    InvalidElement,
+    #[error("Expected comma")]
     ExpectedComma,
+    #[error("Cannot redefine standard variable")]
     ReservedVariable,
+    #[error("Cannot redefine standard function")]
     ReservedFunction,
-    AlreadyExists,
+    #[error("Argument name already given")]
+    DuplicateArgument,
 
     // engine
+    #[error("Cannot divide by zero")]
     DivideByZero,
-    ExpectedInteger,
-    ExpectedPositiveInteger,
+    #[error("Expected integer for operator '{0}'")]
+    ExpectedInteger(String),
+    #[error("Expected percentage for 'of' operator")]
     ExpectedPercentage,
-    InvalidArguments,
-    UnknownConversion,
+    #[error("Argument 1 must be less than argument 2")]
+    Arg1GreaterThanArg2,
+    #[error("Unknown conversion ({0} -> {1})")]
+    UnknownConversion(String, String),
+    #[error("Not a number")]
     NotANumber,
     /// This should never happen
+    #[error("")]
     InvalidAst,
 }
 

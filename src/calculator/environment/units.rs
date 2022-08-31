@@ -121,7 +121,7 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
 
         ("k", "°c") => Ok(n - 273.15),
         ("k", "°f") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
-        _ => Err(ErrorType::UnknownConversion.with(range.clone())),
+        _ => Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string()).with(range.clone())),
     }
 }
 

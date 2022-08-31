@@ -156,7 +156,9 @@ impl<'a> Tokenizer<'a> {
                     range: start..std::cmp::max(0, end),
                 }))
             }
-            None => Err(ErrorType::InvalidCharacter.with(start..end)),
+            None => Err(ErrorType::InvalidCharacter(
+                String::from_utf8(self.string[start..end].to_owned()).unwrap()
+            ).with(start..end)),
         }
     }
 

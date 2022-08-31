@@ -178,7 +178,7 @@ impl Environment {
             "ceil" => Ok(args[0].ceil()),
             "clamp" => {
                 if args[1] > args[2] {
-                    return Err(ErrorType::InvalidArguments);
+                    return Err(ErrorType::Arg1GreaterThanArg2);
                 }
                 Ok(args[0].clamp(args[1], args[2]))
             }

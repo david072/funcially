@@ -8,6 +8,7 @@ extern crate strum;
 extern crate core;
 extern crate rust_decimal;
 extern crate eframe;
+extern crate thiserror;
 
 mod astgen;
 mod common;
