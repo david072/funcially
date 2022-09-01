@@ -98,8 +98,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 }
 
 const NUMBERS: &str = "0123456789";
-// last two are the bytes a "°" is made out of
-const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\u{C2}\u{B0}";
+const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const HEXADECIMAL_CHARS: &str = "0123456789abcdefABCDEF";
 const BINARY_DIGITS: &str = "01";
 const WHITESPACE: &str = " \t\r\n";
@@ -135,8 +134,8 @@ impl<'a> Tokenizer<'a> {
                 let slice = self.string[start..end].to_owned();
                 let slice = match String::from_utf8(slice) {
                     Ok(v) => v,
-                    Err(e) => panic!("Failed to parse string '{:?}' ({:?}) ({})",
-                                     &self.string[start..end], self.string, e),
+                    Err(e) => panic!("Failed to parse string '{:?}' ({}..{} in {:?}) ({})",
+                                     &self.string[start..end], start, end, self.string, e),
                 };
 
                 if ty == TokenType::Identifier {
@@ -157,7 +156,7 @@ impl<'a> Tokenizer<'a> {
                 }))
             }
             None => Err(ErrorType::InvalidCharacter(
-                String::from_utf8(self.string[start..end].to_owned()).unwrap()
+                String::from_utf8(self.string[start..end].to_owned()).unwrap_or_default()
             ).with(start..end)),
         }
     }
@@ -246,12 +245,18 @@ impl<'a> Tokenizer<'a> {
 
         if res.is_some() { return res; }
 
-        if LETTERS.contains(c as char) {
+        if c == 0xC2 { // First byte of "°"
+            self.index += 1;
+            if self.index < self.string.len() && self.string[self.index] == 0xB0 { // Second byte of "°"
+                self.index += 1;
+            }
+            None
+        } else if LETTERS.contains(c as char) {
             while self.accept(any_of(LETTERS)) {}
-            return Some(TokenType::Identifier);
+            Some(TokenType::Identifier)
+        } else {
+            None
         }
-
-        None
     }
 }
 
