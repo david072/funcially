@@ -24,7 +24,7 @@ use astgen::tokenizer::tokenize;
 use engine::evaluate;
 pub use environment::{Environment, Variable};
 use rust_decimal::prelude::*;
-pub use color::Segment;
+pub use color::ColorSegment;
 use environment::Function;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -73,32 +73,32 @@ pub enum CalculatorResultData {
 
 pub struct CalculatorResult {
     pub data: CalculatorResultData,
-    pub color_segments: Vec<Segment>,
+    pub color_segments: Vec<ColorSegment>,
 }
 
 impl CalculatorResult {
-    pub fn nothing(color_segments: Vec<Segment>) -> CalculatorResult {
+    pub fn nothing(color_segments: Vec<ColorSegment>) -> CalculatorResult {
         Self {
             data: CalculatorResultData::Nothing,
             color_segments,
         }
     }
 
-    pub fn number(result: f64, unit: Option<String>, format: Format, segments: Vec<Segment>) -> Self {
+    pub fn number(result: f64, unit: Option<String>, format: Format, segments: Vec<ColorSegment>) -> Self {
         Self {
             data: CalculatorResultData::Number { result, unit, format },
             color_segments: segments,
         }
     }
 
-    pub fn bool(bool: bool, segments: Vec<Segment>) -> Self {
+    pub fn bool(bool: bool, segments: Vec<ColorSegment>) -> Self {
         Self {
             data: CalculatorResultData::Boolean(bool),
             color_segments: segments,
         }
     }
 
-    pub fn function(name: String, arg_count: usize, segments: Vec<Segment>) -> Self {
+    pub fn function(name: String, arg_count: usize, segments: Vec<ColorSegment>) -> Self {
         Self {
             data: CalculatorResultData::Function(name, arg_count),
             color_segments: segments,
@@ -116,7 +116,7 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
         println!();
     }
 
-    let color_segments = tokens.iter().map(Segment::from).collect::<Vec<_>>();
+    let color_segments = tokens.iter().map(ColorSegment::from).collect::<Vec<_>>();
 
     match parse(&tokens, environment)? {
         ParserResult::Calculation(ast) => {

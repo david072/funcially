@@ -10,13 +10,17 @@ use ::astgen::tokenizer::{Token, TokenType};
 use self::TokenType::*;
 
 #[derive(Debug, Clone)]
-pub struct Segment {
+pub struct ColorSegment {
     pub range: Range<usize>,
     pub color: Color32,
 }
 
-impl Segment {
-    pub fn from(token: &Token) -> Segment {
+impl ColorSegment {
+    pub fn new(range: Range<usize>, color: Color32) -> Self {
+        Self { range, color }
+    }
+
+    pub fn from(token: &Token) -> ColorSegment {
         let color = match token.ty {
             Whitespace => Color32::TRANSPARENT,
             DecimalLiteral | HexLiteral | BinaryLiteral => Color32::KHAKI,
@@ -26,7 +30,7 @@ impl Segment {
             Decimal | Hex | Binary | Identifier => Color32::LIGHT_BLUE,
             Comma | EqualsSign | DefinitionSign => Color32::WHITE,
         };
-        Segment {
+        ColorSegment {
             range: token.range.clone(),
             color,
         }

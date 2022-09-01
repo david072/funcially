@@ -135,8 +135,8 @@ impl<'a> Tokenizer<'a> {
                 let slice = self.string[start..end].to_owned();
                 let slice = match String::from_utf8(slice) {
                     Ok(v) => v,
-                    Err(e) => panic!("Failed to parse string '{:?}' ({})",
-                                     &self.string[start..end], e),
+                    Err(e) => panic!("Failed to parse string '{:?}' ({:?}) ({})",
+                                     &self.string[start..end], self.string, e),
                 };
 
                 if ty == TokenType::Identifier {
