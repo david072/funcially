@@ -68,6 +68,7 @@ pub enum CalculatorResultData {
         format: Format,
     },
     Boolean(bool),
+    Function(String, usize), // name, # of arguments
 }
 
 pub struct CalculatorResult {
@@ -93,6 +94,13 @@ impl CalculatorResult {
     pub fn bool(bool: bool, segments: Vec<Segment>) -> Self {
         Self {
             data: CalculatorResultData::Boolean(bool),
+            color_segments: segments,
+        }
+    }
+
+    pub fn function(name: String, arg_count: usize, segments: Vec<Segment>) -> Self {
+        Self {
+            data: CalculatorResultData::Function(name, arg_count),
             color_segments: segments,
         }
     }
@@ -154,8 +162,9 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
         ParserResult::FunctionDefinition { name, args, ast } => {
             match ast {
                 Some(ast) => {
+                    let arg_count = args.len();
                     environment.set_function(&name, Function(args, ast)).unwrap();
-                    Ok(CalculatorResult::nothing(color_segments))
+                    Ok(CalculatorResult::function(name, arg_count, color_segments))
                 }
                 None => {
                     environment.remove_function(&name).unwrap();

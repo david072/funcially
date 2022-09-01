@@ -13,7 +13,7 @@ const VAR_PI: &Variable = &Variable(PI, None);
 const VAR_E: &Variable = &Variable(E, None);
 const VAR_TAU: &Variable = &Variable(TAU, None);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function(pub Vec<String>, pub Vec<AstNode>);
 
 const STANDARD_FUNCTIONS: [(&str, usize); 14] = [
@@ -27,6 +27,7 @@ const STANDARD_FUNCTIONS: [(&str, usize); 14] = [
     ("clamp", 3), ("map", 5), // map arg1 from range arg2..arg3 to range arg4..arg5
 ];
 
+#[derive(Clone)]
 pub struct Environment {
     ans: Variable,
     variables: Vec<(String, Variable)>,

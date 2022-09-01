@@ -9,7 +9,7 @@ use eframe::egui::Color32;
 use ::astgen::tokenizer::{Token, TokenType};
 use self::TokenType::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Segment {
     pub range: Range<usize>,
     pub color: Color32,

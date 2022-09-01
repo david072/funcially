@@ -17,6 +17,7 @@ use calculator::{calculate, Environment, CalculatorResultData, Format, round_dp,
 use std::ops::Range;
 use std::sync::Arc;
 use clipboard::{ClipboardProvider, ClipboardContext};
+use plot::{Plot, CoordinatesFormatter, Corner, Line, PlotPoints};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
@@ -36,6 +37,16 @@ fn main() {
     );
 }
 
+#[derive(Default)]
+struct PlotLine {
+    text: String,
+    old_text: String,
+    function_name: String,
+    environment: Environment,
+    color_segments: Vec<Segment>,
+    error: Option<(Range<usize>, String)>,
+}
+
 struct App {
     environment: Environment,
 
@@ -46,7 +57,10 @@ struct App {
     color_segments: HashMap<usize, Vec<Segment>>,
     error_ranges: HashMap<usize, Range<usize>>,
 
+    plot_line: PlotLine,
+
     first_frame: bool,
+    is_plot_open: bool,
     default_bottom_text: String,
     bottom_text: Option<String>,
 }
@@ -60,7 +74,9 @@ impl Default for App {
             output_lines: Vec::new(),
             color_segments: HashMap::new(),
             error_ranges: HashMap::new(),
+            plot_line: PlotLine::default(),
             first_frame: true,
+            is_plot_open: false,
             default_bottom_text: format!("v{}", VERSION),
             bottom_text: None,
         }
@@ -84,12 +100,12 @@ impl App {
                         let unit = unit.unwrap_or_default();
                         match format {
                             Format::Decimal => format!("{}{}", round_dp(result, 10), unit),
-                            Format::Binary => format!("= {:#b}{}", result as i64, unit),
-                            Format::Hex => format!("= {:#X}{}", result as i64, unit),
+                            Format::Binary => format!("{:#b}{}", result as i64, unit),
+                            Format::Hex => format!("{:#X}{}", result as i64, unit),
                         }
                     }
                     CalculatorResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
-                    CalculatorResultData::Nothing => String::new(),
+                    CalculatorResultData::Function(_, _) | CalculatorResultData::Nothing => String::new(),
                 }
             }
             Err(e) => {
@@ -146,11 +162,95 @@ impl App {
             self.output_lines.push(res);
         }
     }
+
+    fn draw_plot_window(&mut self, ctx: &Context, _ui: &mut Ui) {
+        let plot_line = &mut self.plot_line;
+        Window::new("Plot")
+            .open(&mut self.is_plot_open)
+            .default_size(Vec2::new(300.0, 200.0)).show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                let mut color_segments = HashMap::new();
+                color_segments.insert(0, plot_line.color_segments.clone());
+                let mut error_ranges = HashMap::new();
+                if let Some(e) = &plot_line.error {
+                    error_ranges.insert(0, e.0.clone());
+                }
+
+                let text_edit_width = ui.available_width() * (2.0 / 3.0);
+                TextEdit::singleline(&mut plot_line.text)
+                    .desired_width(text_edit_width)
+                    .font(FontSelection::FontId(FONT_ID))
+                    .layouter(&mut |ui, str, wrap_width| {
+                        input_layouter(ui, str, wrap_width, &color_segments, &error_ranges)
+                    })
+                    .show(ui);
+                if let Some((_, error)) = &plot_line.error {
+                    ui.label(error);
+                }
+
+                if plot_line.text != plot_line.old_text {
+                    plot_line.old_text = plot_line.text.clone();
+                    match calculate(&plot_line.text, &mut plot_line.environment, Verbosity::None) {
+                        Ok(res) => {
+                            plot_line.error = None;
+                            plot_line.color_segments = res.color_segments;
+                            match res.data {
+                                CalculatorResultData::Function(name, arg_count) => {
+                                    if arg_count != 1 {
+                                        plot_line.error = Some((0..plot_line.text.len(), "Too many arguments".to_owned()));
+                                    } else {
+                                        plot_line.function_name = name;
+                                    }
+                                }
+                                _ => {
+                                    plot_line.color_segments.clear();
+                                    plot_line.function_name.clear();
+                                    plot_line.error = Some((0..plot_line.text.len(), "Expected function".to_owned()));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            plot_line.color_segments.clear();
+                            plot_line.function_name.clear();
+                            plot_line.error = Some((e.start..e.end, format!("{}", e.error)));
+                        }
+                    }
+                }
+            });
+
+            let pl_env = plot_line.environment.clone();
+            let pl_fname = plot_line.function_name.clone();
+
+            Plot::new("calculator_plot")
+                .data_aspect(1.0)
+                .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default())
+                .show(ui, |plot_ui| {
+                    if !pl_fname.is_empty() {
+                        plot_ui.line(
+                            Line::new(
+                                PlotPoints::from_explicit_callback(move |x| {
+                                    let res = pl_env.resolve_custom_function(&pl_fname, &[x]).unwrap();
+                                    res.0
+                                }, .., 512)
+                            ).color(Color32::GREEN)
+                        );
+                    }
+                });
+        });
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         self.bottom_text = None;
+
+        TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            menu::bar(ui, |ui| {
+                if ui.button(if self.is_plot_open { "Close Plot" } else { "Open Plot" }).clicked() {
+                    self.is_plot_open = !self.is_plot_open;
+                }
+            })
+        });
 
         CentralPanel::default().show(ctx, |ui| {
             let input_width = ui.available_width() * (2.0 / 3.0);
@@ -196,6 +296,8 @@ impl eframe::App for App {
                     });
                 });
             });
+
+            if self.is_plot_open { self.draw_plot_window(ctx, ui); }
 
             let text = if let Some(text) = &self.bottom_text { text } else { &self.default_bottom_text };
             ui.label(RichText::new(text).font(FontId::proportional(14.0)));
