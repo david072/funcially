@@ -11,7 +11,7 @@ extern crate clipboard;
 extern crate calculator;
 
 use std::collections::HashMap;
-use eframe::{egui, Frame};
+use eframe::{egui, Frame, Theme};
 use egui::*;
 use calculator::{calculate, Environment, CalculatorResultData, Format, round_dp, Verbosity, Segment};
 use std::ops::Range;
@@ -25,8 +25,8 @@ const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 
 fn main() {
     let options = eframe::NativeOptions {
-        resizable: false,
         initial_window_size: Some(Vec2::new(500.0, 400.0)),
+        default_theme: Theme::Dark,
         ..Default::default()
     };
     eframe::run_native(
@@ -153,6 +153,7 @@ impl eframe::App for App {
         self.bottom_text = None;
 
         CentralPanel::default().show(ctx, |ui| {
+            let input_width = ui.available_width() * (2.0 / 3.0);
             let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y) / FONT_SIZE) as usize;
 
             ScrollArea::vertical().show(ui, |ui| {
@@ -164,6 +165,7 @@ impl eframe::App for App {
                         .lock_focus(true)
                         .hint_text("Calculate something")
                         .frame(false)
+                        .desired_width(input_width)
                         .font(FontSelection::from(FONT_ID))
                         .desired_rows(rows)
                         .layouter(&mut |ui: &Ui, string: &str, wrap_width: f32| {
