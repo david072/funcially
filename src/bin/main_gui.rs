@@ -47,7 +47,6 @@ enum Line {
         function: Option<(String, usize)>,
         is_error: bool,
         show_in_plot: bool,
-
     },
 }
 
@@ -57,8 +56,6 @@ struct App {
     source_old: String,
     source: String,
     lines: Vec<Line>,
-
-    // plot_line: PlotLine,
 
     first_frame: bool,
     is_plot_open: bool,
@@ -73,7 +70,6 @@ impl Default for App {
             source_old: String::new(),
             source: String::new(),
             lines: Vec::new(),
-            // plot_line: PlotLine::default(),
             first_frame: true,
             is_plot_open: false,
             default_bottom_text: format!("v{}", VERSION),
