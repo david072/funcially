@@ -1,0 +1,10 @@
+{
+  "name": "Calculator",
+  "short_name": "calculator",
+  "lang": "en-US",
+  "id": "/index.html",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "black",
+  "theme_color": "black"
+}

@@ -10,7 +10,7 @@ extern crate eframe;
 extern crate clipboard;
 extern crate calculator;
 
-use eframe::{egui, Frame, Theme};
+use eframe::{CreationContext, egui, Frame, Theme};
 use egui::*;
 use calculator::{
     calculate, Environment, CalculatorResultData, Format, round_dp, Verbosity, ColorSegment,
@@ -25,6 +25,7 @@ const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color32 = Color32::RED;
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     let options = eframe::NativeOptions {
         initial_window_size: Some(Vec2::new(500.0, 400.0)),
@@ -34,8 +35,23 @@ fn main() {
     eframe::run_native(
         "Calculator",
         options,
-        Box::new(|_cc| Box::new(App::default())),
+        Box::new(|cc| Box::new(App::new(cc))),
     );
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    // Make sure panics are logged using `console.error`
+    console_error_panic_hook::set_once();
+    // Redirect tracing to console.log, ...
+    tracing_wasm::set_as_global_default();
+
+    let web_options = eframe::WebOptions::default();
+    eframe::start_web(
+        "the_canvas_id",
+        web_options,
+        Box::new(|cc| Box::new(App::new(cc))),
+    ).expect("Failed to start eframe");
 }
 
 #[derive(Debug)]
@@ -53,18 +69,19 @@ enum Line {
 struct App {
     environment: Environment,
 
-    source_old: String,
     source: String,
+    source_old: String,
     lines: Vec<Line>,
 
-    first_frame: bool,
     is_plot_open: bool,
+    first_frame: bool,
     default_bottom_text: String,
     bottom_text: Option<String>,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl App {
+    fn new(cc: &CreationContext<'_>) -> Self {
+        cc.egui_ctx.set_visuals(Visuals::dark());
         App {
             environment: Environment::new(),
             source_old: String::new(),
@@ -76,9 +93,7 @@ impl Default for App {
             bottom_text: None,
         }
     }
-}
 
-impl App {
     fn calculate(&mut self, str: &str) -> Line {
         let str = str.to_string();
         let str = str.trim();
