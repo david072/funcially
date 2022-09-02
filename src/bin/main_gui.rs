@@ -7,7 +7,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 extern crate eframe;
-extern crate clipboard;
 extern crate calculator;
 
 use eframe::{CreationContext, egui, Frame, Theme};
@@ -24,7 +23,6 @@ use calculator::{
 };
 use std::ops::Range;
 use std::sync::Arc;
-use clipboard::{ClipboardProvider, ClipboardContext};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
@@ -459,7 +457,7 @@ fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option
         if response.clicked() {
             let hover_pos = response.hover_pos().unwrap();
             if bg_rect.contains(hover_pos) {
-                set_clipboard_contents(str.to_owned());
+                ui.output().copied_text = str.to_owned();
                 show_copied_text = true;
             }
         }
@@ -508,11 +506,6 @@ fn help_window_row(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>, inp
             .text_color(Color32::GREEN)
             .show(ui);
     });
-}
-
-fn set_clipboard_contents(str: String) {
-    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
-    ctx.set_contents(str).unwrap();
 }
 
 fn vertical_spacer(ui: &mut Ui) -> Response {
