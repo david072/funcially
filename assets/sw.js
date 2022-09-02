@@ -1,4 +1,4 @@
-var cacheName = 'calculator';
+var cacheName = 'calculator-pwa';
 var filesToCache = [
   './',
   './index.html',
