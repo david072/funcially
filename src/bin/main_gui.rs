@@ -13,7 +13,14 @@ extern crate calculator;
 use eframe::{CreationContext, egui, Frame, Theme};
 use egui::*;
 use calculator::{
-    calculate, Environment, CalculatorResultData, Format, round_dp, Verbosity, ColorSegment,
+    calculate,
+    Environment,
+    CalculatorResultData,
+    Format,
+    round_dp,
+    Verbosity,
+    ColorSegment,
+    colorize_text,
 };
 use std::ops::Range;
 use std::sync::Arc;
@@ -74,9 +81,12 @@ struct App {
     lines: Vec<Line>,
 
     is_plot_open: bool,
+    is_help_open: bool,
+
     first_frame: bool,
     default_bottom_text: String,
     bottom_text: Option<String>,
+    cached_help_window_color_segments: Vec<Vec<ColorSegment>>,
 }
 
 impl App {
@@ -89,8 +99,10 @@ impl App {
             lines: Vec::new(),
             first_frame: true,
             is_plot_open: false,
+            is_help_open: false,
             default_bottom_text: format!("v{}", VERSION),
             bottom_text: None,
+            cached_help_window_color_segments: Vec::new(),
         }
     }
 
@@ -240,21 +252,40 @@ impl App {
                 });
         });
     }
+
+    fn help_window(&mut self, ctx: &Context) {
+        let is_help_open = &mut self.is_help_open;
+        let color_segments = &mut self.cached_help_window_color_segments;
+        Window::new("Help")
+            .open(is_help_open)
+            .show(ctx, |ui| {
+                ScrollArea::vertical().show(ui, |ui| {
+                    build_help(ui, color_segments);
+                });
+            });
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         self.bottom_text = None;
+        if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
+            self.cached_help_window_color_segments.clear();
+        }
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             menu::bar(ui, |ui| {
                 if ui.button(if self.is_plot_open { "Close Plot" } else { "Open Plot" }).clicked() {
                     self.is_plot_open = !self.is_plot_open;
                 }
+                if ui.button("Help").clicked() {
+                    self.is_help_open = !self.is_help_open;
+                }
             })
         });
 
         if self.is_plot_open { self.plot_panel(ctx); }
+        if self.is_help_open { self.help_window(ctx); }
 
         CentralPanel::default().show(ctx, |ui| {
             let input_width = ui.available_width() * (2.0 / 3.0);
@@ -412,6 +443,42 @@ fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option
     response
 }
 
+fn help_window_row(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>, input: &str, output: &str, color_index: usize) {
+    if color_segments.len() == color_index {
+        let segments = colorize_text(input);
+        color_segments.push(segments);
+    }
+
+    let color_segments = &color_segments[color_index];
+    ui.horizontal(|ui| {
+        let mut input = input.to_string();
+        let mut output = output.to_string();
+
+        TextEdit::singleline(&mut input)
+            .interactive(false)
+            .font(FontSelection::FontId(FONT_ID))
+            .layouter(&mut |ui, string, wrap_width| {
+                let mut job = text::LayoutJob {
+                    text: string.into(),
+                    ..Default::default()
+                };
+
+                let mut end = 0usize;
+                layout_segments(color_segments, &mut job, string, &mut end, 0);
+
+                job.wrap.max_width = wrap_width;
+                ui.fonts().layout_job(job)
+            })
+            .show(ui);
+
+        TextEdit::singleline(&mut output)
+            .interactive(false)
+            .font(FontSelection::FontId(FONT_ID))
+            .text_color(Color32::GREEN)
+            .show(ui);
+    });
+}
+
 fn set_clipboard_contents(str: String) {
     let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
     ctx.set_contents(str).unwrap();
@@ -435,20 +502,20 @@ fn vertical_spacer(ui: &mut Ui) -> Response {
     response
 }
 
+fn section(range: Range<usize>, color: Color32) -> text::LayoutSection {
+    text::LayoutSection {
+        leading_space: 0.0,
+        byte_range: range,
+        format: TextFormat {
+            font_id: FONT_ID,
+            color,
+            ..Default::default()
+        },
+    }
+}
+
 fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> + '_ {
     move |ui, string, wrap_width| {
-        let section = |range: Range<usize>, color: Color32| {
-            text::LayoutSection {
-                leading_space: 0.0,
-                byte_range: range,
-                format: TextFormat {
-                    font_id: FONT_ID,
-                    color,
-                    ..Default::default()
-                },
-            }
-        };
-
         let mut job = text::LayoutJob {
             text: string.into(),
             ..Default::default()
@@ -457,29 +524,11 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
         if !lines.is_empty() {
             let mut end = 0usize;
             let mut offset = 0usize;
-            'outer: for (i, line) in string.lines().enumerate() {
+            for (i, line) in string.lines().enumerate() {
                 if i >= lines.len() { break; }
                 if let Line::Line { color_segments, .. } = &lines[i] {
-                    for segment in color_segments {
-                        let range_start = segment.range.start + offset;
-                        let range_end = segment.range.end + offset;
-
-                        // Handle errors in the data caused by the text being edited. It will be
-                        // updated imminently after this function, we just can't crash here
-                        if range_end > string.len() { break 'outer; }
-                        if range_start >= range_end { break 'outer; }
-                        if !string.is_char_boundary(range_start) ||
-                            !string.is_char_boundary(range_end) {
-                            break 'outer;
-                        }
-                        if end > range_start { break 'outer; }
-
-                        if range_start != end {
-                            job.sections.push(section(end..range_start, Color32::GRAY));
-                        }
-
-                        job.sections.push(section(range_start..range_end, segment.color));
-                        end = range_end;
+                    if !layout_segments(color_segments, &mut job, string, &mut end, offset) {
+                        break;
                     }
                 }
 
@@ -496,4 +545,122 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
         job.wrap.max_width = wrap_width;
         ui.fonts().layout_job(job)
     }
+}
+
+fn layout_segments(
+    color_segments: &[ColorSegment],
+    job: &mut text::LayoutJob,
+    string: &str,
+    end: &mut usize,
+    offset: usize,
+) -> bool {
+    for segment in color_segments {
+        let range_start = segment.range.start + offset;
+        let range_end = segment.range.end + offset;
+
+        // Handle errors in the data caused by the text being edited. It will be
+        // updated imminently after this function, we just can't crash here
+        if range_end > string.len() { return false; }
+        if range_start >= range_end { return false; }
+        if !string.is_char_boundary(range_start) ||
+            !string.is_char_boundary(range_end) {
+            return false;
+        }
+        if *end > range_start { return false; }
+
+        if range_start != *end {
+            job.sections.push(section(*end..range_start, Color32::GRAY));
+        }
+
+        job.sections.push(section(range_start..range_end, segment.color));
+        *end = range_end;
+    }
+
+    true
+}
+
+fn build_help(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>) {
+    ui.heading("Numbers");
+    ui.label("You can type in numbers in different formats:");
+    help_window_row(ui, color_segments, "123", "123", 0);
+    help_window_row(ui, color_segments, "10.5 + .5", "12", 1);
+    help_window_row(ui, color_segments, "0xFF", "255", 2);
+    help_window_row(ui, color_segments, "0b110", "6", 3);
+
+    ui.separator();
+    ui.heading("Operators");
+    ui.label("Basic operators: +, -, *, /");
+    help_window_row(ui, color_segments, "3 + 4 * 2", "11", 4);
+    help_window_row(ui, color_segments, "8 / 2 - 2", "2", 5);
+
+    ui.label("Extended operators: ^, &, |, <number>!, !<number>");
+    help_window_row(ui, color_segments, "10 ^ 2 * 4", "400", 6);
+    help_window_row(ui, color_segments, "5!", "120", 7);
+
+    ui.label("The multiplication sign can be left out before variables, functions and groups.");
+
+    ui.separator();
+    ui.heading("Groups");
+    help_window_row(ui, color_segments, "((3 + 3) / 2) * 3", "9", 8);
+
+    ui.separator();
+    ui.heading("Functions");
+    ui.label("Builtin functions include 'sin', 'cos', 'log' or 'sqrt':");
+    help_window_row(ui, color_segments, "sin(30)", "0.5", 9);
+    help_window_row(ui, color_segments, "sqrt(20 + 5)", "5", 10);
+    help_window_row(ui, color_segments, "2log(2, 8)", "6", 11);
+
+    ui.label("You can also define your own custom functions:");
+    help_window_row(ui, color_segments, "f(x) := x * 3", "", 12);
+    help_window_row(ui, color_segments, "pow(a, b) := a ^ b", "", 13);
+
+    ui.label("To remove a custom function, simply leave out the right side of ':='.");
+
+    ui.separator();
+    ui.heading("Variables");
+    ui.label("Builtin variables include 'pi', 'e' and 'tau':");
+    help_window_row(ui, color_segments, "pi", "3.1415926536", 14);
+
+    ui.label("You can also define you own custom variables:");
+    help_window_row(ui, color_segments, "x := 3 * 4", "", 15);
+
+    ui.label("To remove a custom variable, simply leave out the right side of ':='.");
+
+    ui.label("The 'ans' variable always contains the result of the last calculation.");
+    help_window_row(ui, color_segments, "3 * 4", "12", 16);
+    help_window_row(ui, color_segments, "ans", "12", 17);
+
+    ui.separator();
+    ui.heading("Percentages");
+    ui.label("The '%'-Sign is a shorthand for 'n / 100':");
+    help_window_row(ui, color_segments, "20%", "0.2", 18);
+
+    ui.label("The 'of' operator can be used to take a percentage from a value:");
+    help_window_row(ui, color_segments, "20% of 100", "20", 19);
+    help_window_row(ui, color_segments, "(10 + 10)% of 10 ^ 2", "20", 20);
+
+    ui.separator();
+    ui.heading("Equality checks");
+    ui.label("The '='-Sign can be used to make a line an equality check:");
+    help_window_row(ui, color_segments, "3 * 4 = 7", "True", 21);
+    help_window_row(ui, color_segments, "log(2, 8) = 5", "False", 22);
+
+    ui.separator();
+    ui.heading("Units");
+    ui.label("Units are number suffixes with an optional unit prefix (e.g. 'm', 'k', etc.).");
+    ui.label("Numbers with and without units can be mixed in a single calculation.");
+    ui.label("If the line consists only of a number with a unit, the unit is written in its long form.");
+    help_window_row(ui, color_segments, "10m", "10 Meters", 23);
+    help_window_row(ui, color_segments, "(10 + 10)min", "20min", 24);
+    help_window_row(ui, color_segments, "20h + 30min", "20.5h", 25);
+
+    ui.label("The 'in' operator can be used to convert between units:");
+    help_window_row(ui, color_segments, "180min in h", "3h", 26);
+
+    ui.label("The 'in' operator can also be used to convert the result to a different representation.");
+    ui.label("However, this only has an affect when it is the last thing in a line.");
+    help_window_row(ui, color_segments, "0xFF in decimal", "255 (decimal is default)", 27);
+    help_window_row(ui, color_segments, "255 in hex", "0xFF", 28);
+    help_window_row(ui, color_segments, "0x6 in binary", "0b110", 29);
+    help_window_row(ui, color_segments, "255km in hex", "0xFF Kilometers", 30);
 }

@@ -106,6 +106,13 @@ impl CalculatorResult {
     }
 }
 
+pub fn colorize_text(input: &str) -> Vec<ColorSegment> {
+    match tokenize(input) {
+        Ok(tokens) => tokens.iter().map(ColorSegment::from).collect::<Vec<_>>(),
+        Err(_) => Vec::new()
+    }
+}
+
 pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosity) -> Result<CalculatorResult> {
     let tokens = tokenize(input)?;
     if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
