@@ -82,6 +82,8 @@ struct App {
 
     is_plot_open: bool,
     is_help_open: bool,
+    #[cfg(target_arch = "wasm32")]
+    is_download_open: bool,
 
     first_frame: bool,
     default_bottom_text: String,
@@ -100,6 +102,8 @@ impl App {
             first_frame: true,
             is_plot_open: false,
             is_help_open: false,
+            #[cfg(target_arch = "wasm32")]
+            is_download_open: false,
             default_bottom_text: format!("v{}", VERSION),
             bottom_text: None,
             cached_help_window_color_segments: Vec::new(),
@@ -264,6 +268,30 @@ impl App {
                 });
             });
     }
+
+    #[cfg(target_arch = "wasm32")]
+    fn download_window(&mut self, ctx: &Context) {
+        Window::new("Download")
+            .open(&mut self.is_download_open)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.heading("Desktop App");
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    ui.label("If you're on desktop, you can download the ");
+                    ui.hyperlink_to("desktop app", "https://github.com/david072/calculator/releases");
+                    ui.label(".");
+                });
+                ui.separator();
+
+                ui.heading("Web App (Chrome)");
+                ui.label("You can make this website available offline through Chrome.");
+                ui.add_space(4.0);
+                ui.label("Desktop: Click the download button to the right of the address bar and follow the instructions.");
+                ui.add_space(2.0);
+                ui.label("Mobile: Click the three dots to the right of the address bar and click the 'Install app' button.");
+            });
+    }
 }
 
 impl eframe::App for App {
@@ -281,11 +309,17 @@ impl eframe::App for App {
                 if ui.button("Help").clicked() {
                     self.is_help_open = !self.is_help_open;
                 }
+                #[cfg(target_arch = "wasm32")]
+                if ui.button("Download").clicked() {
+                    self.is_download_open = !self.is_download_open;
+                }
             })
         });
 
         if self.is_plot_open { self.plot_panel(ctx); }
         if self.is_help_open { self.help_window(ctx); }
+        #[cfg(target_arch = "wasm32")]
+        if self.is_download_open { self.download_window(ctx); }
 
         CentralPanel::default().show(ctx, |ui| {
             let input_width = ui.available_width() * (2.0 / 3.0);
@@ -315,7 +349,6 @@ impl eframe::App for App {
 
                     ui.vertical(|ui| {
                         ui.add_space(2.0);
-                        let prev_item_spacing = ui.spacing().item_spacing;
                         ui.spacing_mut().item_spacing.y = 0.0;
 
                         for line in &mut self.lines {
@@ -343,8 +376,6 @@ impl eframe::App for App {
                                 ui.add_space(FONT_SIZE);
                             }
                         }
-
-                        ui.spacing_mut().item_spacing = prev_item_spacing;
                     });
                 });
             });
