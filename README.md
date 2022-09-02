@@ -6,6 +6,7 @@ A calculator working purely with text inputs.
 
 ## Features
 
+- GUI and CLI applications
 - Literals in decimal, hex and binary
     - The integer part of floats can be omitted
 - Basic operators (`+ - * /`)
@@ -27,6 +28,8 @@ A calculator working purely with text inputs.
 - `in` operator
     - Conversion between units
     - Conversion between representations (if last thing in line)
+- Plotting single argument functions in the GUI
+- Web version + PWA (downloadable website)
 
 ### Order of operations
 

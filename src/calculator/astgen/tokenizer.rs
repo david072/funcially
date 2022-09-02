@@ -246,11 +246,13 @@ impl<'a> Tokenizer<'a> {
         if res.is_some() { return res; }
 
         if c == 0xC2 { // First byte of "°"
-            self.index += 1;
             if self.index < self.string.len() && self.string[self.index] == 0xB0 { // Second byte of "°"
                 self.index += 1;
+                while self.accept(any_of(LETTERS)) {}
+                Some(TokenType::Identifier)
+            } else {
+                None
             }
-            None
         } else if LETTERS.contains(c as char) {
             while self.accept(any_of(LETTERS)) {}
             Some(TokenType::Identifier)

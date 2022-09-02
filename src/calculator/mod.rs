@@ -184,5 +184,6 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
 
 pub fn round_dp(n: f64, dp: u32) -> String {
     if n.is_nan() { return "NaN".to_owned(); }
+    if !n.is_finite() { return "infinity".to_owned(); }
     Decimal::from_f64(n).unwrap().round_dp(dp).to_string()
 }
