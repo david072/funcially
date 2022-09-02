@@ -5,9 +5,9 @@
  */
 
 use ::Format;
-use crate::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
-use crate::astgen::tokenizer::{Token, TokenType};
-use crate::common::*;
+use ::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
+use ::astgen::tokenizer::{Token, TokenType};
+use ::common::*;
 use strum::IntoEnumIterator;
 use std::mem;
 use ::environment::units::is_valid_unit;
@@ -22,6 +22,29 @@ macro_rules! error {
 macro_rules! error_with_args {
     ($variant:ident($range:expr) $($arg:expr),*) => {
         return Err(ErrorType::$variant($($arg),*).with($range.clone()))
+    }
+}
+
+macro_rules! remove_elems {
+    ($vec:ident, $clojure:tt) => {
+        while let Some(i) = $vec.iter().position($clojure) {
+            $vec.remove(i);
+        }
+    }
+}
+
+macro_rules! parse_f64_radix {
+    ($token:expr, $radix:expr) => {
+        (match i64::from_str_radix(&$token.text[2..], $radix) {
+            Ok(number) => number,
+            Err(_) => return Err(ErrorType::InvalidNumber.with($token.range.clone())),
+        }) as f64
+    }
+}
+
+macro_rules! ok_operator {
+    ($variant:ident) => {
+        Ok(AstNodeData::Operator(Operator::$variant))
     }
 }
 
@@ -191,30 +214,6 @@ struct Parser<'a> {
     result: Vec<AstNode>,
 }
 
-macro_rules! remove_elems {
-    ($vec:ident, $clojure:tt) => {
-        while let Some(i) = $vec.iter().position($clojure) {
-            $vec.remove(i);
-        }
-    }
-}
-
-macro_rules! parse_f64_radix {
-    ($token:expr, $radix:expr) => {
-        (match i64::from_str_radix(&$token.text[2..], $radix) {
-            Ok(number) => number,
-            Err(_) => return Err(ErrorType::InvalidNumber.with($token.range.clone())),
-        }) as f64
-    }
-}
-
-macro_rules! ok_operator {
-    ($variant:ident) => {
-        Ok(AstNodeData::Operator(Operator::$variant))
-    }
-}
-
-
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token], nesting_level: usize, env: &'a Environment) -> Parser<'a> {
         Parser {
@@ -228,6 +227,13 @@ impl<'a> Parser<'a> {
             next_token_modifiers: Vec::new(),
             equals_sign_index: None,
             result: Vec::new(),
+        }
+    }
+
+    pub fn from(other: &Parser<'a>, tokens: &'a [Token]) -> Parser<'a> {
+        Parser {
+            extra_allowed_variables: other.extra_allowed_variables,
+            ..Parser::new(tokens, other.nesting_level + 1, other.env)
         }
     }
 
@@ -400,7 +406,7 @@ impl<'a> Parser<'a> {
         }
 
         let group_tokens = &self.tokens[group_start..group_end - 1];
-        let group_ast = match Parser::new(group_tokens, self.nesting_level + 1, self.env).parse()? {
+        let group_ast = match Parser::from(self, group_tokens).parse()? {
             ParserResult::Calculation(ast) => ast,
             _ => unreachable!(),
         };
@@ -477,7 +483,8 @@ impl<'a> Parser<'a> {
                         error!(ExpectedElements(self.tokens[self.index - 1].range));
                     }
                     let argument = &self.tokens[argument_start..self.index - 1];
-                    match parse(argument, self.env)? {
+
+                    match Parser::from(self, argument).parse()? {
                         ParserResult::Calculation(ast) => arguments.push(ast),
                         res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
                     }
@@ -488,7 +495,7 @@ impl<'a> Parser<'a> {
                     if nesting_level == 0 {
                         if argument_start != self.index - 1 {
                             let argument = &self.tokens[argument_start..self.index - 1];
-                            match parse(argument, self.env)? {
+                            match Parser::from(self, argument).parse()? {
                                 ParserResult::Calculation(ast) => arguments.push(ast),
                                 res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
                             }
