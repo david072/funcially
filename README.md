@@ -4,6 +4,10 @@ A calculator working purely with text inputs.
 
 ![Image](/media/image.png)
 
+## Downloading
+- Desktop Version (Windows + Mac) available in the `Releases` Tab
+- Web Version available [here](https://david072.github.io/calculator)!
+
 ## Features
 
 - GUI and CLI applications
