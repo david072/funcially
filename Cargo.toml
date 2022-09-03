@@ -1,6 +1,6 @@
 [package]
 name = "calculator"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["david072"]
 description = "A calculator working with text inputs."
 
