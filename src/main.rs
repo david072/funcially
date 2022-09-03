@@ -6,9 +6,11 @@
 
 extern crate calculator;
 extern crate clap;
+extern crate colored;
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
+use colored::Colorize;
 use calculator::{calculate, Environment, Verbosity, Format, round_dp, CalculatorResultData};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -56,32 +58,32 @@ fn main() {
                             CalculatorResultData::Number { result: n, unit, format } => {
                                 let unit = unit.unwrap_or_default();
                                 match format {
-                                    Format::Decimal => println!("= {}{}", round_dp(n, 10), unit),
-                                    Format::Hex => println!("= {:#X}{}", n as i64, unit),
-                                    Format::Binary => println!("= {:#b}{}", n as i64, unit),
+                                    Format::Decimal => println!("= {}{}", round_dp(n, 10).green(), unit),
+                                    Format::Hex => println!("= {}{}", format!("{:#X}", n as i64).green(), unit),
+                                    Format::Binary => println!("= {}{}", format!("{:#b}", n as i64).green(), unit),
                                 }
                             }
-                            CalculatorResultData::Boolean(b) => println!("=> {}", if b { "True" } else { "False" }),
+                            CalculatorResultData::Boolean(b) => println!("=> {}", if b { "True".green() } else { "False".red() }),
                             CalculatorResultData::Function(_, _) | CalculatorResultData::Nothing => {}
                         }
                     }
                     Err(error) => {
-                        println!("An error occurred: {:?}", error.error);
+                        eprintln!("{}: {}", "Error".red(), error.error);
 
                         let slice_start = std::cmp::max(0, error.start as isize - 5) as usize;
                         let slice_end = std::cmp::min(input.len(), error.end + 5);
                         let slice = &input[slice_start..slice_end];
-                        println!("{}", slice);
+                        eprintln!("{}", slice);
 
                         for _ in 0..error.start - slice_start {
-                            print!(" ");
+                            eprint!(" ");
                         }
-                        print!("^");
+                        eprint!("{}", "^".cyan());
                         for _ in 0..error.end - error.start - 1 {
-                            print!("-");
+                            eprint!("{}", "-".cyan());
                         }
 
-                        println!(" {}", error.error);
+                        eprintln!(" {}", error.error.to_string().cyan());
                     }
                 }
             }
