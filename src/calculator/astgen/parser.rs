@@ -399,6 +399,8 @@ impl<'a> Parser<'a> {
             error!(MissingClosingBracket(open_bracket_token.range));
         }
 
+        self.infer_multiplication(group_start..group_start + 1);
+
         let group_range = group_start - 1..group_end;
         if group_end - group_start <= 1 {
             self.result.push(AstNode::new(AstNodeData::Literal(0.0), group_range));
@@ -411,9 +413,7 @@ impl<'a> Parser<'a> {
             _ => unreachable!(),
         };
 
-        self.infer_multiplication(group_start..group_start + 1);
         self.push_new_node(AstNodeData::Group(group_ast), group_range);
-
         Ok(())
     }
 
