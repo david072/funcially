@@ -2,8 +2,8 @@ var cacheName = 'calculator-pwa';
 var filesToCache = [
   './',
   './index.html',
-  './calculator.js',
-  './calculator_bg.wasm',
+  './gui.js',
+  './gui_bg.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */
