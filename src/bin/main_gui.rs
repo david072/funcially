@@ -282,12 +282,18 @@ impl App {
                 });
                 ui.separator();
 
-                ui.heading("Web App (Chrome)");
+                ui.heading("Web App");
                 ui.label("You can make this website available offline through Chrome.");
                 ui.add_space(4.0);
+                ui.heading("Chrome:");
                 ui.label("Desktop: Click the download button to the right of the address bar and follow the instructions.");
                 ui.add_space(2.0);
                 ui.label("Mobile: Click the three dots to the right of the address bar and click the 'Install app' button.");
+                ui.add_space(4.0);
+                ui.heading("Safari (iPad / iPhone):");
+                ui.label("Click the share button, either at the bottom of the screen or next to the address bar, \
+                    click the 'Add to Home Screen' button and follow the instructions.");
+                ui.add_space(2.0);
             });
     }
 }
