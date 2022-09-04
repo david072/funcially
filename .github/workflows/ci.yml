@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: "gh-pages"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Linux Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+      - name: Run Tests
+        run: cargo test
+      - name: Build
+        run: cargo build --bin cli && cargo build --bin gui
+      - name: Upload CLI
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-linux
+          path: ./target/debug/cli.exe
+          if-no-files-found: error
+      - name: Upload GUI
+        uses: actions/upload-artifact@v3
+        with:
+          name: gui-linux
+          path: ./target/debug/gui.exe
+          if-no-files-found: error
+
+  build-windows:
+    name: Windows Build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+      - name: Run Tests
+        run: cargo test
+      - name: Build
+        run: cargo build --bin cli && cargo build --bin gui
+      - name: Upload CLI
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-linux
+          path: ./target/debug/cli.exe
+          if-no-files-found: error
+      - name: Upload GUI
+        uses: actions/upload-artifact@v3
+        with:
+          name: gui-linux
+          path: ./target/debug/gui.exe
+          if-no-files-found: error
