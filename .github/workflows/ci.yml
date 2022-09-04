@@ -28,6 +28,8 @@ jobs:
           toolchain: stable
           override: true
           profile: minimal
+      - name: Rust Cache # cache the rust build artefacts
+        uses: Swatinem/rust-cache@v1
       - name: Run Tests
         run: cargo test
       - name: Build
@@ -58,6 +60,8 @@ jobs:
           toolchain: stable
           override: true
           profile: minimal
+      - name: Rust Cache # cache the rust build artefacts
+        uses: Swatinem/rust-cache@v1
       - name: Run Tests
         run: cargo test
       - name: Build
@@ -88,6 +92,8 @@ jobs:
           toolchain: stable
           override: true
           profile: minimal
+      - name: Rust Cache # cache the rust build artefacts
+        uses: Swatinem/rust-cache@v1
       - name: Run Tests
         run: cargo test
       - name: Build
