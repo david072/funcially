@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn non_ascii_chars() -> Result<()> {
         let tokens = tokenize("°")?;
-        assert_eq!(tokens, vec![Token::new(TokenType::Identifier, "°", 0..1)]);
+        assert_eq!(tokens, vec![Token::new(TokenType::Identifier, "°", 0..2)]);
         Ok(())
     }
 }

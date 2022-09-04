@@ -640,6 +640,28 @@ mod tests {
         }
     }
 
+    macro_rules! var_definition {
+        ($input:expr) => {
+            if let ParserResult::VariableDefinition(name, ast) = parse!($input)? {
+                (name, ast)
+            }
+            else {
+                panic!("Expected ParserResult::FunctionDefinition");
+            }
+        }
+    }
+
+    macro_rules! func_definition {
+        ($input:expr) => {
+            if let ParserResult::FunctionDefinition { name, args, ast } = parse!($input)? {
+                (name, args, ast)
+            }
+            else {
+                panic!("Expected ParserResult::FunctionDefinition");
+            }
+        }
+    }
+
     #[test]
     fn basic() -> Result<()> {
         let ast = calculation!("1 - 3 + 4 * 5 / 6");
@@ -772,6 +794,41 @@ mod tests {
     }
 
     #[test]
+    fn variable_definitions() -> Result<()> {
+        let (name, ast) = var_definition!("x := 3");
+        assert_eq!(name, "x");
+        assert!(ast.is_some());
+        assert_eq!(ast.as_ref().unwrap().len(), 1);
+        assert_eq!(ast.unwrap()[0].data, AstNodeData::Literal(3.0));
+
+        let (name, ast) = var_definition!("x :=");
+        assert_eq!(name, "x");
+        assert!(ast.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn function_definitions() -> Result<()> {
+        let (name, args, ast) = func_definition!("f(x) := x");
+        assert_eq!(name, "f");
+        assert_eq!(args, vec!["x"]);
+        assert!(ast.is_some());
+        assert_eq!(ast.as_ref().unwrap().len(), 1);
+        assert_eq!(ast.unwrap()[0].data, AstNodeData::VariableReference("x".to_owned()));
+
+        let (name, args, ast) = func_definition!("f(x, y) := x");
+        assert_eq!(name, "f");
+        assert_eq!(args, vec!["x", "y"]);
+        assert!(ast.is_some());
+
+        let (name, args, ast) = func_definition!("f(x, y) :=");
+        assert_eq!(name, "f");
+        assert_eq!(args, vec!["x", "y"]);
+        assert!(ast.is_none());
+        Ok(() )
+    }
+
+    #[test]
     fn expected_operand() -> Result<()> {
         let ast = parse!("2 3 + 4");
         assert_error_type!(ast, ExpectedOperator);
@@ -780,8 +837,6 @@ mod tests {
 
     #[test]
     fn expected_number() -> Result<()> {
-        let ast = parse!("2 ++ 4");
-        assert_error_type!(ast, ExpectedNumber);
         let ast = parse!("2 +");
         assert_error_type!(ast, ExpectedNumber);
         Ok(())
@@ -819,6 +874,27 @@ mod tests {
     fn unknown_identifier() -> Result<()> {
         let ast = parse!("something");
         assert_error_type!(ast, UnknownIdentifier);
+        Ok(())
+    }
+
+    #[test]
+    fn reserved_variable() -> Result<()> {
+        let err = parse!("pi :=");
+        assert_error_type!(err, ReservedVariable);
+        Ok(())
+    }
+
+    #[test]
+    fn reserved_function() -> Result<()> {
+        let err = parse!("sin(x) :=");
+        assert_error_type!(err, ReservedFunction);
+        Ok(())
+    }
+
+    #[test]
+    fn duplicate_argument() -> Result<()> {
+        let err = parse!("f(x, x) :=");
+        assert_error_type!(err, DuplicateArgument);
         Ok(())
     }
 }
