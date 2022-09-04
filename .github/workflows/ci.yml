@@ -3,6 +3,14 @@ name: CI
 on:
   push:
     branches-ignore: "gh-pages"
+    paths-ignore:
+      - '.github/*'
+      - '.github/workflows/pages.yml'
+      - '.gitattributes'
+      - '.gitignore'
+      - '**.md'
+      - 'LICENSE'
+      - 'media/*'
   pull_request:
   workflow_dispatch:
 
@@ -28,13 +36,13 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: cli-linux
-          path: ./target/debug/cli.exe
+          path: ./target/debug/cli
           if-no-files-found: error
       - name: Upload GUI
         uses: actions/upload-artifact@v3
         with:
           name: gui-linux
-          path: ./target/debug/gui.exe
+          path: ./target/debug/gui
           if-no-files-found: error
 
   build-windows:
@@ -57,12 +65,42 @@ jobs:
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
-          name: cli-linux
+          name: cli-windows
           path: ./target/debug/cli.exe
           if-no-files-found: error
       - name: Upload GUI
         uses: actions/upload-artifact@v3
         with:
-          name: gui-linux
+          name: gui-windows
           path: ./target/debug/gui.exe
+          if-no-files-found: error
+          
+  build-macos:
+    name: Macos Build
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+      - name: Run Tests
+        run: cargo test
+      - name: Build
+        run: cargo build --bin cli && cargo build --bin gui
+      - name: Upload CLI
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-macos
+          path: ./target/debug/cli
+          if-no-files-found: error
+      - name: Upload GUI
+        uses: actions/upload-artifact@v3
+        with:
+          name: gui-macos
+          path: ./target/debug/gui
           if-no-files-found: error
