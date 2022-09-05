@@ -54,6 +54,7 @@ pub enum AstNodeModifier {
     Percent,
     Minus,
     Plus,
+    Power(i32),
 }
 
 impl AstNodeModifier {
@@ -72,6 +73,7 @@ impl Display for AstNodeModifier {
             AstNodeModifier::Percent => write!(f, "%"),
             AstNodeModifier::Minus => write!(f, "-"),
             AstNodeModifier::Plus => write!(f, "+"),
+            AstNodeModifier::Power(e) => write!(f, "^{}", e),
         }
     }
 }
@@ -232,6 +234,7 @@ impl AstNode {
                 AstNodeModifier::Percent => *value /= 100.0,
                 AstNodeModifier::Minus => *value *= -1.0,
                 AstNodeModifier::Plus => *value *= 1.0,
+                AstNodeModifier::Power(e) => *value *= 10f64.powi(*e),
             }
         }
 

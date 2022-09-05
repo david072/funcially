@@ -12,6 +12,7 @@ use strum::IntoEnumIterator;
 use std::mem;
 use ::environment::units::is_valid_unit;
 use ::environment::Environment;
+use environment::units::{get_prefix_power, is_prefix, is_unit};
 
 macro_rules! error {
     ($variant:ident($range:expr)) => {
@@ -437,24 +438,47 @@ impl<'a> Parser<'a> {
                     self.infer_multiplication(multiplication_range);
                     self.next_function(identifier)?;
                     Ok(())
-                } else if is_valid_unit(&identifier.text) {
-                    if matches!(self.last_token_ty, Some(TokenType::In)) {
-                        self.push_new_node(AstNodeData::Unit(identifier.text.clone()), identifier.range.clone());
-                        return Ok(());
-                    }
-
-                    if !matches!(self.last_token_ty, Some(_)) || !self.last_token_ty.unwrap().is_number() {
-                        error!(ExpectedNumber(identifier.range));
+                } else {
+                    match self.last_token_ty {
+                        Some(ty) => {
+                            if !ty.is_number() && ty != TokenType::In {
+                                error!(ExpectedNumber(identifier.range));
+                            }
+                        }
+                        None => error!(ExpectedNumber(identifier.range)),
                     }
 
                     let last = self.result.last_mut().unwrap();
                     if last.unit.is_some() {
                         error!(UnexpectedUnit(identifier.range));
                     }
-                    self.result.last_mut().unwrap().unit = Some(identifier.text.clone());
+
+                    let first = identifier.text.chars().next().unwrap();
+                    let unit = if identifier.text.len() == 1 {
+                        if is_unit(&identifier.text) {
+                            identifier.text.clone()
+                        } else if is_prefix(first) {
+                            let power = get_prefix_power(first).unwrap();
+                            last.modifiers.push(AstNodeModifier::Power(power));
+                            return Ok(());
+                        } else {
+                            error!(UnknownIdentifier(identifier.range));
+                        }
+                    } else if is_unit(&identifier.text) {
+                        identifier.text.clone()
+                    } else if is_prefix(first) {
+                        identifier.text.clone()
+                    } else {
+                        error!(UnknownIdentifier(identifier.range));
+                    };
+
+                    if matches!(self.last_token_ty, Some(TokenType::In)) {
+                        self.push_new_node(AstNodeData::Unit(identifier.text.clone()), identifier.range.clone());
+                        return Ok(());
+                    }
+
+                    last.unit = Some(unit);
                     Ok(())
-                } else {
-                    error!(UnknownIdentifier(identifier.range));
                 }
             }
             _ => panic!("Must pass TokenType::Identifier to Parser::next_identifier()!"),

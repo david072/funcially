@@ -24,6 +24,24 @@ const PREFIXES: [(char, i32); 9] = [
     ('h', 2), ('k', 3), ('M', 6), ('G', 9), ('T', 12)
 ];
 
+pub fn is_unit(str: &str) -> bool {
+    UNITS.contains(&str)
+}
+
+pub fn is_prefix(c: char) -> bool {
+    for (p, _) in PREFIXES {
+        if p == c { return true; }
+    }
+    false
+}
+
+pub fn get_prefix_power(c: char) -> Option<i32> {
+    for (p, e) in PREFIXES {
+        if p == c { return Some(e); }
+    }
+    None
+}
+
 pub fn is_valid_unit(str: &str) -> bool {
     if str.is_empty() { return false; }
     if UNITS.contains(&str) { return true; }
