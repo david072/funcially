@@ -20,6 +20,7 @@ use calculator::{
     Verbosity,
     ColorSegment,
     colorize_text,
+    get_debug_info,
 };
 use std::ops::Range;
 use std::sync::Arc;
@@ -84,7 +85,11 @@ struct App {
     is_download_open: bool,
     is_settings_open: bool,
 
+    is_debug_info_open: bool,
+    debug_information: Option<String>,
+
     first_frame: bool,
+    input_text_paragraph: usize,
     default_bottom_text: String,
     bottom_text: Option<String>,
     cached_help_window_color_segments: Vec<Vec<ColorSegment>>,
@@ -104,6 +109,9 @@ impl App {
             #[cfg(target_arch = "wasm32")]
             is_download_open: false,
             is_settings_open: false,
+            is_debug_info_open: false,
+            debug_information: None,
+            input_text_paragraph: 0,
             default_bottom_text: format!("v{}", VERSION),
             bottom_text: None,
             cached_help_window_color_segments: Vec::new(),
@@ -154,6 +162,18 @@ impl App {
             color_segments,
             is_error,
             show_in_plot: false,
+        }
+    }
+
+    fn get_debug_info_for_current_line(&mut self) {
+        for (i, line) in self.source.lines().enumerate() {
+            if i != self.input_text_paragraph { continue; }
+
+            self.debug_information = match get_debug_info(line, &self.environment, Verbosity::Ast) {
+                Ok(info) => Some(info),
+                Err(e) => Some(format!("Error generating debug information: {}, {}..{}", e.error, e.start, e.end))
+            };
+            break;
         }
     }
 
@@ -315,6 +335,24 @@ impl App {
                 });
             });
     }
+
+    fn show_debug_information(&mut self, ctx: &Context) {
+        let debug_information = &mut self.debug_information;
+
+        Window::new("Debug Information")
+            .open(&mut self.is_debug_info_open)
+            .show(ctx, |ui| {
+                if let Some(debug_information) = debug_information {
+                    if ui.button("📋").clicked() {
+                        ui.output().copied_text = debug_information.clone();
+                    }
+
+                    TextEdit::multiline(debug_information)
+                        .interactive(false)
+                        .show(ui);
+                }
+            });
+    }
 }
 
 impl eframe::App for App {
@@ -323,6 +361,7 @@ impl eframe::App for App {
         if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
             self.cached_help_window_color_segments.clear();
         }
+        if !self.is_debug_info_open { self.debug_information = None; }
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             menu::bar(ui, |ui| {
@@ -339,6 +378,13 @@ impl eframe::App for App {
                 if ui.button("Settings").clicked() {
                     self.is_settings_open = !self.is_settings_open;
                 }
+
+                ui.menu_button("Debug", |ui| {
+                    if ui.button("Print Debug Information for current line").clicked() {
+                        self.get_debug_info_for_current_line();
+                        self.is_debug_info_open = true;
+                    }
+                });
             })
         });
 
@@ -347,6 +393,7 @@ impl eframe::App for App {
         #[cfg(target_arch = "wasm32")]
         if self.is_download_open { self.download_window(ctx); }
         if self.is_settings_open { self.settings_window(ctx); }
+        if self.is_debug_info_open { self.show_debug_information(ctx); }
 
         CentralPanel::default().show(ctx, |ui| {
             let input_width = ui.available_width() * (2.0 / 3.0);
@@ -364,6 +411,9 @@ impl eframe::App for App {
                         .desired_rows(rows)
                         .layouter(&mut input_layouter(lines))
                         .show(ui);
+                    if let Some(range) = output.cursor_range {
+                        self.input_text_paragraph = range.primary.pcursor.paragraph;
+                    }
 
                     if self.first_frame {
                         self.first_frame = false;

@@ -16,7 +16,7 @@ mod engine;
 mod environment;
 mod color;
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Display, Formatter, Write};
 use rust_decimal::Decimal;
 use common::Result;
 use astgen::parser::{parse, ParserResult};
@@ -186,4 +186,69 @@ pub fn round_dp(n: f64, dp: u32) -> String {
     if n.is_nan() { return "NaN".to_owned(); }
     if !n.is_finite() { return "infinity".to_owned(); }
     Decimal::from_f64(n).unwrap().round_dp(dp).to_string()
+}
+
+macro_rules! writeln_or_err {
+    ($dst:expr) => {
+        writeln_or_err!($dst, "")
+    };
+    ($dst:expr, $str:expr) => {
+        if writeln!($dst, $str).is_err() {
+            return Ok("Error writing to string".to_string());
+        }
+    };
+    ($dst:expr, $str:expr, $($arg:expr),*) => {
+        if writeln!($dst, $str, $($arg),*).is_err() {
+            return Ok("Error writing to string".to_string());
+        }
+    };
+}
+
+pub fn get_debug_info(input: &str, env: &Environment, verbosity: Verbosity) -> Result<String> {
+    let mut output = String::new();
+
+    let tokens = tokenize(input)?;
+    if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
+        writeln_or_err!(&mut output, "Tokens:");
+        for token in &tokens {
+            writeln_or_err!(&mut output, "{} => {:?}", token.text, token.ty);
+        }
+        writeln_or_err!(&mut output);
+    }
+
+    if verbosity == Verbosity::Ast {
+        match parse(&tokens, env)? {
+            ParserResult::Calculation(ast) => {
+                writeln_or_err!(&mut output, "AST:");
+                for node in &ast { writeln_or_err!(&mut output, "{}", node); }
+                writeln_or_err!(&mut output);
+            }
+            ParserResult::EqualityCheck(lhs, rhs) => {
+                writeln_or_err!(&mut output, "Equality check:\nLHS:");
+                for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
+                writeln_or_err!(&mut output, "RHS:");
+                for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
+                writeln_or_err!(&mut output);
+            }
+            ParserResult::VariableDefinition(name, ast) => {
+                if let Some(ast) = ast {
+                    writeln_or_err!(&mut output, "Variable Definition: {}\nAST:", name);
+                    for node in &ast { writeln_or_err!(&mut output, "{}", node); }
+                } else {
+                    writeln_or_err!(&mut output, "Variable removal: {}", name);
+                }
+            }
+            ParserResult::FunctionDefinition { name, args, ast } => {
+                if let Some(ast) = ast {
+                    writeln_or_err!(&mut output, "Function Definition: {}", name);
+                    writeln_or_err!(&mut output, "Arguments: {:?}\nAST:", args);
+                    for node in &ast { writeln_or_err!(&mut output, "{}", node); }
+                } else {
+                    writeln_or_err!(&mut output, "Function removal: {}", name);
+                }
+            }
+        }
+    }
+
+    Ok(output)
 }
