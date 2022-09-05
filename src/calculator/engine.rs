@@ -92,7 +92,7 @@ fn eval_variables(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
             Err(ty) => return Err(ty.with(node.range.clone())),
         };
         let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
-        new_node.unit = unit.clone();
+        if let Some(u) = unit { new_node.unit = Some(u.clone()); }
         let _ = replace(node, new_node);
     }
 
