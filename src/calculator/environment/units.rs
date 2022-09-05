@@ -42,20 +42,6 @@ pub fn get_prefix_power(c: char) -> Option<i32> {
     None
 }
 
-pub fn is_valid_unit(str: &str) -> bool {
-    if str.is_empty() { return false; }
-    if UNITS.contains(&str) { return true; }
-
-    let first = str.chars().next().unwrap();
-    for prefix in PREFIXES {
-        if prefix.0 == first {
-            let unit = &str[1..];
-            return !unit.is_empty() && UNITS.contains(&unit);
-        }
-    }
-    false
-}
-
 fn unit_prefix(unit: &str) -> Option<(char, i32)> {
     if unit.len() < 2 { return None; }
     if UNITS.contains(&unit) { return None; }
