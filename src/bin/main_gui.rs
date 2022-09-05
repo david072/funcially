@@ -82,6 +82,7 @@ struct App {
     is_help_open: bool,
     #[cfg(target_arch = "wasm32")]
     is_download_open: bool,
+    is_settings_open: bool,
 
     first_frame: bool,
     default_bottom_text: String,
@@ -102,6 +103,7 @@ impl App {
             is_help_open: false,
             #[cfg(target_arch = "wasm32")]
             is_download_open: false,
+            is_settings_open: false,
             default_bottom_text: format!("v{}", VERSION),
             bottom_text: None,
             cached_help_window_color_segments: Vec::new(),
@@ -260,10 +262,9 @@ impl App {
         let color_segments = &mut self.cached_help_window_color_segments;
         Window::new("Help")
             .open(is_help_open)
+            .vscroll(true)
             .show(ctx, |ui| {
-                ScrollArea::vertical().show(ui, |ui| {
-                    build_help(ui, color_segments);
-                });
+                build_help(ui, color_segments);
             });
     }
 
@@ -296,6 +297,24 @@ impl App {
                 ui.add_space(2.0);
             });
     }
+
+    fn settings_window(&mut self, ctx: &Context) {
+        Window::new("Settings")
+            .open(&mut self.is_settings_open)
+            .vscroll(true)
+            .show(ctx, |ui| {
+                CollapsingHeader::new("Debug").default_open(true).show(ui, |ui| {
+                    let mut debug_on_hover = ui.ctx().debug_on_hover();
+                    ui.checkbox(&mut debug_on_hover, "Debug On Hover");
+                    ui.ctx().set_debug_on_hover(debug_on_hover);
+
+                    let mut tesselation_options = ui.ctx().options().tessellation_options;
+                    ui.checkbox(&mut tesselation_options.debug_paint_clip_rects, "Paint clip rectangles");
+                    ui.checkbox(&mut tesselation_options.debug_paint_text_rects, "Paint text bounds");
+                    *ui.ctx().tessellation_options() = tesselation_options;
+                });
+            });
+    }
 }
 
 impl eframe::App for App {
@@ -317,6 +336,9 @@ impl eframe::App for App {
                 if ui.button("Download").clicked() {
                     self.is_download_open = !self.is_download_open;
                 }
+                if ui.button("Settings").clicked() {
+                    self.is_settings_open = !self.is_settings_open;
+                }
             })
         });
 
@@ -324,6 +346,7 @@ impl eframe::App for App {
         if self.is_help_open { self.help_window(ctx); }
         #[cfg(target_arch = "wasm32")]
         if self.is_download_open { self.download_window(ctx); }
+        if self.is_settings_open { self.settings_window(ctx); }
 
         CentralPanel::default().show(ctx, |ui| {
             let input_width = ui.available_width() * (2.0 / 3.0);
