@@ -426,7 +426,7 @@ impl<'a> Parser<'a> {
                     self.extra_allowed_variables.map_or(false, |vars| vars.contains(&identifier.text)) {
                     self.infer_multiplication(multiplication_range);
                     self.push_new_node(
-                        AstNodeData::VariableReference(identifier.text.clone()),
+                        AstNodeData::VariableReference(identifier.text.to_lowercase()),
                         identifier.range.clone(),
                     );
                     Ok(())
@@ -514,14 +514,16 @@ impl<'a> Parser<'a> {
         }
 
         let range = identifier.range.start..self.tokens[self.index - 1].range.end;
-        let function_args_count = self.env.function_argument_count(&identifier.text).unwrap();
+        let name = identifier.text.to_lowercase();
+
+        let function_args_count = self.env.function_argument_count(&name).unwrap();
         if arguments.len() != function_args_count {
             let range = open_bracket.range.start..self.tokens[self.index - 1].range.end;
             error_with_args!(WrongNumberOfArguments(range) function_args_count);
         }
 
         self.push_new_node(
-            AstNodeData::FunctionInvocation(identifier.text.clone(), arguments),
+            AstNodeData::FunctionInvocation(name, arguments),
             range,
         );
         Ok(())
@@ -825,7 +827,7 @@ mod tests {
         assert_eq!(name, "f");
         assert_eq!(args, vec!["x", "y"]);
         assert!(ast.is_none());
-        Ok(() )
+        Ok(())
     }
 
     #[test]

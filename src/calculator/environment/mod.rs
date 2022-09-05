@@ -56,7 +56,7 @@ impl Environment {
     }
 
     pub fn is_valid_variable(&self, var: &str) -> bool {
-        if STANDARD_VARIABLES.contains(&var) { true } else {
+        if STANDARD_VARIABLES.contains(&var.to_lowercase().as_str()) { true } else {
             for (name, _) in &self.variables {
                 if var == name { return true; }
             }
@@ -121,6 +121,7 @@ impl Environment {
     }
 
     pub fn is_valid_function(&self, name: &str) -> bool {
+        let name = &name.to_lowercase();
         for (f, _) in STANDARD_FUNCTIONS {
             if f == name { return true; }
         }
@@ -205,7 +206,7 @@ impl Environment {
                     temp_env.set_variable(&function_args[i], Variable(args[i], None))?;
                 }
 
-                let value = evaluate(ast.clone(), &mut temp_env);
+                let value = evaluate(ast.clone(), &temp_env);
                 for name in function_args { temp_env.remove_variable(name)?; }
 
                 return match value {

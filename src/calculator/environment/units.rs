@@ -11,9 +11,9 @@ const UNITS: [&str; 19] = [
     "m", "mi", "ft", "in", "yd", // distance
     "s", "min", "h", // time
     "g", "lb", // mass
-    "pa", "bar", // pressure
+    "Pa", "bar", // pressure
     "°", "rad", // angle
-    "°c", "°f", "k", // temperature
+    "°C", "°F", "K", // temperature
     "cal", "b", // misc
 ];
 
@@ -21,18 +21,17 @@ const UNITS: [&str; 19] = [
 const PREFIXES: [(char, i32); 9] = [
     ('m', -3), ('c', -2), ('d', -1),
     ('\0', 0),
-    ('h', 2), ('k', 3), ('M', 6), ('g', 9), ('t', 12)
+    ('h', 2), ('k', 3), ('M', 6), ('G', 9), ('T', 12)
 ];
 
-pub fn is_valid_unit(s: &str) -> bool {
-    let lowercase = s.to_lowercase();
-    if lowercase.is_empty() { return false; }
-    if UNITS.contains(&lowercase.as_str()) { return true; }
+pub fn is_valid_unit(str: &str) -> bool {
+    if str.is_empty() { return false; }
+    if UNITS.contains(&str) { return true; }
 
-    let first = s.chars().next().unwrap();
+    let first = str.chars().next().unwrap();
     for prefix in PREFIXES {
         if prefix.0 == first {
-            let unit = &s[1..];
+            let unit = &str[1..];
             return !unit.is_empty() && UNITS.contains(&unit);
         }
     }
@@ -63,7 +62,7 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
 
     if src_unit == dst_unit { return Ok(n); }
 
-    match (src_unit.to_lowercase().as_str(), dst_unit.to_lowercase().as_str()) {
+    match (src_unit, dst_unit) {
         // distance
         ("m", "mi") => Ok(n / 1609.344),
         ("m", "ft") => Ok(n * 3.281),
@@ -105,22 +104,22 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         ("lb", "g") => Ok(n * 453.59237),
 
         // pressure
-        ("pa", "bar") => Ok(n / 100_000.0),
-        ("bar", "pa") => Ok(n * 100_000.0),
+        ("Pa", "bar") => Ok(n / 100_000.0),
+        ("bar", "Pa") => Ok(n * 100_000.0),
 
         // angle
         ("°", "rad") => Ok(n * PI / 180.0),
         ("rad", "°") => Ok(n * 180.0 / PI),
 
         // temperature
-        ("°c", "°f") => Ok((n * 9.0 / 5.0) + 32.0),
-        ("°c", "k") => Ok(n + 273.15),
+        ("°C", "°F") => Ok((n * 9.0 / 5.0) + 32.0),
+        ("°C", "K") => Ok(n + 273.15),
 
-        ("°f", "°c") => Ok((n - 32.0) * 5.0 / 9.0),
-        ("°f", "k") => Ok((n - 32.0) * 5.0 / 9.0 - 273.15),
+        ("°F", "°C") => Ok((n - 32.0) * 5.0 / 9.0),
+        ("°F", "K") => Ok((n - 32.0) * 5.0 / 9.0 - 273.15),
 
-        ("k", "°c") => Ok(n - 273.15),
-        ("k", "°f") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
+        ("K", "°C") => Ok(n - 273.15),
+        ("K", "°F") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
         _ => Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string()).with(range.clone())),
     }
 }
@@ -148,8 +147,8 @@ pub fn format(unit: &str, plural: bool) -> String {
             'h' => "Hecto",
             'k' => "Kilo",
             'M' => "Mega",
-            'g' => "Giga",
-            't' => "Tera",
+            'G' => "Giga",
+            'T' => "Tera",
             _ => unreachable!()
         });
     }
