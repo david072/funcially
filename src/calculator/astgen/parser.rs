@@ -858,13 +858,47 @@ mod tests {
     }
 
     #[test]
+    fn power_modifier() -> Result<()> {
+        let ast = calculation!("3k");
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].modifiers.len(), 1);
+        assert!(matches!(ast[0].modifiers[0], AstNodeModifier::Power(3)));
+        Ok(())
+    }
+
+    #[test]
     fn units() -> Result<()> {
         let ast = calculation!("3m");
         assert_eq!(ast.len(), 1);
-        assert_eq!(ast[0].unit.as_ref().unwrap(), "m");
+        assert_eq!(ast[0].unit.as_ref().unwrap().to_string(), "m");
         let ast = calculation!("3km");
         assert_eq!(ast.len(), 1);
-        assert_eq!(ast[0].unit.as_ref().unwrap(), "km");
+        assert_eq!(ast[0].unit.as_ref().unwrap().to_string(), "km");
+        Ok(())
+    }
+
+    #[test]
+    fn unit_with_exponentiation() -> Result<()> {
+        let ast = calculation!("3m^3");
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].unit.as_ref().unwrap().0, "m^3");
+        Ok(())
+    }
+
+    #[test]
+    fn unit_without_exponentiation() -> Result<()> {
+        let ast = calculation!("3m ^3");
+        assert_eq!(ast.len(), 3);
+        assert!(matches!(ast[1].data, AstNodeData::Operator(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn complex_units() -> Result<()> {
+        let ast = calculation!("3km/h");
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].unit.as_ref().unwrap().0, "km");
+        assert_eq!(ast[0].unit.as_ref().unwrap().1.as_ref().unwrap(), "h");
         Ok(())
     }
 
@@ -872,7 +906,7 @@ mod tests {
     fn unit_conversions() -> Result<()> {
         let ast = calculation!("3m in km");
         assert_eq!(ast.len(), 3);
-        assert_eq!(ast[0].unit.as_ref().unwrap(), "m");
+        assert_eq!(ast[0].unit.as_ref().unwrap().to_string(), "m");
         assert!(matches!(ast[1].data, AstNodeData::Operator(Operator::In)));
         assert!(matches!(ast[2].data, AstNodeData::Unit(_)));
         Ok(())
@@ -980,6 +1014,13 @@ mod tests {
     fn duplicate_argument() -> Result<()> {
         let err = parse!("f(x, x) :=");
         assert_error_type!(err, DuplicateArgument);
+        Ok(())
+    }
+
+    #[test]
+    fn expected_unit() -> Result<()> {
+        let err = parse!("3km in k");
+        assert_error_type!(err, ExpectedUnit);
         Ok(())
     }
 }

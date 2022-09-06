@@ -144,10 +144,11 @@ fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ::common::Result;
-    use ::parse;
-    use ::tokenize;
-    use ::ParserResult;
+    use common::Result;
+    use parse;
+    use tokenize;
+    use ParserResult;
+    use environment::units::format as format_unit;
 
     macro_rules! eval {
         ($str:expr) => {
@@ -235,7 +236,7 @@ mod tests {
     #[test]
     fn units() -> Result<()> {
         let res = eval!("3 + 3m")?;
-        assert_eq!(res.unit.unwrap(), "m");
+        assert_eq!(res.unit.unwrap().to_string(), "m");
         assert_eq!(res.result, 6.0);
         Ok(())
     }
@@ -243,11 +244,14 @@ mod tests {
     #[test]
     fn print_full_unit() -> Result<()> {
         let res = eval!("1min")?;
-        assert_eq!(res.unit.unwrap(), " Minute");
+        assert!(res.is_long_unit);
+        assert_eq!(format_unit(&res.unit.unwrap(), false), " Minute");
         let res = eval!("3m")?;
-        assert_eq!(res.unit.unwrap(), " Meters");
+        assert_eq!(format_unit(&res.unit.unwrap(), true), " Meters");
         let res = eval!("3km")?;
-        assert_eq!(res.unit.unwrap(), " Kilometers");
+        assert_eq!(format_unit(&res.unit.unwrap(), true), " Kilometers");
+        let res = eval!("3km/h")?;
+        assert_eq!(format_unit(&res.unit.unwrap(), true), " Kilometers per Hour");
         Ok(())
     }
 
@@ -257,6 +261,14 @@ mod tests {
         expect!("3m in km", 0.003);
         Ok(())
     }
+
+    #[test]
+    fn convert_complex_units() -> Result<()> {
+        expect!("60km/h in km/min", 1.0);
+        expect!("60km/h in m/h", 60_000.0);
+        Ok(())
+    }
+
 
     #[test]
     fn divide_by_zero() -> Result<()> {
