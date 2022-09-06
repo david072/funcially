@@ -7,12 +7,14 @@
 use std::f64::consts::PI;
 use ::common::{Result, ErrorType};
 
-const UNITS: [&str; 19] = [
-    "m", "mi", "ft", "in", "yd", // distance
-    "s", "min", "h", // time
-    "g", "lb", // mass
-    "Pa", "bar", // pressure
+const UNITS: [&str; 30] = [
+    "m", "mi", "ft", "in", "yd", // length
+    "a", // area
+    "l", "tsp", "tbsp", "floz", "cup", // volume
     "°", "rad", // angle
+    "s", "min", "h", "d", "mo", "y", // time
+    "g", "lb", "t", // mass
+    "Pa", "bar", "psi", // pressure
     "°C", "°F", "K", // temperature
     "cal", "b", // misc
 ];
@@ -93,27 +95,94 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         ("yd", "mi") => Ok(n / 1760.0),
         ("yd", "in") => Ok(n * 36.0),
 
-        // time
-        ("s", "min") => Ok(n / 60.0),
-        ("s", "h") => Ok(n / 3600.0),
+        // area
 
-        ("min", "s") => Ok(n * 60.0),
-        ("min", "h") => Ok(n / 60.0),
+        // volume
+        ("l", "tsp") => Ok(n * 202.9),
+        ("l", "tbsp") => Ok(n * 67.628),
+        ("l", "floz") => Ok(n * 33.814),
+        ("l", "cup") => Ok(n * 4.227),
 
-        ("h", "s") => Ok(n * 3600.0),
-        ("h", "min") => Ok(n * 60.0),
+        ("tsp", "l") => Ok(n / 202.9),
+        ("tsp", "tbsp") => Ok(n / 3.0),
+        ("tsp", "floz") => Ok(n / 6.0),
+        ("tsp", "cup") => Ok(n / 48.0),
 
-        // mass
-        ("g", "lb") => Ok(n / 453.59237),
-        ("lb", "g") => Ok(n * 453.59237),
+        ("tbsp", "l") => Ok(n / 67.628),
+        ("tbsp", "tsp") => Ok(n * 3.0),
+        ("tbsp", "floz") => Ok(n / 2.0),
+        ("tbsp", "cup") => Ok(n / 16.0),
 
-        // pressure
-        ("Pa", "bar") => Ok(n / 100_000.0),
-        ("bar", "Pa") => Ok(n * 100_000.0),
+        ("floz", "l") => Ok(n / 33.814),
+        ("floz", "tsp") => Ok(n * 6.0),
+        ("floz", "tbsp") => Ok(n * 2.0),
+        ("floz", "cup") => Ok(n / 8.0),
+
+        ("cup", "l") => Ok(n / 4.227),
+        ("cup", "tsp") => Ok(n * 48.0),
+        ("cup", "tbsp") => Ok(n * 16.0),
+        ("cup", "floz") => Ok(n * 8.0),
 
         // angle
         ("°", "rad") => Ok(n * PI / 180.0),
         ("rad", "°") => Ok(n * 180.0 / PI),
+
+        // time
+        ("s", "min") => Ok(n / 60.0),
+        ("s", "h") => Ok(n / 3600.0),
+        ("s", "d") => Ok(n / 86_400.0),
+        ("s", "mo") => Ok(n / 2_628_000.0),
+        ("s", "y") => Ok(n / 31_540_000.0),
+
+        ("min", "s") => Ok(n * 60.0),
+        ("min", "h") => Ok(n / 60.0),
+        ("min", "d") => Ok(n / 1440.0),
+        ("min", "mo") => Ok(n / 43_800.0),
+        ("min", "y") => Ok(n / 525_600.0),
+
+        ("h", "s") => Ok(n * 3600.0),
+        ("h", "min") => Ok(n * 60.0),
+        ("h", "d") => Ok(n / 24.0),
+        ("h", "mo") => Ok(n / 730.0),
+        ("h", "y") => Ok(n / 8760.0),
+
+        ("d", "s") => Ok(n * 86_400.0),
+        ("d", "min") => Ok(n * 1440.0),
+        ("d", "h") => Ok(n * 24.0),
+        ("d", "mo") => Ok(n / 30.417),
+        ("d", "y") => Ok(n / 365.0),
+
+        ("mo", "s") => Ok(n * 2_628_000.0),
+        ("mo", "min") => Ok(n * 43_800.0),
+        ("mo", "h") => Ok(n * 730.0),
+        ("mo", "d") => Ok(n * 30.417),
+        ("mo", "y") => Ok(n / 12.0),
+
+        ("y", "s") => Ok(n * 31_540_000.0),
+        ("y", "min") => Ok(n * 525_600.0),
+        ("y", "h") => Ok(n * 8760.0),
+        ("y", "d") => Ok(n * 365.0),
+        ("y", "mo") => Ok(n * 12.0),
+
+        // mass
+        ("g", "lb") => Ok(n / 453.59237),
+        ("g", "t") => Ok(n / 1_000_000.0),
+
+        ("lb", "g") => Ok(n * 453.59237),
+        ("lb", "t") => Ok(n / 2205.0),
+
+        ("t", "g") => Ok(n * 1_000_000.0),
+        ("t", "lb") => Ok(n * 2205.0),
+
+        // pressure
+        ("Pa", "bar") => Ok(n / 100_000.0),
+        ("Pa", "psi") => Ok(n / 6895.0),
+
+        ("bar", "Pa") => Ok(n * 100_000.0),
+        ("bar", "psi") => Ok(n / 14.504),
+
+        ("psi", "Pa") => Ok(n * 6895.0),
+        ("psi", "bar") => Ok(n * 14.504),
 
         // temperature
         ("°C", "°F") => Ok((n * 9.0 / 5.0) + 32.0),
@@ -124,7 +193,8 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
 
         ("K", "°C") => Ok(n - 273.15),
         ("K", "°F") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
-        _ => Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string()).with(range.clone())),
+        _ => Err(ErrorType::UnknownConversion(
+            src_unit.to_string(), dst_unit.to_string()).with(range.clone())),
     }
 }
 
@@ -162,49 +232,65 @@ pub fn format(unit: &str, plural: bool) -> String {
             "ft" => "Feet",
             "in" => "Inches",
             "pa" => "Pascal",
-            "°c" => "Degrees Celsius",
-            "°f" => "Degrees Fahrenheit",
-            "k" => "Kelvin",
+            "°C" => "Degrees Celsius",
+            "°F" => "Degrees Fahrenheit",
+            "K" => "Kelvin",
+            "psi" => "Pounds per square inch",
             _ => "",
         }
     } else { "" };
 
     if unit_str.is_empty() {
         let singular = match unit {
+            // length
             "m" => "Meter",
             "mi" => "Mile",
             "ft" => "Foot",
             "in" => "Inch",
             "yd" => "Yard",
+            // area
+            "a" => "Are",
+            // volume
+            "l" => "Liter",
+            "tsp" => "Teaspoon",
+            "tbsp" => "Tablespoon",
+            "floz" => "Fluid Ounce",
+            "cup" => "Cup",
+            // angle
+            "°" => "Degree",
+            "rad" => "Radian",
+            // time
             "s" => "Second",
             "min" => "Minute",
             "h" => "Hour",
+            "d" => "Day",
+            "mo" => "Month",
+            "y" => "Year",
+            // mass
             "g" => "Gram",
             "lb" => "Pound",
-            "pa" => "Pascal",
+            "t" => "Tonne",
+            // pressure
+            "Pa" => "Pascal",
             "bar" => "Bar",
-            "°" => "Degree",
-            "rad" => "Radian",
-            "°c" => "Degree Celsius",
-            "°f" => "Degree Fahrenheit",
-            "k" => "Kelvin",
+            "psi" => "Pound per square inch",
+            // temperature
+            "°C" => "Degree Celsius",
+            "°F" => "Degree Fahrenheit",
+            "K" => "Kelvin",
+            // misc
             "cal" => "Calorie",
             "b" => "Byte",
             _ => unreachable!(),
         };
 
-        if !plural {
-            if prefix.is_some() {
-                result.push_str(lowercase_first(singular).as_str());
-            } else {
-                result.push_str(singular);
-            }
+        if prefix.is_some() {
+            result.push_str(lowercase_first(singular).as_str());
         } else {
-            if prefix.is_some() {
-                result.push_str(lowercase_first(singular).as_str());
-            } else {
-                result.push_str(singular);
-            }
+            result.push_str(singular);
+        }
+
+        if plural {
             result.push('s');
         }
     } else if prefix.is_some() {
