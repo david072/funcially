@@ -46,6 +46,8 @@ pub enum ErrorType {
     UnknownFunction,
     #[error("Wrong number of arguments (expected {0} arguments)")]
     WrongNumberOfArguments(usize),
+    #[error("Expected unit")]
+    ExpectedUnit,
     #[error("Unexpected unit")]
     UnexpectedUnit,
     #[error("Expected text")]

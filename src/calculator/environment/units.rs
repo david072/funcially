@@ -5,7 +5,26 @@
  */
 
 use std::f64::consts::PI;
+use std::ops::Range;
 use ::common::{Result, ErrorType};
+
+/// A struct representing a unit, holding a numerator and an optional denominator unit.
+///
+/// e.g. for `"km/h"`:
+/// - numerator (0): `"km"`
+/// - denominator (1): `"h"`
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Unit(pub String, pub Option<String>);
+
+impl std::fmt::Display for Unit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)?;
+        if let Some(denom) = &self.1 {
+            write!(f, "/{}", denom)?;
+        }
+        Ok(())
+    }
+}
 
 const UNITS: [&str; 40] = [
     "m", "mi", "ft", "in", "yd", // length
@@ -55,7 +74,29 @@ fn unit_prefix(unit: &str) -> Option<(char, i32)> {
     None
 }
 
-pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<usize>) -> Result<f64> {
+pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, range: &Range<usize>) -> Result<f64> {
+    let numerator = convert_units(&src_unit.0, &dst_unit.0, n, range)?;
+
+    if src_unit.1.is_none() && dst_unit.1.is_none() {
+        Ok(numerator)
+    } else if src_unit.1.is_some() && dst_unit.1.is_some() {
+        let denominator = convert_units(
+            src_unit.1.as_ref().unwrap(),
+            dst_unit.1.as_ref().unwrap(),
+            1.0,
+            range,
+        )?;
+        Ok(numerator / denominator)
+    } else {
+        let src_unit = if let Some(u) = &src_unit.1 { u.clone() } else { String::new() };
+        let dst_unit = if let Some(u) = &dst_unit.1 { u.clone() } else { String::new() };
+        Err(ErrorType::UnknownConversion( src_unit, dst_unit).with(range.clone()))
+    }
+}
+
+fn convert_units(src_unit: &str, dst_unit: &str, n: f64, range: &Range<usize>) -> Result<f64> {
+    if src_unit == dst_unit { return Ok(n); }
+
     let mut src_unit = src_unit;
     let mut dst_unit = dst_unit;
 
@@ -308,7 +349,21 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
     }
 }
 
-pub fn format(unit: &str, plural: bool) -> String {
+pub fn format(unit: &Unit, plural: bool) -> String {
+    let mut result = String::new();
+    let numerator = format_unit(&unit.0, plural);
+    result += &numerator;
+
+    if let Some(denom) = &unit.1 {
+        let denom = format_unit(denom, false);
+        result += " per";
+        result += &denom;
+    }
+
+    result
+}
+
+fn format_unit(unit: &str, plural: bool) -> String {
     fn lowercase_first(s: &str) -> String {
         let mut chars = s.chars();
         match chars.next() {

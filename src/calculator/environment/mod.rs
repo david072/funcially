@@ -1,12 +1,13 @@
+pub mod units;
+
 use ::common::{ErrorType};
 use std::f64::consts::{PI, E, TAU};
 use astgen::ast::AstNode;
+use self::units::Unit;
 use evaluate;
 
-pub mod units;
-
 #[derive(Debug, Clone)]
-pub struct Variable(pub f64, pub Option<String>);
+pub struct Variable(pub f64, pub Option<Unit>);
 
 const STANDARD_VARIABLES: [&str; 4] = ["pi", "e", "tau", "ans"];
 const VAR_PI: &Variable = &Variable(PI, None);
@@ -195,7 +196,7 @@ impl Environment {
         }
     }
 
-    pub fn resolve_custom_function(&self, f: &str, args: &[f64]) -> Result<(f64, Option<String>), ErrorType> {
+    pub fn resolve_custom_function(&self, f: &str, args: &[f64]) -> Result<(f64, Option<Unit>), ErrorType> {
         for (name, Function(function_args, ast)) in &self.functions {
             if name == f {
                 let mut temp_env = Environment::new();

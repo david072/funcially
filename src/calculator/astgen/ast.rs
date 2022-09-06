@@ -9,6 +9,7 @@ use crate::common::*;
 use std::fmt::{Formatter, Display, Debug};
 use std::ops::Range;
 use ::environment::units::convert;
+use environment::units::Unit;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Operator {
@@ -30,7 +31,7 @@ pub enum AstNodeData {
     Group(Vec<AstNode>),
     VariableReference(String),
     FunctionInvocation(String, Vec<Vec<AstNode>>),
-    Unit(String),
+    Unit(Unit),
 }
 
 impl Debug for AstNodeData {
@@ -82,7 +83,7 @@ impl Display for AstNodeModifier {
 pub struct AstNode {
     pub data: AstNodeData,
     pub modifiers: Vec<AstNodeModifier>,
-    pub unit: Option<String>,
+    pub unit: Option<Unit>,
     pub format: Format,
     pub range: Range<usize>,
     did_apply_modifiers: bool,
@@ -268,10 +269,10 @@ impl AstNode {
         res
     }
 
-    fn unit(&self) -> &str {
+    fn unit(&self) -> String {
         match self.unit {
-            Some(ref unit) => unit.as_str(),
-            None => "",
+            Some(ref unit) => unit.to_string(),
+            None => String::new(),
         }
     }
 }

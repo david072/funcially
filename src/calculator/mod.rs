@@ -26,6 +26,7 @@ pub use environment::{Environment, Variable};
 use rust_decimal::prelude::*;
 pub use color::ColorSegment;
 use environment::Function;
+use environment::units::format as format_unit;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -136,8 +137,14 @@ pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosit
             let result = evaluate(ast, environment)?;
             environment.set_variable("ans", Variable(result.result, result.unit.clone())).unwrap();
 
-            Ok(CalculatorResult::number(result.result, result.unit,
-                                        result.format, color_segments))
+            let unit = result.unit.as_ref().map(|unit| {
+                if result.is_long_unit {
+                    format_unit(&unit, result.result != 1.0)
+                } else {
+                    unit.to_string()
+                }
+            });
+            Ok(CalculatorResult::number(result.result, unit, result.format, color_segments))
         }
         ParserResult::EqualityCheck(lhs, rhs) => {
             if verbosity == Verbosity::Ast {

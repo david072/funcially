@@ -11,7 +11,7 @@ use ::common::*;
 use strum::IntoEnumIterator;
 use std::mem;
 use ::environment::Environment;
-use environment::units::{get_prefix_power, is_prefix, is_unit};
+use environment::units::{get_prefix_power, is_prefix, is_unit, Unit};
 
 macro_rules! error {
     ($variant:ident($range:expr)) => {
@@ -438,52 +438,34 @@ impl<'a> Parser<'a> {
                     self.next_function(identifier)?;
                     Ok(())
                 } else {
-                    let last = self.result.last_mut();
-
-                    let first = identifier.text.chars().next().unwrap();
-                    let (mut unit, has_prefix) = if identifier.text.len() == 1 {
-                        if is_unit(&identifier.text) {
-                            (identifier.text.clone(), false)
-                        } else if is_prefix(first) {
-                            let power = get_prefix_power(first).unwrap();
-                            if let Some(last) = last {
-                                last.modifiers.push(AstNodeModifier::Power(power));
-                            } else {
-                                error!(ExpectedNumber(identifier.range));
+                    let unit = match self.parse_unit(identifier)? {
+                        Some(u) => u,
+                        None => {
+                            if matches!(self.last_token_ty, Some(TokenType::In)) {
+                                error!(ExpectedUnit(identifier.range));
                             }
                             return Ok(());
-                        } else {
-                            error!(UnknownIdentifier(identifier.range));
-                        }
-                    } else if is_unit(&identifier.text) {
-                        (identifier.text.clone(), false)
-                    } else if is_prefix(first) {
-                        if !is_unit(&identifier.text[1..]) {
-                            error!(UnknownIdentifier(identifier.range));
-                        }
-                        (identifier.text.clone(), true)
-                    } else {
-                        error!(UnknownIdentifier(identifier.range));
+                        },
                     };
 
-                    // Handle units with exponentiation (e.g. m^2 (square meters))
+                    let mut unit = Unit(unit, None);
+                    // Handle unit denominator (e.g. for "km/h")
                     if self.index <= self.tokens.len() - 2 {
                         let next = &self.tokens[self.index];
 
-                        if matches!(next.ty, TokenType::Exponentiation) &&
+                        if matches!(next.ty, TokenType::Divide) &&
                             next.range.start == identifier.range.end {
-                            let literal = &self.tokens[self.index + 1];
-                            if !literal.ty.is_literal() {
-                                error!(UnknownIdentifier(identifier.range.start..next.range.end));
-                            }
+                            let second_unit_token = &self.tokens[self.index + 1];
 
-                            unit += &next.text;
-                            unit += &literal.text;
-                            if !is_unit(if has_prefix { &unit[1..] } else { &unit }) {
-                                error!(UnknownIdentifier(identifier.range.start..literal.range.end));
+                            if second_unit_token.ty == TokenType::Identifier {
+                                match self.parse_unit(second_unit_token)? {
+                                    Some(second_unit) => {
+                                        unit.1 = Some(second_unit);
+                                        self.index += 2;
+                                    }
+                                    None => {}
+                                }
                             }
-
-                            self.index += 2;
                         }
                     }
 
@@ -496,7 +478,7 @@ impl<'a> Parser<'a> {
                         error!(ExpectedNumber(identifier.range));
                     }
 
-                    let last = last.unwrap();
+                    let last = self.result.last_mut().unwrap();
                     if last.unit.is_some() {
                         error!(UnexpectedUnit(identifier.range));
                     }
@@ -507,6 +489,59 @@ impl<'a> Parser<'a> {
             }
             _ => panic!("Must pass TokenType::Identifier to Parser::next_identifier()!"),
         }
+    }
+
+    fn parse_unit(&mut self, identifier: &Token) -> Result<Option<String>> {
+        let last = self.result.last_mut();
+
+        let first = identifier.text.chars().next().unwrap();
+        let (mut unit, has_prefix) = if identifier.text.len() == 1 {
+            if is_unit(&identifier.text) {
+                (identifier.text.clone(), false)
+            } else if is_prefix(first) {
+                let power = get_prefix_power(first).unwrap();
+                if let Some(last) = last {
+                    last.modifiers.push(AstNodeModifier::Power(power));
+                } else {
+                    error!(ExpectedNumber(identifier.range));
+                }
+                return Ok(None);
+            } else {
+                error!(UnknownIdentifier(identifier.range));
+            }
+        } else if is_unit(&identifier.text) {
+            (identifier.text.clone(), false)
+        } else if is_prefix(first) {
+            if !is_unit(&identifier.text[1..]) {
+                error!(UnknownIdentifier(identifier.range));
+            }
+            (identifier.text.clone(), true)
+        } else {
+            error!(UnknownIdentifier(identifier.range));
+        };
+
+        // Handle units with exponentiation (e.g. m^2 (square meters))
+        if self.index <= self.tokens.len() - 2 {
+            let next = &self.tokens[self.index];
+
+            if matches!(next.ty, TokenType::Exponentiation) &&
+                next.range.start == identifier.range.end {
+                let literal = &self.tokens[self.index + 1];
+                if !literal.ty.is_literal() {
+                    error!(UnknownIdentifier(identifier.range.start..next.range.end));
+                }
+
+                unit += &next.text;
+                unit += &literal.text;
+                if !is_unit(if has_prefix { &unit[1..] } else { &unit }) {
+                    error!(UnknownIdentifier(identifier.range.start..literal.range.end));
+                }
+
+                self.index += 2;
+            }
+        }
+
+        Ok(Some(unit))
     }
 
     fn next_function(&mut self, identifier: &Token) -> Result<()> {

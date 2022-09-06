@@ -6,21 +6,22 @@
 
 use std::mem::{take, replace};
 use astgen::ast::Operator;
-use ::{match_ast_node, Format};
-use ::environment::{Environment, Variable};
-use crate::astgen::ast::{AstNode, AstNodeData};
-use crate::common::*;
-use ::environment::units::format as format_unit;
+use {match_ast_node, Format};
+use environment::{Environment, Variable};
+use astgen::ast::{AstNode, AstNodeData};
+use common::*;
+use environment::units::Unit;
 
 pub struct CalculationResult {
     pub result: f64,
-    pub unit: Option<String>,
+    pub unit: Option<Unit>,
+    pub is_long_unit: bool,
     pub format: Format,
 }
 
 impl CalculationResult {
-    pub fn new(result: f64, unit: Option<String>, format: Format) -> CalculationResult {
-        CalculationResult { result, unit, format }
+    pub fn new(result: f64, unit: Option<Unit>, is_long_unit: bool, format: Format) -> CalculationResult {
+        CalculationResult { result, unit, is_long_unit, format }
     }
 }
 
@@ -28,9 +29,8 @@ pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment) -> Result<CalculationR
     if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
         ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-        let unit = take(&mut ast[0].unit)
-            .map(|x| format_unit(&x, result != 1.0));
-        return Ok(CalculationResult::new(result, unit, ast[0].format));
+        let unit = take(&mut ast[0].unit);
+        return Ok(CalculationResult::new(result, unit, true, ast[0].format));
     }
 
     eval_functions(&mut ast, env)?;
@@ -46,7 +46,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment) -> Result<CalculationR
     let format = ast[0].format;
     if format != Format::Decimal { result = result.trunc(); }
 
-    Ok(CalculationResult::new(result, take(&mut ast[0].unit), format))
+    Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
 }
 
 fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
