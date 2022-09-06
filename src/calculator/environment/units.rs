@@ -7,9 +7,9 @@
 use std::f64::consts::PI;
 use ::common::{Result, ErrorType};
 
-const UNITS: [&str; 30] = [
+const UNITS: [&str; 35] = [
     "m", "mi", "ft", "in", "yd", // length
-    "a", // area
+    "a", "m^2", "mi^2", "ft^2", "in^2", "yd^2",  // area
     "l", "tsp", "tbsp", "floz", "cup", // volume
     "°", "rad", // angle
     "s", "min", "h", "d", "mo", "y", // time
@@ -72,8 +72,8 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         // distance
         ("m", "mi") => Ok(n / 1609.344),
         ("m", "ft") => Ok(n * 3.281),
-        ("m", "in") => Ok(n / 0.0254),
-        ("m", "yd") => Ok(n / 0.9144),
+        ("m", "in") => Ok(n * 39.37),
+        ("m", "yd") => Ok(n * 1.094),
 
         ("ft", "m") => Ok(n / 3.281),
         ("ft", "mi") => Ok(n / 5280.0),
@@ -85,17 +85,52 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         ("mi", "in") => Ok(n * 63360.0),
         ("mi", "yd") => Ok(n * 1760.0),
 
-        ("in", "m") => Ok(n * 0.0254),
+        ("in", "m") => Ok(n / 39.37),
         ("in", "ft") => Ok(n / 12.0),
         ("in", "mi") => Ok(n / 63360.0),
         ("in", "yd") => Ok(n / 36.0),
 
-        ("yd", "m") => Ok(n * 0.9144),
+        ("yd", "m") => Ok(n * 1.094),
         ("yd", "ft") => Ok(n * 3.0),
         ("yd", "mi") => Ok(n / 1760.0),
         ("yd", "in") => Ok(n * 36.0),
 
         // area
+        ("m^2", "mi^2") => Ok(n / 2_590_000.0),
+        ("m^2", "ft^2") => Ok(n * 10.764),
+        ("m^2", "in^2") => Ok(n * 1550.0),
+        ("m^2", "yd^2") => Ok(n * 1.196),
+        ("m^2", "a") => Ok(n / 100.0),
+
+        ("ft^2", "m^2") => Ok(n / 10.764),
+        ("ft^2", "mi^2") => Ok(n / 27_880_000.0),
+        ("ft^2", "in^2") => Ok(n * 144.0),
+        ("ft^2", "yd^2") => Ok(n / 9.0),
+        ("ft^2", "a") => Ok(n / 1076.0),
+
+        ("mi^2", "m^2") => Ok(n * 2_590_000.0),
+        ("mi^2", "ft^2") => Ok(n * 27_880_000.0),
+        ("mi^2", "in^2") => Ok(n * 4_014_000_000.0),
+        ("mi^2", "yd^2") => Ok(n * 3_098_000.0),
+        ("mi^2", "a") => Ok(n * 25_900.0),
+
+        ("in^2", "m^2") => Ok(n / 1550.0),
+        ("in^2", "ft^2") => Ok(n / 144.0),
+        ("in^2", "mi^2") => Ok(n / 4_014_000_000.0),
+        ("in^2", "yd^2") => Ok(n / 1296.0),
+        ("in^2", "a") => Ok(n / 155_000.0),
+
+        ("yd^2", "m^2") => Ok(n / 1.196),
+        ("yd^2", "ft^2") => Ok(n * 9.0),
+        ("yd^2", "mi^2") => Ok(n / 3_098_000.0),
+        ("yd^2", "in^2") => Ok(n * 1296.0),
+        ("yd^2", "a") => Ok(n / 119.6),
+
+        ("a", "m^2") => Ok(n * 100.0),
+        ("a", "mi^2") => Ok(n / 25_900.0),
+        ("a", "ft^2") => Ok(n * 1076.0),
+        ("a", "in^2") => Ok(n * 155_000.0),
+        ("a", "yd^2") => Ok(n * 119.6),
 
         // volume
         ("l", "tsp") => Ok(n * 202.9),
@@ -236,6 +271,11 @@ pub fn format(unit: &str, plural: bool) -> String {
             "°F" => "Degrees Fahrenheit",
             "K" => "Kelvin",
             "psi" => "Pounds per square inch",
+            "m^2" => "Meters squared",
+            "mi^2" => "Miles squared",
+            "ft^2" => "Feet squared",
+            "in^2" => "Inches squared",
+            "yd^2" => "Yards squared",
             _ => "",
         }
     } else { "" };
@@ -249,6 +289,11 @@ pub fn format(unit: &str, plural: bool) -> String {
             "in" => "Inch",
             "yd" => "Yard",
             // area
+            "m^2" => "Meter squared",
+            "mi^2" => "Mile squared",
+            "ft^2" => "Foot squared",
+            "in^2" => "Inch squared",
+            "yd^2" => "Yard squared",
             "a" => "Are",
             // volume
             "l" => "Liter",

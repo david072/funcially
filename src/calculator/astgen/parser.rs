@@ -441,9 +441,9 @@ impl<'a> Parser<'a> {
                     let last = self.result.last_mut();
 
                     let first = identifier.text.chars().next().unwrap();
-                    let unit = if identifier.text.len() == 1 {
+                    let (mut unit, has_prefix) = if identifier.text.len() == 1 {
                         if is_unit(&identifier.text) {
-                            identifier.text.clone()
+                            (identifier.text.clone(), false)
                         } else if is_prefix(first) {
                             let power = get_prefix_power(first).unwrap();
                             if let Some(last) = last {
@@ -456,18 +456,39 @@ impl<'a> Parser<'a> {
                             error!(UnknownIdentifier(identifier.range));
                         }
                     } else if is_unit(&identifier.text) {
-                        identifier.text.clone()
+                        (identifier.text.clone(), false)
                     } else if is_prefix(first) {
                         if !is_unit(&identifier.text[1..]) {
                             error!(UnknownIdentifier(identifier.range));
                         }
-                        identifier.text.clone()
+                        (identifier.text.clone(), true)
                     } else {
                         error!(UnknownIdentifier(identifier.range));
                     };
 
+                    // Handle units with exponentiation (e.g. m^2 (square meters))
+                    if self.index <= self.tokens.len() - 2 {
+                        let next = &self.tokens[self.index];
+
+                        if matches!(next.ty, TokenType::Exponentiation) &&
+                            next.range.start == identifier.range.end {
+                            let literal = &self.tokens[self.index + 1];
+                            if !literal.ty.is_literal() {
+                                error!(UnknownIdentifier(identifier.range.start..next.range.end));
+                            }
+
+                            unit += &next.text;
+                            unit += &literal.text;
+                            if !is_unit(if has_prefix { &unit[1..] } else { &unit }) {
+                                error!(UnknownIdentifier(identifier.range.start..literal.range.end));
+                            }
+
+                            self.index += 2;
+                        }
+                    }
+
                     if matches!(self.last_token_ty, Some(TokenType::In)) {
-                        self.push_new_node(AstNodeData::Unit(identifier.text.clone()), identifier.range.clone());
+                        self.push_new_node(AstNodeData::Unit(unit), identifier.range.clone());
                         return Ok(());
                     }
 
