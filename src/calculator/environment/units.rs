@@ -7,10 +7,10 @@
 use std::f64::consts::PI;
 use ::common::{Result, ErrorType};
 
-const UNITS: [&str; 35] = [
+const UNITS: [&str; 40] = [
     "m", "mi", "ft", "in", "yd", // length
     "a", "m^2", "mi^2", "ft^2", "in^2", "yd^2",  // area
-    "l", "tsp", "tbsp", "floz", "cup", // volume
+    "l", "tsp", "tbsp", "floz", "cup", "m^3", "mi^3", "ft^3", "in^3", "yd^3", // volume
     "°", "rad", // angle
     "s", "min", "h", "d", "mo", "y", // time
     "g", "lb", "t", // mass
@@ -137,26 +137,101 @@ pub fn convert(src_unit: &str, dst_unit: &str, n: f64, range: &std::ops::Range<u
         ("l", "tbsp") => Ok(n * 67.628),
         ("l", "floz") => Ok(n * 33.814),
         ("l", "cup") => Ok(n * 4.227),
+        ("l", "m^3") => Ok(n / 1000.0),
+        ("l", "mi^3") => Ok(n / 4_168_000_000_000.0),
+        ("l", "ft^3") => Ok(n / 28.317),
+        ("l", "in^3") => Ok(n * 61.024),
+        ("l", "yd^3") => Ok(n / 764.6),
 
         ("tsp", "l") => Ok(n / 202.9),
         ("tsp", "tbsp") => Ok(n / 3.0),
         ("tsp", "floz") => Ok(n / 6.0),
         ("tsp", "cup") => Ok(n / 48.0),
+        ("tsp", "m^3") => Ok(n / 202_900.0),
+        ("tsp", "mi^3") => Ok(n / 845_700_000_000_000.0),
+        ("tsp", "ft^3") => Ok(n / 5745.0),
+        ("tsp", "in^3") => Ok(n / 3.325),
+        ("tsp", "yd^3") => Ok(n / 155_100.0),
 
         ("tbsp", "l") => Ok(n / 67.628),
         ("tbsp", "tsp") => Ok(n * 3.0),
         ("tbsp", "floz") => Ok(n / 2.0),
         ("tbsp", "cup") => Ok(n / 16.0),
+        ("tbsp", "m^3") => Ok(n / 67_630.0),
+        ("tbsp", "mi^3") => Ok(n / 281_900_000_000_000.0),
+        ("tbsp", "ft^3") => Ok(n / 1915.0),
+        ("tbsp", "in^3") => Ok(n / 1.108),
+        ("tbsp", "yd^3") => Ok(n / 51_710.0),
 
         ("floz", "l") => Ok(n / 33.814),
         ("floz", "tsp") => Ok(n * 6.0),
         ("floz", "tbsp") => Ok(n * 2.0),
         ("floz", "cup") => Ok(n / 8.0),
+        ("floz", "m^3") => Ok(n / 284_130.0),
+        ("floz", "mi^3") => Ok(n / 146_700_000_000_000.0),
+        ("floz", "ft^3") => Ok(n / 996.6),
+        ("floz", "in^3") => Ok(n / 1.1734),
+        ("floz", "yd^3") => Ok(n / 25_850.0),
 
         ("cup", "l") => Ok(n / 4.227),
         ("cup", "tsp") => Ok(n * 48.0),
         ("cup", "tbsp") => Ok(n * 16.0),
         ("cup", "floz") => Ok(n * 8.0),
+        ("cup", "m^3") => Ok(n / 4227.0),
+        ("cup", "mi^3") => Ok(n / 146_700_000_000_000.0),
+        ("cup", "ft^3") => Ok(n / 119.7),
+        ("cup", "in^3") => Ok(n * 14.438),
+        ("cup", "yd^3") => Ok(n / 3232.0),
+
+        ("m^3", "mi^3") => Ok(n / 4_168_000_000.0),
+        ("m^3", "ft^3") => Ok(n * 35.315),
+        ("m^3", "in^3") => Ok(n * 61_020.0),
+        ("m^3", "yd^3") => Ok(n * 1.308),
+        ("m^3", "l") => Ok(n * 1000.0),
+        ("m^3", "tsp") => Ok(n * 202_900.0),
+        ("m^3", "tbsp") => Ok(n * 67_630.0),
+        ("m^3", "floz") => Ok(n * 284_130.0),
+        ("m^3", "cup") => Ok(n * 4227.0),
+
+        ("ft^3", "m^3") => Ok(n / 35.315),
+        ("ft^3", "mi^3") => Ok(n / 147_200_000_000.0),
+        ("ft^3", "in^3") => Ok(n * 1728.0),
+        ("ft^3", "yd^3") => Ok(n / 27.0),
+        ("ft^3", "l") => Ok(n * 28.317),
+        ("ft^3", "tsp") => Ok(n * 5745.0),
+        ("ft^3", "tbsp") => Ok(n * 1915.0),
+        ("ft^3", "cup") => Ok(n * 119.7),
+        ("ft^3", "floz") => Ok(n * 996.6),
+
+        ("mi^3", "m^3") => Ok(n * 4_168_000_000.0),
+        ("mi^3", "ft^3") => Ok(n * 147_200_000_000.0),
+        ("mi^3", "in^3") => Ok(n * 254_400_000_000_000.0),
+        ("mi^3", "yd^3") => Ok(n * 5_452_000_000.0),
+        ("mi^3", "l") => Ok(n * 4_168_000_000_000.0),
+        ("mi^3", "tsp") => Ok(n * 845_700_000_000_000.0),
+        ("mi^3", "tbsp") => Ok(n * 281_900_000_000_000.0),
+        ("mi^3", "floz") => Ok(n * 146_700_000_000_000.0),
+        ("mi^3", "cup") => Ok(n * 146_700_000_000_000.0),
+
+        ("in^3", "m^3") => Ok(n / 61_020.0),
+        ("in^3", "ft^3") => Ok(n / 1728.0),
+        ("in^3", "mi^3") => Ok(n / 254_400_000_000_000.0),
+        ("in^3", "yd^3") => Ok(n / 46_660.0),
+        ("in^3", "l") => Ok(n / 61.024),
+        ("in^3", "tsp") => Ok(n * 3.325),
+        ("in^3", "tbsp") => Ok(n * 1.108),
+        ("in^3", "floz") => Ok(n * 1.1734),
+        ("in^3", "cup") => Ok(n / 14.438),
+
+        ("yd^3", "m^3") => Ok(n / 1.308),
+        ("yd^3", "ft^3") => Ok(n * 27.0),
+        ("yd^3", "mi^3") => Ok(n / 5_452_000_000.0),
+        ("yd^3", "in^3") => Ok(n * 46_660.0),
+        ("yd^3", "l") => Ok(n * 764.6),
+        ("yd^3", "tsp") => Ok(n * 155_100.0),
+        ("yd^3", "tbsp") => Ok(n * 51_710.0),
+        ("yd^3", "floz") => Ok(n * 25_850.0),
+        ("yd^3", "cup") => Ok(n * 3232.0),
 
         // angle
         ("°", "rad") => Ok(n * PI / 180.0),
@@ -271,11 +346,18 @@ pub fn format(unit: &str, plural: bool) -> String {
             "°F" => "Degrees Fahrenheit",
             "K" => "Kelvin",
             "psi" => "Pounds per square inch",
+
             "m^2" => "Meters squared",
             "mi^2" => "Miles squared",
             "ft^2" => "Feet squared",
             "in^2" => "Inches squared",
             "yd^2" => "Yards squared",
+
+            "m^3" => "Meters cubed",
+            "mi^3" => "Miles cubed",
+            "ft^3" => "Feet cubed",
+            "in^3" => "Inches cubed",
+            "yd^3" => "Yards cubed",
             _ => "",
         }
     } else { "" };
@@ -301,6 +383,11 @@ pub fn format(unit: &str, plural: bool) -> String {
             "tbsp" => "Tablespoon",
             "floz" => "Fluid Ounce",
             "cup" => "Cup",
+            "m^3" => "Meter cubed",
+            "mi^3" => "Mile cubed",
+            "ft^3" => "Foot cubed",
+            "in^3" => "Inch cubed",
+            "yd^3" => "Yard cubed",
             // angle
             "°" => "Degree",
             "rad" => "Radian",
