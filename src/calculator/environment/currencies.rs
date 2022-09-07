@@ -7,8 +7,10 @@
 use std::ops::Range;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use crate::common::{Result, ErrorType};
-use crate::environment::default_currencies;
+use crate::{
+    common::{Result, ErrorType},
+    environment::default_currencies,
+};
 
 const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
 const CURRENCIES_FILE_NAME: &str = "currencies.txt";
@@ -22,9 +24,8 @@ fn cache_file_path() -> std::path::PathBuf {
     cache_folder_path().join(CURRENCIES_FILE_NAME)
 }
 
-
 pub fn is_currency(str: &str) -> bool {
-    default_currencies::is_currency(str)
+    default_currencies::CURRENCIES.contains_key(str)
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -119,24 +120,28 @@ impl Currencies {
         let base = &*self.base.lock().unwrap();
         let currencies = &*self.currencies.lock().unwrap();
 
-        if base.is_none() || currencies.is_none() {
-            return default_currencies::convert(src_curr, dst_curr, n, range);
-        }
+        let use_default = base.is_none() || currencies.is_none();
+        let base = if use_default { default_currencies::BASE_CURRENCY } else { base.as_ref().unwrap() };
 
-        let base = base.as_ref().unwrap();
-        let currencies = currencies.as_ref().unwrap();
+        let get_currency = |curr| {
+            if use_default {
+                default_currencies::CURRENCIES.get(curr)
+            } else {
+                currencies.as_ref().unwrap().get(curr)
+            }
+        };
 
         let mut value = n;
         // Convert to base currency if needed
         if src_curr != base {
-            value /= match currencies.get(src_curr) {
+            value /= match get_currency(src_curr) {
                 Some(v) => v,
                 None => return Err(ErrorType::UnknownIdentifier.with(range.clone())),
             };
         }
         // Convert from base currency to dst currency if needed
         if dst_curr != base {
-            value *= match currencies.get(dst_curr) {
+            value *= match get_currency(dst_curr) {
                 Some(v) => v,
                 None => return Err(ErrorType::UnknownIdentifier.with(range.clone())),
             };

@@ -4,14 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use crate::Format;
-use crate::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
-use crate::astgen::tokenizer::{Token, TokenType};
-use crate::common::*;
 use strum::IntoEnumIterator;
 use std::mem;
-use crate::environment::Environment;
-use crate::environment::units::{get_prefix_power, is_prefix, is_unit, Unit};
+use crate::{
+    Format,
+    astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier},
+    astgen::tokenizer::{Token, TokenType},
+    common::*,
+    environment::{
+        Environment,
+        units::{get_prefix_power, is_prefix, is_unit, Unit},
+    },
+};
 
 macro_rules! error {
     ($variant:ident($range:expr)) => {
@@ -445,7 +449,7 @@ impl<'a> Parser<'a> {
                                 error!(ExpectedUnit(identifier.range));
                             }
                             return Ok(());
-                        },
+                        }
                     };
 
                     let mut unit = Unit(unit, None);

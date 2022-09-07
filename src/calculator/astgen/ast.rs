@@ -4,13 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use crate::Format;
-use crate::common::*;
 use std::fmt::{Formatter, Display, Debug};
 use std::ops::Range;
-use crate::environment::units::convert;
-use crate::environment::units::Unit;
-use crate::environment::currencies::Currencies;
+use crate::{
+    Format,
+    common::*,
+    environment::{
+        units::{convert, Unit},
+        currencies::Currencies,
+    },
+};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Operator {

@@ -5,7 +5,7 @@
  */
 
 use crate::common::*;
-use strum::{EnumIter};
+use strum::EnumIter;
 use std::ops::Range;
 
 #[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]

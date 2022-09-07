@@ -5,7 +5,14 @@
  */
 
 use std::mem::{take, replace};
-use crate::{astgen::ast::{Operator, AstNode, AstNodeData}, match_ast_node, Format, environment::{Environment, Variable, units::Unit}, common::*, Currencies};
+use crate::{
+    astgen::ast::{Operator, AstNode, AstNodeData},
+    match_ast_node,
+    Format,
+    environment::{Environment, Variable, units::Unit},
+    common::*,
+    Currencies,
+};
 
 pub struct CalculationResult {
     pub result: f64,

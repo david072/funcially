@@ -2,3 +2,4 @@
 /target
 /SPEC.md
 /dist
+**/default_currencies.rs
