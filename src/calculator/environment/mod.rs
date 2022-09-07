@@ -6,7 +6,7 @@ use crate::common::{ErrorType};
 use std::f64::consts::{PI, E, TAU};
 use crate::astgen::ast::AstNode;
 use self::units::Unit;
-use crate::evaluate;
+use crate::{Currencies, evaluate};
 
 #[derive(Debug, Clone)]
 pub struct Variable(pub f64, pub Option<Unit>);
@@ -198,7 +198,7 @@ impl Environment {
         }
     }
 
-    pub fn resolve_custom_function(&self, f: &str, args: &[f64]) -> Result<(f64, Option<Unit>), ErrorType> {
+    pub fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
         for (name, Function(function_args, ast)) in &self.functions {
             if name == f {
                 let mut temp_env = Environment::new();
@@ -209,7 +209,7 @@ impl Environment {
                     temp_env.set_variable(&function_args[i], Variable(args[i], None))?;
                 }
 
-                let value = evaluate(ast.clone(), &temp_env);
+                let value = evaluate(ast.clone(), &temp_env, currencies);
                 for name in function_args { temp_env.remove_variable(name)?; }
 
                 return match value {

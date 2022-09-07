@@ -5,13 +5,7 @@
  */
 
 use std::mem::{take, replace};
-use crate::{
-    astgen::ast::{Operator, AstNode, AstNodeData},
-    match_ast_node,
-    Format,
-    environment::{Environment, Variable, units::Unit},
-    common::*,
-};
+use crate::{astgen::ast::{Operator, AstNode, AstNodeData}, match_ast_node, Format, environment::{Environment, Variable, units::Unit}, common::*, Currencies};
 
 pub struct CalculationResult {
     pub result: f64,
@@ -26,7 +20,7 @@ impl CalculationResult {
     }
 }
 
-pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment) -> Result<CalculationResult> {
+pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<CalculationResult> {
     if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
         ast[0].apply_modifiers()?;
         let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
@@ -34,13 +28,13 @@ pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment) -> Result<CalculationR
         return Ok(CalculationResult::new(result, unit, true, ast[0].format));
     }
 
-    eval_functions(&mut ast, env)?;
+    eval_functions(&mut ast, env, currencies)?;
     eval_variables(&mut ast, env)?;
-    eval_groups(&mut ast, env)?;
-    eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
-    eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide])?;
-    eval_operators(&mut ast, &[Operator::Plus, Operator::Minus])?;
-    eval_operators(&mut ast, &[Operator::Of, Operator::In])?;
+    eval_groups(&mut ast, env, currencies)?;
+    eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr], currencies)?;
+    eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide], currencies)?;
+    eval_operators(&mut ast, &[Operator::Plus, Operator::Minus], currencies)?;
+    eval_operators(&mut ast, &[Operator::Of, Operator::In], currencies)?;
 
     ast[0].apply_modifiers()?;
     let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
@@ -50,7 +44,7 @@ pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment) -> Result<CalculationR
     Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
 }
 
-fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
+fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<()> {
     for node in ast {
         let (func_name, arg_asts) = match node.data {
             AstNodeData::FunctionInvocation(ref name, ref args) => (name, args),
@@ -59,13 +53,13 @@ fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
 
         let mut args = Vec::new();
         for ast in arg_asts {
-            args.push(evaluate(ast.clone(), env)?.result);
+            args.push(evaluate(ast.clone(), env, currencies)?.result);
         }
         let (result, unit) = match env.resolve_function(func_name, &args) {
             Ok(res) => (res, None),
             Err(ty) => {
                 if ty == ErrorType::UnknownFunction {
-                    match env.resolve_custom_function(func_name, &args) {
+                    match env.resolve_custom_function(func_name, &args, currencies) {
                         Ok(res) => res,
                         Err(ty) => return Err(ty.with(node.range.clone())),
                     }
@@ -100,14 +94,14 @@ fn eval_variables(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
     Ok(())
 }
 
-fn eval_groups(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
+fn eval_groups(ast: &mut Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<()> {
     for node in ast {
         let group_ast = match &node.data {
             AstNodeData::Group(ast) => ast,
             _ => continue,
         };
 
-        let group_result = evaluate(group_ast.clone(), env)?;
+        let group_result = evaluate(group_ast.clone(), env, currencies)?;
         // Construct Literal node with the evaluated result
         let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
         let _ = replace(node, new_node);
@@ -116,7 +110,7 @@ fn eval_groups(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
     Ok(())
 }
 
-fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> {
+fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator], currencies: &Currencies) -> Result<()> {
     let mut i = 0usize;
     while i < ast.len() - 1 {
         // there has got to be a better way to do this...
@@ -130,7 +124,7 @@ fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator]) -> Result<()> 
         let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
 
         if operators.contains(&op) {
-            lhs.apply(operator, rhs)?;
+            lhs.apply(operator, rhs, currencies)?;
             // remove operator and rhs
             ast.remove(i + 1);
             ast.remove(i + 1);

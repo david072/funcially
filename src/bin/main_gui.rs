@@ -12,7 +12,7 @@ extern crate calculator;
 use eframe::{CreationContext, egui, Frame, Theme};
 use egui::*;
 use calculator::{
-    calculate,
+    Calculator,
     Environment,
     CalculatorResultData,
     Format,
@@ -73,6 +73,7 @@ enum Line {
 }
 
 struct App {
+    calculator: Calculator,
     environment: Environment,
 
     source: String,
@@ -99,6 +100,7 @@ impl App {
     fn new(cc: &CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(Visuals::dark());
         App {
+            calculator: Calculator::new(),
             environment: Environment::new(),
             source_old: String::new(),
             source: String::new(),
@@ -123,7 +125,8 @@ impl App {
         let str = str.trim();
         if str.is_empty() { return Line::Empty; }
 
-        let result = calculate(str, &mut self.environment, Verbosity::None);
+        let result = self.calculator
+            .calculate(str, &mut self.environment, Verbosity::None);
 
         let mut function: Option<(String, usize)> = None;
         let mut color_segments: Vec<ColorSegment> = Vec::new();
@@ -263,10 +266,11 @@ impl App {
 
                                 let env = self.environment.clone();
                                 let name = function.0.clone();
+                                let currencies = self.calculator.currencies.clone();
 
                                 plot_ui.line(plot::Line::new(
                                     plot::PlotPoints::from_explicit_callback(move |x| {
-                                        let res = env.resolve_custom_function(&name, &[x]).unwrap();
+                                        let res = env.resolve_custom_function(&name, &[x], &currencies).unwrap();
                                         res.0
                                     }, .., 512)
                                 ).name(&function.0));

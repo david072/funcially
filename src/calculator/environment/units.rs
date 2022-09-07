@@ -7,7 +7,7 @@
 use std::f64::consts::PI;
 use std::ops::Range;
 use crate::common::{Result, ErrorType};
-use crate::environment::currencies::{is_currency, convert as convert_currencies};
+use crate::environment::currencies::{is_currency, Currencies};
 
 /// A struct representing a unit, holding a numerator and an optional denominator unit.
 ///
@@ -75,8 +75,8 @@ fn unit_prefix(unit: &str) -> Option<(char, i32)> {
     None
 }
 
-pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, range: &Range<usize>) -> Result<f64> {
-    let numerator = convert_units(&src_unit.0, &dst_unit.0, n, range)?;
+pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
+    let numerator = convert_units(&src_unit.0, &dst_unit.0, n, currencies, range)?;
 
     if src_unit.1.is_none() && dst_unit.1.is_none() {
         Ok(numerator)
@@ -85,6 +85,7 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, range: &Range<usize>) -
             src_unit.1.as_ref().unwrap(),
             dst_unit.1.as_ref().unwrap(),
             1.0,
+            currencies,
             range,
         )?;
         Ok(numerator / denominator)
@@ -95,7 +96,7 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, range: &Range<usize>) -
     }
 }
 
-fn convert_units(src_unit: &str, dst_unit: &str, n: f64, range: &Range<usize>) -> Result<f64> {
+fn convert_units(src_unit: &str, dst_unit: &str, n: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
     if src_unit == dst_unit { return Ok(n); }
 
     let mut src_unit = src_unit;
@@ -345,7 +346,7 @@ fn convert_units(src_unit: &str, dst_unit: &str, n: f64, range: &Range<usize>) -
 
         ("K", "°C") => Ok(n - 273.15),
         ("K", "°F") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
-        _ => convert_currencies(src_unit, dst_unit, n, range),
+        _ => currencies.convert(src_unit, dst_unit, n, range),
     }
 }
 

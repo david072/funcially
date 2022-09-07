@@ -28,6 +28,7 @@ use rust_decimal::prelude::*;
 pub use color::ColorSegment;
 use environment::Function;
 use environment::units::format as format_unit;
+use environment::currencies::Currencies;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -115,75 +116,88 @@ pub fn colorize_text(input: &str) -> Vec<ColorSegment> {
     }
 }
 
-pub fn calculate(input: &str, environment: &mut Environment, verbosity: Verbosity) -> Result<CalculatorResult> {
-    let tokens = tokenize(input)?;
-    if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
-        println!("Tokens:");
-        for token in &tokens {
-            println!("{} => {:?}", token.text, token.ty);
-        }
-        println!();
+pub struct Calculator {
+    pub currencies: std::sync::Arc<Currencies>,
+}
+
+impl Calculator {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Calculator {
+        let currencies = std::sync::Arc::new(Currencies::new());
+        Currencies::update_currencies(currencies.clone());
+        Calculator { currencies }
     }
 
-    let color_segments = tokens.iter().map(ColorSegment::from).collect::<Vec<_>>();
-
-    match parse(&tokens, environment)? {
-        ParserResult::Calculation(ast) => {
-            if verbosity == Verbosity::Ast {
-                println!("AST:");
-                for node in &ast { println!("{}", node); }
-                println!();
+    pub fn calculate(&self, input: &str, environment: &mut Environment, verbosity: Verbosity) -> Result<CalculatorResult> {
+        let tokens = tokenize(input)?;
+        if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
+            println!("Tokens:");
+            for token in &tokens {
+                println!("{} => {:?}", token.text, token.ty);
             }
-
-            let result = evaluate(ast, environment)?;
-            environment.set_variable("ans", Variable(result.result, result.unit.clone())).unwrap();
-
-            let unit = result.unit.as_ref().map(|unit| {
-                if result.is_long_unit {
-                    format_unit(&unit, result.result != 1.0)
-                } else {
-                    unit.to_string()
-                }
-            });
-            Ok(CalculatorResult::number(result.result, unit, result.format, color_segments))
+            println!();
         }
-        ParserResult::EqualityCheck(lhs, rhs) => {
-            if verbosity == Verbosity::Ast {
-                println!("Equality check:\nLHS:");
-                for node in &lhs { println!("{}", node); }
-                println!("RHS:");
-                for node in &rhs { println!("{}", node); }
-                println!();
+
+        let color_segments = tokens.iter().map(ColorSegment::from).collect::<Vec<_>>();
+
+        match parse(&tokens, environment)? {
+            ParserResult::Calculation(ast) => {
+                if verbosity == Verbosity::Ast {
+                    println!("AST:");
+                    for node in &ast { println!("{}", node); }
+                    println!();
+                }
+
+                let result = evaluate(ast, environment, &self.currencies)?;
+                environment.set_variable("ans", Variable(result.result, result.unit.clone())).unwrap();
+
+                let unit = result.unit.as_ref().map(|unit| {
+                    if result.is_long_unit {
+                        format_unit(unit, result.result != 1.0)
+                    } else {
+                        unit.to_string()
+                    }
+                });
+                Ok(CalculatorResult::number(result.result, unit, result.format, color_segments))
             }
-
-            let lhs_res = evaluate(lhs, environment)?.result;
-            let rhs_res = evaluate(rhs, environment)?.result;
-
-            Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
-        }
-        ParserResult::VariableDefinition(name, ast) => {
-            match ast {
-                Some(ast) => {
-                    let res = evaluate(ast, environment)?;
-                    environment.set_variable(&name, Variable(res.result, res.unit)).unwrap();
-                    Ok(CalculatorResult::nothing(color_segments))
+            ParserResult::EqualityCheck(lhs, rhs) => {
+                if verbosity == Verbosity::Ast {
+                    println!("Equality check:\nLHS:");
+                    for node in &lhs { println!("{}", node); }
+                    println!("RHS:");
+                    for node in &rhs { println!("{}", node); }
+                    println!();
                 }
-                None => {
-                    environment.remove_variable(&name).unwrap();
-                    Ok(CalculatorResult::nothing(color_segments))
+
+                let lhs_res = evaluate(lhs, environment, &self.currencies)?.result;
+                let rhs_res = evaluate(rhs, environment, &self.currencies)?.result;
+
+                Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
+            }
+            ParserResult::VariableDefinition(name, ast) => {
+                match ast {
+                    Some(ast) => {
+                        let res = evaluate(ast, environment, &self.currencies)?;
+                        environment.set_variable(&name, Variable(res.result, res.unit)).unwrap();
+                        Ok(CalculatorResult::nothing(color_segments))
+                    }
+                    None => {
+                        environment.remove_variable(&name).unwrap();
+                        Ok(CalculatorResult::nothing(color_segments))
+                    }
                 }
             }
-        }
-        ParserResult::FunctionDefinition { name, args, ast } => {
-            match ast {
-                Some(ast) => {
-                    let arg_count = args.len();
-                    environment.set_function(&name, Function(args, ast)).unwrap();
-                    Ok(CalculatorResult::function(name, arg_count, color_segments))
-                }
-                None => {
-                    environment.remove_function(&name).unwrap();
-                    Ok(CalculatorResult::nothing(color_segments))
+            ParserResult::FunctionDefinition { name, args, ast } => {
+                match ast {
+                    Some(ast) => {
+                        let arg_count = args.len();
+                        environment.set_function(&name, Function(args, ast)).unwrap();
+                        Ok(CalculatorResult::function(name, arg_count, color_segments))
+                    }
+                    None => {
+                        environment.remove_function(&name).unwrap();
+                        Ok(CalculatorResult::nothing(color_segments))
+                    }
                 }
             }
         }
