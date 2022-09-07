@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 use eframe::egui::Color32;
-use ::astgen::tokenizer::{Token, TokenType};
+use crate::astgen::tokenizer::{Token, TokenType};
 use self::TokenType::*;
 
 #[derive(Debug, Clone)]

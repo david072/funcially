@@ -22,8 +22,8 @@ fn main() -> reqwest::Result<()> {
             .json::<ApiResponse>()?;
 
     let mut output = String::new();
-    output += r#" use std::ops::Range;
-use common::{Result, ErrorType};
+    output += r#"use std::ops::Range;
+use crate::common::{Result, ErrorType};
 use phf::{Map, phf_map};
 
 const BASE_CURRENCY: &str = ""#;

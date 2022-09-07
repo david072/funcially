@@ -2,11 +2,11 @@ pub mod units;
 mod default_currencies;
 pub mod currencies;
 
-use ::common::{ErrorType};
+use crate::common::{ErrorType};
 use std::f64::consts::{PI, E, TAU};
-use astgen::ast::AstNode;
+use crate::astgen::ast::AstNode;
 use self::units::Unit;
-use evaluate;
+use crate::evaluate;
 
 #[derive(Debug, Clone)]
 pub struct Variable(pub f64, pub Option<Unit>);

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use ::Format;
+use crate::Format;
 use crate::common::*;
 use std::fmt::{Formatter, Display, Debug};
 use std::ops::Range;
-use ::environment::units::convert;
-use environment::units::Unit;
+use crate::environment::units::convert;
+use crate::environment::units::Unit;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Operator {

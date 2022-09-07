@@ -5,12 +5,13 @@
  */
 
 use std::mem::{take, replace};
-use astgen::ast::Operator;
-use {match_ast_node, Format};
-use environment::{Environment, Variable};
-use astgen::ast::{AstNode, AstNodeData};
-use common::*;
-use environment::units::Unit;
+use crate::{
+    astgen::ast::{Operator, AstNode, AstNodeData},
+    match_ast_node,
+    Format,
+    environment::{Environment, Variable, units::Unit},
+    common::*,
+};
 
 pub struct CalculationResult {
     pub result: f64,
@@ -69,7 +70,7 @@ fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
                         Err(ty) => return Err(ty.with(node.range.clone())),
                     }
                 } else {
-                    return Err(ty.with(node.range.clone()))
+                    return Err(ty.with(node.range.clone()));
                 }
             }
         };

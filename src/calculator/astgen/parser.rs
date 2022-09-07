@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use ::Format;
-use ::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
-use ::astgen::tokenizer::{Token, TokenType};
-use ::common::*;
+use crate::Format;
+use crate::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
+use crate::astgen::tokenizer::{Token, TokenType};
+use crate::common::*;
 use strum::IntoEnumIterator;
 use std::mem;
-use ::environment::Environment;
-use environment::units::{get_prefix_power, is_prefix, is_unit, Unit};
+use crate::environment::Environment;
+use crate::environment::units::{get_prefix_power, is_prefix, is_unit, Unit};
 
 macro_rules! error {
     ($variant:ident($range:expr)) => {

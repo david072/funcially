@@ -6,8 +6,8 @@
 
 use std::f64::consts::PI;
 use std::ops::Range;
-use common::{Result, ErrorType};
-use environment::currencies::{is_currency, convert as convert_currencies};
+use crate::common::{Result, ErrorType};
+use crate::environment::currencies::{is_currency, convert as convert_currencies};
 
 /// A struct representing a unit, holding a numerator and an optional denominator unit.
 ///

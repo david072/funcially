@@ -3,6 +3,7 @@ name = "calculator"
 version = "0.2.1"
 authors = ["david072"]
 description = "A calculator working with text inputs."
+edition = "2018"
 
 [lib]
 name = "calculator"
