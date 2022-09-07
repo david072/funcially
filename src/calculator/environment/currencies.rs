@@ -55,6 +55,13 @@ impl Currencies {
         }
     }
 
+    pub fn none() -> Currencies {
+        Currencies {
+            base: Mutex::new(None),
+            currencies: Mutex::new(None),
+        }
+    }
+
     pub fn update_currencies(currencies: std::sync::Arc<Currencies>) {
         std::thread::spawn(move || {
             let ApiResponse { base, rates } =

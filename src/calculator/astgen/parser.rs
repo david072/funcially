@@ -878,6 +878,9 @@ mod tests {
         let ast = calculation!("3km");
         assert_eq!(ast.len(), 1);
         assert_eq!(ast[0].unit.as_ref().unwrap().to_string(), "km");
+        let ast = calculation!("3EUR");
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].unit.as_ref().unwrap().to_string(), "EUR");
         Ok(())
     }
 
