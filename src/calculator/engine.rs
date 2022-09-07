@@ -35,13 +35,14 @@ pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencie
         return Ok(CalculationResult::new(result, unit, true, ast[0].format));
     }
 
-    eval_functions(&mut ast, env, currencies)?;
-    eval_variables(&mut ast, env)?;
-    eval_groups(&mut ast, env, currencies)?;
-    eval_operators(&mut ast, &[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr], currencies)?;
-    eval_operators(&mut ast, &[Operator::Multiply, Operator::Divide], currencies)?;
-    eval_operators(&mut ast, &[Operator::Plus, Operator::Minus], currencies)?;
-    eval_operators(&mut ast, &[Operator::Of, Operator::In], currencies)?;
+    let mut engine = Engine::new(&mut ast, env, currencies);
+    engine.eval_functions()?;
+    engine.eval_variables()?;
+    engine.eval_groups()?;
+    engine.eval_operators(&[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
+    engine.eval_operators(&[Operator::Multiply, Operator::Divide])?;
+    engine.eval_operators(&[Operator::Plus, Operator::Minus])?;
+    engine.eval_operators(&[Operator::Of, Operator::In])?;
 
     ast[0].apply_modifiers()?;
     let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
@@ -51,96 +52,108 @@ pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencie
     Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
 }
 
-fn eval_functions(ast: &mut Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<()> {
-    for node in ast {
-        let (func_name, arg_asts) = match node.data {
-            AstNodeData::FunctionInvocation(ref name, ref args) => (name, args),
-            _ => continue,
-        };
-
-        let mut args = Vec::new();
-        for ast in arg_asts {
-            args.push(evaluate(ast.clone(), env, currencies)?.result);
-        }
-        let (result, unit) = match env.resolve_function(func_name, &args) {
-            Ok(res) => (res, None),
-            Err(ty) => {
-                if ty == ErrorType::UnknownFunction {
-                    match env.resolve_custom_function(func_name, &args, currencies) {
-                        Ok(res) => res,
-                        Err(ty) => return Err(ty.with(node.range.clone())),
-                    }
-                } else {
-                    return Err(ty.with(node.range.clone()));
-                }
-            }
-        };
-        let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
-        new_node.unit = unit;
-        let _ = replace(node, new_node);
-    }
-    Ok(())
+struct Engine<'a> {
+    ast: &'a mut Vec<AstNode>,
+    env: &'a Environment,
+    currencies: &'a Currencies,
 }
 
-fn eval_variables(ast: &mut Vec<AstNode>, env: &Environment) -> Result<()> {
-    for node in ast {
-        let var_name = match node.data {
-            AstNodeData::VariableReference(ref name) => name.as_str(),
-            _ => continue,
-        };
-
-        let Variable(number, unit) = match env.resolve_variable(var_name) {
-            Ok(var) => var,
-            Err(ty) => return Err(ty.with(node.range.clone())),
-        };
-        let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
-        if let Some(u) = unit { new_node.unit = Some(u.clone()); }
-        let _ = replace(node, new_node);
+impl<'a> Engine<'a> {
+    pub fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {
+        Engine { ast, env, currencies }
     }
 
-    Ok(())
-}
-
-fn eval_groups(ast: &mut Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<()> {
-    for node in ast {
-        let group_ast = match &node.data {
-            AstNodeData::Group(ast) => ast,
-            _ => continue,
-        };
-
-        let group_result = evaluate(group_ast.clone(), env, currencies)?;
-        // Construct Literal node with the evaluated result
-        let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
-        let _ = replace(node, new_node);
-    }
-
-    Ok(())
-}
-
-fn eval_operators(ast: &mut Vec<AstNode>, operators: &[Operator], currencies: &Currencies) -> Result<()> {
-    let mut i = 0usize;
-    while i < ast.len() - 1 {
-        // there has got to be a better way to do this...
-        let (lhs, operator, rhs) =
-            if let [lhs, operator, rhs] = &mut ast[i..=i + 2] {
-                (lhs, operator, rhs)
-            } else {
-                return Err(ErrorType::InvalidAst.with(0..0));
+    fn eval_functions(&mut self) -> Result<()> {
+        for node in self.ast.iter_mut() {
+            let (func_name, arg_asts) = match node.data {
+                AstNodeData::FunctionInvocation(ref name, ref args) => (name, args),
+                _ => continue,
             };
 
-        let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
-
-        if operators.contains(&op) {
-            lhs.apply(operator, rhs, currencies)?;
-            // remove operator and rhs
-            ast.remove(i + 1);
-            ast.remove(i + 1);
-        } else {
-            i += 2;
+            let mut args = Vec::new();
+            for ast in arg_asts {
+                args.push(evaluate(ast.clone(), self.env, self.currencies)?.result);
+            }
+            let (result, unit) = match self.env.resolve_function(func_name, &args) {
+                Ok(res) => (res, None),
+                Err(ty) => {
+                    if ty == ErrorType::UnknownFunction {
+                        match self.env.resolve_custom_function(func_name, &args, self.currencies) {
+                            Ok(res) => res,
+                            Err(ty) => return Err(ty.with(node.range.clone())),
+                        }
+                    } else {
+                        return Err(ty.with(node.range.clone()));
+                    }
+                }
+            };
+            let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
+            new_node.unit = unit;
+            let _ = replace(node, new_node);
         }
+        Ok(())
     }
 
-    Ok(())
+    fn eval_variables(&mut self) -> Result<()> {
+        for node in self.ast.iter_mut() {
+            let var_name = match node.data {
+                AstNodeData::VariableReference(ref name) => name.as_str(),
+                _ => continue,
+            };
+
+            let Variable(number, unit) = match self.env.resolve_variable(var_name) {
+                Ok(var) => var,
+                Err(ty) => return Err(ty.with(node.range.clone())),
+            };
+            let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
+            if let Some(u) = unit { new_node.unit = Some(u.clone()); }
+            let _ = replace(node, new_node);
+        }
+
+        Ok(())
+    }
+
+    fn eval_groups(&mut self) -> Result<()> {
+        for node in self.ast.iter_mut() {
+            let group_ast = match &node.data {
+                AstNodeData::Group(ast) => ast,
+                _ => continue,
+            };
+
+            let group_result = evaluate(group_ast.clone(), self.env, self.currencies)?;
+            // Construct Literal node with the evaluated result
+            let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
+            let _ = replace(node, new_node);
+        }
+
+        Ok(())
+    }
+
+    fn eval_operators(&mut self, operators: &[Operator]) -> Result<()> {
+        let mut i = 0usize;
+        while i < self.ast.len() - 1 {
+            // there has got to be a better way to do this...
+            let (lhs, operator, rhs) =
+                if let [lhs, operator, rhs] = &mut self.ast[i..=i + 2] {
+                    (lhs, operator, rhs)
+                } else {
+                    return Err(ErrorType::InvalidAst.with(0..0));
+                };
+
+            let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
+
+            if operators.contains(&op) {
+                lhs.apply(operator, rhs, self.currencies)?;
+                // remove operator and rhs
+                self.ast.remove(i + 1);
+                self.ast.remove(i + 1);
+            } else {
+                i += 2;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
