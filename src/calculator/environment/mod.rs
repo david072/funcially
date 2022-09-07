@@ -1,4 +1,5 @@
 pub mod units;
+// This file will generated in build.rs at build time
 mod default_currencies;
 pub mod currencies;
 
