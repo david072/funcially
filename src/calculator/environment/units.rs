@@ -94,7 +94,7 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies
     } else {
         let src_unit = if let Some(u) = &src_unit.1 { u.clone() } else { String::new() };
         let dst_unit = if let Some(u) = &dst_unit.1 { u.clone() } else { String::new() };
-        Err(ErrorType::UnknownConversion( src_unit, dst_unit).with(range.clone()))
+        Err(ErrorType::UnknownConversion(src_unit, dst_unit).with(range.clone()))
     }
 }
 
@@ -376,8 +376,7 @@ fn format_unit(unit: &str, plural: bool) -> String {
     }
 
     let prefix = unit_prefix(unit).map(|x| x.0);
-    let unit = if prefix.is_some() { unit[1..].to_lowercase() } else { unit.to_lowercase() };
-    let unit = unit.as_str();
+    let unit = if prefix.is_some() { &unit[1..] } else { unit };
 
     let mut result = " ".to_string();
 
@@ -471,17 +470,24 @@ fn format_unit(unit: &str, plural: bool) -> String {
             // misc
             "cal" => "Calorie",
             "b" => "Byte",
-            _ => unreachable!(),
+            _ => ""
         };
 
-        if prefix.is_some() {
-            result.push_str(lowercase_first(singular).as_str());
-        } else {
-            result.push_str(singular);
-        }
+        if is_currency(unit) {
+            if result.len() - 1 != 0 { result.push(' '); }
+            result += unit;
+        } else if !singular.is_empty() {
+            if prefix.is_some() {
+                result.push_str(lowercase_first(singular).as_str());
+            } else {
+                result.push_str(singular);
+            }
 
-        if plural {
-            result.push('s');
+            if plural {
+                result.push('s');
+            }
+        } else {
+            unreachable!()
         }
     } else if prefix.is_some() {
         result.push_str(lowercase_first(unit_str).as_str());
