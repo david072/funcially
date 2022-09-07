@@ -9,6 +9,7 @@ extern crate core;
 extern crate rust_decimal;
 extern crate eframe;
 extern crate thiserror;
+extern crate phf;
 
 mod astgen;
 mod common;

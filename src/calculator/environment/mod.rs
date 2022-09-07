@@ -1,4 +1,6 @@
 pub mod units;
+mod default_currencies;
+pub mod currencies;
 
 use ::common::{ErrorType};
 use std::f64::consts::{PI, E, TAU};

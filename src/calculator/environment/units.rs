@@ -6,7 +6,8 @@
 
 use std::f64::consts::PI;
 use std::ops::Range;
-use ::common::{Result, ErrorType};
+use common::{Result, ErrorType};
+use environment::currencies::{is_currency, convert as convert_currencies};
 
 /// A struct representing a unit, holding a numerator and an optional denominator unit.
 ///
@@ -46,7 +47,7 @@ const PREFIXES: [(char, i32); 9] = [
 ];
 
 pub fn is_unit(str: &str) -> bool {
-    UNITS.contains(&str)
+    UNITS.contains(&str) || is_currency(str)
 }
 
 pub fn is_prefix(c: char) -> bool {
@@ -344,8 +345,7 @@ fn convert_units(src_unit: &str, dst_unit: &str, n: f64, range: &Range<usize>) -
 
         ("K", "°C") => Ok(n - 273.15),
         ("K", "°F") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
-        _ => Err(ErrorType::UnknownConversion(
-            src_unit.to_string(), dst_unit.to_string()).with(range.clone())),
+        _ => convert_currencies(src_unit, dst_unit, n, range),
     }
 }
 
