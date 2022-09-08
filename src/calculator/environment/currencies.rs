@@ -62,6 +62,7 @@ impl Currencies {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn update_currencies(currencies: std::sync::Arc<Currencies>) {
         std::thread::spawn(move || {
             let ApiResponse { base, rates } =
@@ -89,6 +90,11 @@ impl Currencies {
         });
     }
 
+    /// FIXME: Implement this
+    #[cfg(target_arch = "wasm32")]
+    pub fn update_currencies(_: std::sync::Arc<Currencies>) {}
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn load_currencies() -> Option<(String, HashMap<String, f64>)> {
         let file = cache_file_path();
         if !file.try_exists().unwrap_or(false) { return None; }
@@ -120,6 +126,10 @@ impl Currencies {
 
         Some((base, result))
     }
+
+    /// FIXME: Implement this
+    #[cfg(target_arch = "wasm32")]
+    fn load_currencies() -> Option<(String, HashMap<String, f64>)> {}
 
     pub fn convert(&self, src_curr: &str, dst_curr: &str, n: f64, range: &Range<usize>) -> Result<f64> {
         if src_curr == dst_curr { return Ok(n); }
