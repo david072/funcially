@@ -6,7 +6,10 @@
 
 use std::f64::consts::PI;
 use std::ops::Range;
-use ::common::{Result, ErrorType};
+use crate::{
+    common::{Result, ErrorType},
+    environment::currencies::{is_currency, Currencies},
+};
 
 /// A struct representing a unit, holding a numerator and an optional denominator unit.
 ///
@@ -46,7 +49,7 @@ const PREFIXES: [(char, i32); 9] = [
 ];
 
 pub fn is_unit(str: &str) -> bool {
-    UNITS.contains(&str)
+    UNITS.contains(&str) || is_currency(str)
 }
 
 pub fn is_prefix(c: char) -> bool {
@@ -74,8 +77,8 @@ fn unit_prefix(unit: &str) -> Option<(char, i32)> {
     None
 }
 
-pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, range: &Range<usize>) -> Result<f64> {
-    let numerator = convert_units(&src_unit.0, &dst_unit.0, n, range)?;
+pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
+    let numerator = convert_units(&src_unit.0, &dst_unit.0, n, currencies, range)?;
 
     if src_unit.1.is_none() && dst_unit.1.is_none() {
         Ok(numerator)
@@ -84,17 +87,18 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, range: &Range<usize>) -
             src_unit.1.as_ref().unwrap(),
             dst_unit.1.as_ref().unwrap(),
             1.0,
+            currencies,
             range,
         )?;
         Ok(numerator / denominator)
     } else {
         let src_unit = if let Some(u) = &src_unit.1 { u.clone() } else { String::new() };
         let dst_unit = if let Some(u) = &dst_unit.1 { u.clone() } else { String::new() };
-        Err(ErrorType::UnknownConversion( src_unit, dst_unit).with(range.clone()))
+        Err(ErrorType::UnknownConversion(src_unit, dst_unit).with(range.clone()))
     }
 }
 
-fn convert_units(src_unit: &str, dst_unit: &str, n: f64, range: &Range<usize>) -> Result<f64> {
+fn convert_units(src_unit: &str, dst_unit: &str, n: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
     if src_unit == dst_unit { return Ok(n); }
 
     let mut src_unit = src_unit;
@@ -344,8 +348,7 @@ fn convert_units(src_unit: &str, dst_unit: &str, n: f64, range: &Range<usize>) -
 
         ("K", "°C") => Ok(n - 273.15),
         ("K", "°F") => Ok((n - 273.15) * 9.0 / 5.0 + 32.0),
-        _ => Err(ErrorType::UnknownConversion(
-            src_unit.to_string(), dst_unit.to_string()).with(range.clone())),
+        _ => currencies.convert(src_unit, dst_unit, n, range),
     }
 }
 
@@ -373,8 +376,7 @@ fn format_unit(unit: &str, plural: bool) -> String {
     }
 
     let prefix = unit_prefix(unit).map(|x| x.0);
-    let unit = if prefix.is_some() { unit[1..].to_lowercase() } else { unit.to_lowercase() };
-    let unit = unit.as_str();
+    let unit = if prefix.is_some() { &unit[1..] } else { unit };
 
     let mut result = " ".to_string();
 
@@ -468,17 +470,24 @@ fn format_unit(unit: &str, plural: bool) -> String {
             // misc
             "cal" => "Calorie",
             "b" => "Byte",
-            _ => unreachable!(),
+            _ => ""
         };
 
-        if prefix.is_some() {
-            result.push_str(lowercase_first(singular).as_str());
-        } else {
-            result.push_str(singular);
-        }
+        if is_currency(unit) {
+            if result.len() - 1 != 0 { result.push(' '); }
+            result += unit;
+        } else if !singular.is_empty() {
+            if prefix.is_some() {
+                result.push_str(lowercase_first(singular).as_str());
+            } else {
+                result.push_str(singular);
+            }
 
-        if plural {
-            result.push('s');
+            if plural {
+                result.push('s');
+            }
+        } else {
+            unreachable!()
         }
     } else if prefix.is_some() {
         result.push_str(lowercase_first(unit_str).as_str());

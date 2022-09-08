@@ -4,14 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use ::Format;
-use ::astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier};
-use ::astgen::tokenizer::{Token, TokenType};
-use ::common::*;
 use strum::IntoEnumIterator;
 use std::mem;
-use ::environment::Environment;
-use environment::units::{get_prefix_power, is_prefix, is_unit, Unit};
+use crate::{
+    Format,
+    astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier},
+    astgen::tokenizer::{Token, TokenType},
+    common::*,
+    environment::{
+        Environment,
+        units::{get_prefix_power, is_prefix, is_unit, Unit},
+    },
+};
 
 macro_rules! error {
     ($variant:ident($range:expr)) => {
@@ -445,7 +449,7 @@ impl<'a> Parser<'a> {
                                 error!(ExpectedUnit(identifier.range));
                             }
                             return Ok(());
-                        },
+                        }
                     };
 
                     let mut unit = Unit(unit, None);
@@ -874,6 +878,9 @@ mod tests {
         let ast = calculation!("3km");
         assert_eq!(ast.len(), 1);
         assert_eq!(ast[0].unit.as_ref().unwrap().to_string(), "km");
+        let ast = calculation!("3EUR");
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].unit.as_ref().unwrap().to_string(), "EUR");
         Ok(())
     }
 

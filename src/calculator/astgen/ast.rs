@@ -4,12 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use ::Format;
-use crate::common::*;
 use std::fmt::{Formatter, Display, Debug};
 use std::ops::Range;
-use ::environment::units::convert;
-use environment::units::Unit;
+use crate::{
+    Format,
+    common::*,
+    environment::{
+        units::{convert, Unit},
+        currencies::Currencies,
+    },
+};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Operator {
@@ -144,7 +148,7 @@ impl AstNode {
         }
     }
 
-    pub fn apply(&mut self, operator: &Self, rhs: &mut Self) -> Result<()> {
+    pub fn apply(&mut self, operator: &Self, rhs: &mut Self, currencies: &Currencies) -> Result<()> {
         self.apply_modifiers()?;
         rhs.apply_modifiers()?;
 
@@ -160,7 +164,13 @@ impl AstNode {
                 return Ok(());
             }
 
-            *lhs = convert(self.unit.as_ref().unwrap(), rhs_value, *lhs, &full_range)?;
+            *lhs = convert(
+                self.unit.as_ref().unwrap(),
+                rhs_value,
+                *lhs,
+                currencies,
+                &full_range,
+            )?;
             self.unit = Some(rhs_value.clone());
             return Ok(());
         }
@@ -172,7 +182,13 @@ impl AstNode {
         if rhs.unit.is_some() && self.unit.is_none() {
             self.unit = rhs.unit.clone();
         } else if rhs.unit.is_some() && rhs.unit != self.unit {
-            rhs_value = convert(rhs.unit.as_ref().unwrap(), self.unit.as_ref().unwrap(), rhs_value, &full_range)?;
+            rhs_value = convert(
+                rhs.unit.as_ref().unwrap(),
+                self.unit.as_ref().unwrap(),
+                rhs_value,
+                currencies,
+                &full_range,
+            )?;
         }
 
         match op {

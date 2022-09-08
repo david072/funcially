@@ -11,7 +11,7 @@ extern crate colored;
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
 use colored::Colorize;
-use calculator::{calculate, Environment, Verbosity, Format, round_dp, CalculatorResultData};
+use calculator::{Calculator, Environment, Verbosity, Format, round_dp, CalculatorResultData};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -38,6 +38,7 @@ fn main() {
         None => Verbosity::None,
     };
 
+    let calculator = Calculator::new();
     let mut environment = Environment::new();
 
     // TODO: Properly handle CTRL-C
@@ -52,7 +53,7 @@ fn main() {
         match input.as_str() {
             "quit" | "exit" => break,
             _ => {
-                match calculate(&input, &mut environment, verbosity) {
+                match calculator.calculate(&input, &mut environment, verbosity) {
                     Ok(res) => {
                         match res.data {
                             CalculatorResultData::Number { result: n, unit, format } => {
