@@ -15,7 +15,8 @@ struct ApiResponse {
 }
 
 fn main() -> reqwest::Result<()> {
-    if &std::env::var("PROFILE").unwrap_or_default() != "release" {
+    if &std::env::var("PROFILE").unwrap_or_default() != "release" &&
+        std::path::PathBuf::from(OUTPUT_FILE).try_exists().unwrap_or(false) {
         return Ok(());
     }
 
