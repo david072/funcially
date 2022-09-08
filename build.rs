@@ -15,7 +15,9 @@ struct ApiResponse {
 }
 
 fn main() -> reqwest::Result<()> {
-    println!("cargo:rerun-if-changed=build.rs");
+    if &std::env::var("PROFILE").unwrap_or_default() != "release" {
+        return Ok(());
+    }
 
     let ApiResponse { base, rates } =
         reqwest::blocking::get("https://api.exchangerate.host/latest?base=EUR")?
