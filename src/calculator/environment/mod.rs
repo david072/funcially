@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2022, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 pub mod units;
 // This file will generated in build.rs at build time
 mod default_currencies;
