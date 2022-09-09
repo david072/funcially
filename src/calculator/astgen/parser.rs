@@ -454,7 +454,7 @@ impl<'a> Parser<'a> {
 
                     let mut unit = Unit(unit, None);
                     // Handle unit denominator (e.g. for "km/h")
-                    if self.index <= self.tokens.len() - 2 {
+                    if self.tokens.len() >= 2 && self.index <= self.tokens.len() - 2 {
                         let next = &self.tokens[self.index];
 
                         if matches!(next.ty, TokenType::Divide) &&
@@ -525,7 +525,7 @@ impl<'a> Parser<'a> {
         };
 
         // Handle units with exponentiation (e.g. m^2 (square meters))
-        if self.index <= self.tokens.len() - 2 {
+        if self.tokens.len() >= 2 && self.index <= self.tokens.len() - 2 {
             let next = &self.tokens[self.index];
 
             if matches!(next.ty, TokenType::Exponentiation) &&
