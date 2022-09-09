@@ -239,35 +239,41 @@ pub fn get_debug_info(input: &str, env: &Environment, verbosity: Verbosity) -> R
     }
 
     if verbosity == Verbosity::Ast {
-        match parse(&tokens, env)? {
-            ParserResult::Calculation(ast) => {
-                writeln_or_err!(&mut output, "AST:");
-                for node in &ast { writeln_or_err!(&mut output, "{}", node); }
-                writeln_or_err!(&mut output);
-            }
-            ParserResult::EqualityCheck(lhs, rhs) => {
-                writeln_or_err!(&mut output, "Equality check:\nLHS:");
-                for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
-                writeln_or_err!(&mut output, "RHS:");
-                for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
-                writeln_or_err!(&mut output);
-            }
-            ParserResult::VariableDefinition(name, ast) => {
-                if let Some(ast) = ast {
-                    writeln_or_err!(&mut output, "Variable Definition: {}\nAST:", name);
+        match parse(&tokens, env) {
+            Ok(parser_result) => match parser_result {
+                ParserResult::Calculation(ast) => {
+                    writeln_or_err!(&mut output, "AST:");
                     for node in &ast { writeln_or_err!(&mut output, "{}", node); }
-                } else {
-                    writeln_or_err!(&mut output, "Variable removal: {}", name);
+                    writeln_or_err!(&mut output);
+                }
+                ParserResult::EqualityCheck(lhs, rhs) => {
+                    writeln_or_err!(&mut output, "Equality check:\nLHS:");
+                    for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
+                    writeln_or_err!(&mut output, "RHS:");
+                    for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
+                    writeln_or_err!(&mut output);
+                }
+                ParserResult::VariableDefinition(name, ast) => {
+                    if let Some(ast) = ast {
+                        writeln_or_err!(&mut output, "Variable Definition: {}\nAST:", name);
+                        for node in &ast { writeln_or_err!(&mut output, "{}", node); }
+                    } else {
+                        writeln_or_err!(&mut output, "Variable removal: {}", name);
+                    }
+                }
+                ParserResult::FunctionDefinition { name, args, ast } => {
+                    if let Some(ast) = ast {
+                        writeln_or_err!(&mut output, "Function Definition: {}", name);
+                        writeln_or_err!(&mut output, "Arguments: {:?}\nAST:", args);
+                        for node in &ast { writeln_or_err!(&mut output, "{}", node); }
+                    } else {
+                        writeln_or_err!(&mut output, "Function removal: {}", name);
+                    }
                 }
             }
-            ParserResult::FunctionDefinition { name, args, ast } => {
-                if let Some(ast) = ast {
-                    writeln_or_err!(&mut output, "Function Definition: {}", name);
-                    writeln_or_err!(&mut output, "Arguments: {:?}\nAST:", args);
-                    for node in &ast { writeln_or_err!(&mut output, "{}", node); }
-                } else {
-                    writeln_or_err!(&mut output, "Function removal: {}", name);
-                }
+            Err(e) => {
+                writeln_or_err!(&mut output, "Error while parsing: {} at {}..{}", e.error, e.start, e.end);
+                return Ok(output);
             }
         }
     }
