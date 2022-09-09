@@ -221,6 +221,8 @@ impl<'a> Tokenizer<'a> {
                 matches!(self.string[self.index], b'0'..=b'9' | b'.') => {
                 self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
+                self.accept(any_of("."));
+                while self.accept(any_of(NUMBERS)) {}
                 Some(TokenType::DecimalLiteral)
             }
             b'+' => Some(TokenType::Plus),
