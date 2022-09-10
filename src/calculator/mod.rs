@@ -111,7 +111,7 @@ impl CalculatorResult {
 
 pub fn colorize_text(input: &str) -> Vec<ColorSegment> {
     match tokenize(input) {
-        Ok(tokens) => tokens.iter().map(ColorSegment::from).collect::<Vec<_>>(),
+        Ok(tokens) => ColorSegment::convert(&tokens),
         Err(_) => Vec::new()
     }
 }
@@ -138,7 +138,7 @@ impl Calculator {
             println!();
         }
 
-        let color_segments = tokens.iter().map(ColorSegment::from).collect::<Vec<_>>();
+        let color_segments = ColorSegment::convert(&tokens);
 
         match parse(&tokens, environment)? {
             ParserResult::Calculation(ast) => {
