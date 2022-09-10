@@ -88,7 +88,7 @@ impl<'a> Engine<'a> {
                 }
             };
             let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
-            if let Some(u) = unit { new_node.unit = Some(u.clone()); }
+            if unit.is_some() { new_node.unit = unit; }
             let _ = replace(node, new_node);
         }
 
@@ -107,7 +107,7 @@ impl<'a> Engine<'a> {
                 Err(ty) => return Err(ty.with(node.range.clone())),
             };
             let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
-            if let Some(u) = unit { new_node.unit = Some(u.clone()); }
+            if unit.is_some() { new_node.unit = unit.clone(); }
             let _ = replace(node, new_node);
         }
 
