@@ -88,9 +88,10 @@ impl<'a> Engine<'a> {
                 }
             };
             let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
-            new_node.unit = unit;
+            if let Some(u) = unit { new_node.unit = Some(u.clone()); }
             let _ = replace(node, new_node);
         }
+
         Ok(())
     }
 
