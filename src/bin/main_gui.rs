@@ -9,7 +9,7 @@
 extern crate eframe;
 extern crate calculator;
 
-use eframe::{CreationContext, egui, Frame, Theme};
+use eframe::{CreationContext, egui, Frame};
 use egui::*;
 use calculator::{
     Calculator,
@@ -35,7 +35,6 @@ const ERROR_COLOR: Color32 = Color32::RED;
 fn main() {
     let options = eframe::NativeOptions {
         initial_window_size: Some(Vec2::new(500.0, 400.0)),
-        default_theme: Theme::Dark,
         ..Default::default()
     };
     eframe::run_native(

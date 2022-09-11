@@ -123,9 +123,7 @@ pub struct Calculator {
 impl Calculator {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Calculator {
-        let currencies = std::sync::Arc::new(Currencies::new());
-        Currencies::update_currencies(currencies.clone());
-        Calculator { currencies }
+        Calculator { currencies: Currencies::new_arc() }
     }
 
     pub fn calculate(&self, input: &str, environment: &mut Environment, verbosity: Verbosity) -> Result<CalculatorResult> {

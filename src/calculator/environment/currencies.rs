@@ -12,26 +12,8 @@ use crate::{
     environment::default_currencies,
 };
 
-const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
-const CURRENCIES_FILE_NAME: &str = "currencies.txt";
-const CURRENCY_API_URL: &str = "https://api.exchangerate.host/latest?base=EUR";
-
-fn cache_folder_path() -> std::path::PathBuf {
-    dirs::cache_dir().unwrap().join(CRATE_NAME)
-}
-
-fn cache_file_path() -> std::path::PathBuf {
-    cache_folder_path().join(CURRENCIES_FILE_NAME)
-}
-
 pub fn is_currency(str: &str) -> bool {
     default_currencies::CURRENCIES.contains_key(str)
-}
-
-#[derive(serde::Deserialize, Debug)]
-struct ApiResponse {
-    base: String,
-    rates: HashMap<String, f64>,
 }
 
 pub struct Currencies {
@@ -41,18 +23,20 @@ pub struct Currencies {
 
 impl Currencies {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Currencies {
+    pub fn new_arc() -> std::sync::Arc<Currencies> {
         let (base, currencies) =
-            if let Some((base, currencies)) = Self::load_currencies() {
+            if let Some((base, currencies)) = updating::load_currencies() {
                 (Some(base), Some(currencies))
             } else {
                 (None, None)
             };
 
-        Currencies {
+        let res = std::sync::Arc::new(Currencies {
             base: Mutex::new(base),
             currencies: Mutex::new(currencies),
-        }
+        });
+        updating::update_currencies(res.clone());
+        res
     }
 
     pub fn none() -> Currencies {
@@ -61,75 +45,6 @@ impl Currencies {
             currencies: Mutex::new(None),
         }
     }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn update_currencies(currencies: std::sync::Arc<Currencies>) {
-        std::thread::spawn(move || {
-            let ApiResponse { base, rates } =
-                reqwest::blocking::get(CURRENCY_API_URL).unwrap().json().unwrap();
-
-            let mut file_content = String::new();
-            file_content += &base;
-
-            for (name, num) in &rates {
-                file_content.push('\n');
-                file_content += name;
-                file_content.push(':');
-                file_content += &num.to_string();
-            }
-
-            *currencies.base.lock().unwrap() = Some(base);
-            *currencies.currencies.lock().unwrap() = Some(rates);
-
-            if !cache_folder_path().try_exists().unwrap_or(false) {
-                let _ = std::fs::create_dir(cache_folder_path());
-            }
-
-            let file = cache_file_path();
-            let _ = std::fs::write(file, file_content);
-        });
-    }
-
-    /// FIXME: Implement this
-    #[cfg(target_arch = "wasm32")]
-    pub fn update_currencies(_: std::sync::Arc<Currencies>) {}
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn load_currencies() -> Option<(String, HashMap<String, f64>)> {
-        let file = cache_file_path();
-        if !file.try_exists().unwrap_or(false) { return None; }
-
-        let file_contents = match std::fs::read_to_string(file) {
-            Ok(contents) => contents,
-            Err(_) => return None,
-        };
-        if file_contents.is_empty() { return None; }
-
-        let mut result = HashMap::new();
-
-        let mut lines = file_contents.lines();
-        let base = lines.next().unwrap().to_owned();
-
-        for line in file_contents.lines() {
-            if line.is_empty() { continue; }
-            let parts = line.split(':').collect::<Vec<_>>();
-            if parts.len() != 2 { continue; }
-
-            let name = parts[0];
-            let num: f64 = match parts[1].parse() {
-                Ok(n) => n,
-                Err(_) => continue,
-            };
-
-            result.insert(name.to_string(), num);
-        }
-
-        Some((base, result))
-    }
-
-    /// FIXME: Implement this
-    #[cfg(target_arch = "wasm32")]
-    fn load_currencies() -> Option<(String, HashMap<String, f64>)> {}
 
     pub fn convert(&self, src_curr: &str, dst_curr: &str, n: f64, range: &Range<usize>) -> Result<f64> {
         if src_curr == dst_curr { return Ok(n); }
@@ -166,4 +81,99 @@ impl Currencies {
 
         Ok(value)
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+mod updating {
+    use super::Currencies;
+    use std::collections::HashMap;
+
+    const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
+    const CURRENCIES_FILE_NAME: &str = "currencies.txt";
+    const CURRENCY_API_URL: &str = "https://api.exchangerate.host/latest?base=EUR";
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(serde::Deserialize, Debug)]
+    struct ApiResponse {
+        base: String,
+        rates: HashMap<String, f64>,
+    }
+
+    fn cache_folder_path() -> std::path::PathBuf {
+        dirs::cache_dir().unwrap().join(CRATE_NAME)
+    }
+
+    fn cache_file_path() -> std::path::PathBuf {
+        cache_folder_path().join(CURRENCIES_FILE_NAME)
+    }
+
+    pub fn update_currencies(currencies: std::sync::Arc<Currencies>) {
+        std::thread::spawn(move || {
+            let ApiResponse { base, rates } =
+                reqwest::blocking::get(CURRENCY_API_URL).unwrap().json().unwrap();
+
+            let mut file_content = String::new();
+            file_content += &base;
+
+            for (name, num) in &rates {
+                file_content.push('\n');
+                file_content += name;
+                file_content.push(':');
+                file_content += &num.to_string();
+            }
+
+            *currencies.base.lock().unwrap() = Some(base);
+            *currencies.currencies.lock().unwrap() = Some(rates);
+
+            if !cache_folder_path().try_exists().unwrap_or(false) {
+                let _ = std::fs::create_dir(cache_folder_path());
+            }
+
+            let file = cache_file_path();
+            let _ = std::fs::write(file, file_content);
+        });
+    }
+
+    pub fn load_currencies() -> Option<(String, HashMap<String, f64>)> {
+        let file = cache_file_path();
+        if !file.try_exists().unwrap_or(false) { return None; }
+
+        let file_contents = match std::fs::read_to_string(file) {
+            Ok(contents) => contents,
+            Err(_) => return None,
+        };
+        if file_contents.is_empty() { return None; }
+
+        let mut result = HashMap::new();
+
+        let mut lines = file_contents.lines();
+        let base = lines.next().unwrap().to_owned();
+
+        for line in file_contents.lines() {
+            if line.is_empty() { continue; }
+            let parts = line.split(':').collect::<Vec<_>>();
+            if parts.len() != 2 { continue; }
+
+            let name = parts[0];
+            let num: f64 = match parts[1].parse() {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+
+            result.insert(name.to_string(), num);
+        }
+
+        Some((base, result))
+    }
+}
+
+// FIXME: Implement this for WASM
+#[cfg(target_arch = "wasm32")]
+mod updating {
+    use super::Currencies;
+    use std::collections::HashMap;
+
+    pub fn update_currencies(_: std::sync::Arc<Currencies>) {}
+
+    pub fn load_currencies() -> Option<(String, HashMap<String, f64>)> { None }
 }
