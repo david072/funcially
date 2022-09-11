@@ -118,8 +118,6 @@ jobs:
         run: echo ::set-output name=version::${GITHUB_REF:10}
       - name: Download Artifacts
         uses: actions/download-artifact@v3
-      - name: Unwrap Artifacts
-        run: mv cli-*/* . && mv gui-*/* .
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -132,11 +130,11 @@ jobs:
             ## Added
             - TODO
           files: |
-            gui-linux
-            gui-windows.exe
-            gui-macos
-            cli-linux
-            cli-windows.exe
-            cli-macos
+            gui-linux/gui-linux
+            gui-windows/gui-windows.exe
+            gui-macos/gui-macos
+            cli-linux/cli-linux
+            cli-windows/cli-windows.exe
+            cli-macos/cli-macos
           fail_on_unmatched_files: true
           draft: true
