@@ -23,7 +23,7 @@ jobs:
       - name: Run Tests
         run: cargo test
       - name: Build
-        run: cargo build --bin cli && cargo build --bin gui
+        run: cargo build --bin cli --release && cargo build --bin gui --release
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
@@ -55,7 +55,7 @@ jobs:
       - name: Run Tests
         run: cargo test
       - name: Build
-        run: cargo build --bin cli && cargo build --bin gui
+        run: cargo build --bin cli --release && cargo build --bin gui --release
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
@@ -87,7 +87,7 @@ jobs:
       - name: Run Tests
         run: cargo test
       - name: Build
-        run: cargo build --bin cli && cargo build --bin gui
+        run: cargo build --bin cli --release && cargo build --bin gui --release
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
