@@ -54,7 +54,6 @@ While it should also work on Linux, it has only been tested on Windows and Mac s
 
 ## TODO
 
-- Complex units such as `km/h`
 - Constructs such as the unit `W` being constructed from the units `V` and `A`
 
 ## Contributing

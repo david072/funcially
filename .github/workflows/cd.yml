@@ -24,17 +24,19 @@ jobs:
         run: cargo test
       - name: Build
         run: cargo build --bin cli --release && cargo build --bin gui --release
+      - name: Rename
+        run: mv ./target/release/cli ./target/release/cli-linux &&  mv ./target/release/gui ./target/release/gui-linux
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
           name: cli-linux
-          path: ./target/release/cli
+          path: ./target/release/cli-linux
           if-no-files-found: error
       - name: Upload GUI
         uses: actions/upload-artifact@v3
         with:
           name: gui-linux
-          path: ./target/release/gui
+          path: ./target/release/gui-linux
           if-no-files-found: error
 
   build-windows:
@@ -56,19 +58,21 @@ jobs:
         run: cargo test
       - name: Build
         run: cargo build --bin cli --release && cargo build --bin gui --release
+      - name: Rename
+        run: mv ./target/release/cli.exe ./target/release/cli-windows.exe &&  mv ./target/release/gui.exe ./target/release/gui-windows.exe
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
           name: cli-windows
-          path: ./target/release/cli.exe
+          path: ./target/release/cli-windows.exe
           if-no-files-found: error
       - name: Upload GUI
         uses: actions/upload-artifact@v3
         with:
           name: gui-windows
-          path: ./target/release/gui.exe
+          path: ./target/release/gui-windows.exe
           if-no-files-found: error
-          
+
   build-macos:
     name: Macos Build
     runs-on: macos-latest
@@ -88,23 +92,25 @@ jobs:
         run: cargo test
       - name: Build
         run: cargo build --bin cli --release && cargo build --bin gui --release
+      - name: Rename
+        run: mv ./target/release/cli ./target/release/cli-macos &&  mv ./target/release/gui ./target/release/gui-macos
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
           name: cli-macos
-          path: ./target/release/cli
+          path: ./target/release/cli-macos
           if-no-files-found: error
       - name: Upload GUI
         uses: actions/upload-artifact@v3
         with:
           name: gui-macos
-          path: ./target/release/gui
+          path: ./target/release/gui-macos
           if-no-files-found: error
-          
+
   release:
     name: Release
     if: github.repository == 'david072/calculator'
-    needs: [build-linux, build-windows, build-macos]
+    needs: [ build-linux, build-windows, build-macos ]
     runs-on: ubuntu-latest
     steps:
       - name: Get Release Version
