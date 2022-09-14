@@ -11,7 +11,7 @@ extern crate colored;
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
 use colored::Colorize;
-use calculator::{Calculator, Environment, Verbosity, Format, round_dp, CalculatorResultData};
+use calculator::{Calculator, Verbosity, ResultData};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -38,8 +38,7 @@ fn main() {
         None => Verbosity::None,
     };
 
-    let calculator = Calculator::new();
-    let mut environment = Environment::new();
+    let mut calculator = Calculator::new(verbosity);
 
     // TODO: Properly handle CTRL-C
     loop {
@@ -53,21 +52,16 @@ fn main() {
         match input.as_str() {
             "quit" | "exit" => break,
             _ => {
-                match calculator.calculate(&input, &mut environment, verbosity) {
-                    Ok(res) => {
-                        match res.data {
-                            CalculatorResultData::Number { result: n, unit, format } => {
-                                let unit = unit.unwrap_or_default();
-                                match format {
-                                    Format::Decimal => println!("= {}{}", round_dp(n, 10).green(), unit),
-                                    Format::Hex => println!("= {}{}", format!("{:#X}", n as i64).green(), unit),
-                                    Format::Binary => println!("= {}{}", format!("{:#b}", n as i64).green(), unit),
-                                }
-                            }
-                            CalculatorResultData::Boolean(b) => println!("=> {}", if b { "True".green() } else { "False".red() }),
-                            CalculatorResultData::Function(_, _) | CalculatorResultData::Nothing => {}
+                match calculator.calculate(&input) {
+                    Ok(res) => match res.data {
+                        ResultData::Number { result: n, unit, format } => {
+                            println!("= {}{}", format.format(n).green(), unit.unwrap_or_default());
                         }
-                    }
+                        ResultData::Boolean(b) => {
+                            println!("=> {}", if b { "True".green() } else { "False".red() });
+                        }
+                        ResultData::Function(..) | ResultData::Nothing => {}
+                    },
                     Err(error) => {
                         eprintln!("{}: {}", "Error".red(), error.error);
 

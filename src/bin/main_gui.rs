@@ -11,17 +11,7 @@ extern crate calculator;
 
 use eframe::{CreationContext, egui, Frame};
 use egui::*;
-use calculator::{
-    Calculator,
-    Environment,
-    CalculatorResultData,
-    Format,
-    round_dp,
-    Verbosity,
-    ColorSegment,
-    colorize_text,
-    get_debug_info,
-};
+use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -73,7 +63,6 @@ enum Line {
 
 struct App {
     calculator: Calculator,
-    environment: Environment,
 
     source: String,
     source_old: String,
@@ -99,8 +88,7 @@ impl App {
     fn new(cc: &CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(Visuals::dark());
         App {
-            calculator: Calculator::new(),
-            environment: Environment::new(),
+            calculator: Calculator::default(),
             source_old: String::new(),
             source: String::new(),
             lines: Vec::new(),
@@ -124,8 +112,7 @@ impl App {
         let str = str.trim();
         if str.is_empty() { return Line::Empty; }
 
-        let result = self.calculator
-            .calculate(str, &mut self.environment, Verbosity::None);
+        let result = self.calculator.calculate(str);
 
         let mut function: Option<(String, usize)> = None;
         let mut color_segments: Vec<ColorSegment> = Vec::new();
@@ -135,20 +122,15 @@ impl App {
             Ok(res) => {
                 color_segments = res.color_segments;
                 match res.data {
-                    CalculatorResultData::Number { result, unit, format } => {
-                        let unit = unit.unwrap_or_default();
-                        match format {
-                            Format::Decimal => format!("{}{}", round_dp(result, 10), unit),
-                            Format::Binary => format!("{:#b}{}", result as i64, unit),
-                            Format::Hex => format!("{:#X}{}", result as i64, unit),
-                        }
+                    ResultData::Number { result, unit, format } => {
+                        format!("{}{}", format.format(result), unit.unwrap_or_default())
                     }
-                    CalculatorResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
-                    CalculatorResultData::Function(name, arg_count) => {
+                    ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
+                    ResultData::Function(name, arg_count) => {
                         function = Some((name, arg_count));
                         String::new()
                     }
-                    CalculatorResultData::Nothing => String::new(),
+                    ResultData::Nothing => String::new(),
                 }
             }
             Err(e) => {
@@ -171,7 +153,7 @@ impl App {
         for (i, line) in self.source.lines().enumerate() {
             if i != self.input_text_paragraph { continue; }
 
-            self.debug_information = match get_debug_info(line, &self.environment, Verbosity::Ast) {
+            self.debug_information = match self.calculator.get_debug_info(line, Verbosity::Ast) {
                 Ok(info) => Some(info),
                 Err(e) => Some(format!("Error generating debug information: {}, {}..{}", e.error, e.start, e.end))
             };
@@ -185,7 +167,7 @@ impl App {
         self.source_old = self.source.clone();
         // Since we re-calculate everything from the beginning,
         // we need to start with a fresh environment
-        self.environment.clear();
+        self.calculator.reset();
 
         let functions = self.lines.iter()
             .filter(|l| {
@@ -263,7 +245,7 @@ impl App {
                             if let Some(function) = function {
                                 if function.1 != 1 { continue; }
 
-                                let env = self.environment.clone();
+                                let env = self.calculator.clone_env();
                                 let name = function.0.clone();
                                 let currencies = self.calculator.currencies.clone();
 
@@ -556,8 +538,9 @@ fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option
 
 fn help_window_row(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>, input: &str, output: &str, color_index: usize) {
     if color_segments.len() == color_index {
-        let segments = colorize_text(input);
-        color_segments.push(segments);
+        if let Some(segments) = colorize_text(input) {
+            color_segments.push(segments);
+        }
     }
 
     let color_segments = &color_segments[color_index];

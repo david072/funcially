@@ -4,15 +4,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::fmt::{Display, Formatter};
 use std::mem::{take, replace};
 use crate::{
     astgen::ast::{Operator, AstNode, AstNodeData},
     match_ast_node,
-    Format,
     environment::{Environment, Variable, units::Unit},
     common::*,
     Currencies,
 };
+
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum Format { Decimal, Hex, Binary }
+
+impl Display for Format {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Format::Decimal => write!(f, "decimal"),
+            Format::Hex => write!(f, "hex"),
+            Format::Binary => write!(f, "binary"),
+        }
+    }
+}
+
+impl Format {
+    pub fn format(&self, n: f64) -> String {
+        match self {
+            Format::Decimal => format!("{}", round_dp(n, 10)),
+            Format::Hex => format!("{:#X}", n as i64),
+            Format::Binary => format!("{:#b}", n as i64),
+        }
+    }
+}
 
 pub struct CalculationResult {
     pub result: f64,

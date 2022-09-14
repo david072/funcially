@@ -24,7 +24,7 @@ impl ColorSegment {
         Self { range, color }
     }
 
-    pub fn convert(tokens: &[Token]) -> Vec<ColorSegment> {
+    pub fn all(tokens: &[Token]) -> Vec<ColorSegment> {
         let mut result = Vec::new();
 
         let mut last_token: Option<(TokenType, Range<usize>)> = None;

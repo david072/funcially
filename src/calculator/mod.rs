@@ -17,18 +17,37 @@ mod engine;
 mod environment;
 mod color;
 
-use std::fmt::{Display, Formatter, Write};
-use rust_decimal::Decimal;
+use std::fmt::Write;
 use common::Result;
-use astgen::parser::{parse, ParserResult};
-use astgen::tokenizer::tokenize;
+use astgen::{tokenizer::tokenize, parser::{parse, ParserResult}};
 use engine::evaluate;
-pub use environment::{Environment, Variable};
 use rust_decimal::prelude::*;
+use environment::{
+    Function,
+    units::format as format_unit,
+    currencies::Currencies,
+    Environment,
+    Variable,
+};
+use crate::engine::Format;
+
 pub use color::ColorSegment;
-use environment::Function;
-use environment::units::format as format_unit;
-use environment::currencies::Currencies;
+
+macro_rules! writeln_or_err {
+    ($dst:expr) => {
+        writeln_or_err!($dst, "")
+    };
+    ($dst:expr, $str:expr) => {
+        if writeln!($dst, $str).is_err() {
+            return Ok("Error writing to string".to_string());
+        }
+    };
+    ($dst:expr, $str:expr, $($arg:expr),*) => {
+        if writeln!($dst, $str, $($arg),*).is_err() {
+            return Ok("Error writing to string".to_string());
+        }
+    };
+}
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Verbosity {
@@ -49,21 +68,8 @@ impl FromStr for Verbosity {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum Format { Decimal, Hex, Binary }
-
-impl Display for Format {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Format::Decimal => write!(f, "decimal"),
-            Format::Hex => write!(f, "hex"),
-            Format::Binary => write!(f, "binary"),
-        }
-    }
-}
-
 /// A struct containing information about the calculated result
-pub enum CalculatorResultData {
+pub enum ResultData {
     Nothing,
     Number {
         result: f64,
@@ -71,64 +77,84 @@ pub enum CalculatorResultData {
         format: Format,
     },
     Boolean(bool),
-    Function(String, usize), // name, # of arguments
+    /// `name`, `argument count`
+    Function(String, usize),
 }
 
 pub struct CalculatorResult {
-    pub data: CalculatorResultData,
+    pub data: ResultData,
     pub color_segments: Vec<ColorSegment>,
 }
 
 impl CalculatorResult {
     pub fn nothing(color_segments: Vec<ColorSegment>) -> CalculatorResult {
         Self {
-            data: CalculatorResultData::Nothing,
+            data: ResultData::Nothing,
             color_segments,
         }
     }
 
     pub fn number(result: f64, unit: Option<String>, format: Format, segments: Vec<ColorSegment>) -> Self {
         Self {
-            data: CalculatorResultData::Number { result, unit, format },
+            data: ResultData::Number { result, unit, format },
             color_segments: segments,
         }
     }
 
     pub fn bool(bool: bool, segments: Vec<ColorSegment>) -> Self {
         Self {
-            data: CalculatorResultData::Boolean(bool),
+            data: ResultData::Boolean(bool),
             color_segments: segments,
         }
     }
 
     pub fn function(name: String, arg_count: usize, segments: Vec<ColorSegment>) -> Self {
         Self {
-            data: CalculatorResultData::Function(name, arg_count),
+            data: ResultData::Function(name, arg_count),
             color_segments: segments,
         }
     }
 }
 
-pub fn colorize_text(input: &str) -> Vec<ColorSegment> {
+pub fn colorize_text(input: &str) -> Option<Vec<ColorSegment>> {
     match tokenize(input) {
-        Ok(tokens) => ColorSegment::convert(&tokens),
-        Err(_) => Vec::new()
+        Ok(tokens) => Some(ColorSegment::all(&tokens)),
+        Err(_) => None,
     }
 }
 
 pub struct Calculator {
+    environment: Environment,
     pub currencies: std::sync::Arc<Currencies>,
+    verbosity: Verbosity,
+}
+
+impl Default for Calculator {
+    fn default() -> Self {
+        Calculator {
+            environment: Environment::new(),
+            currencies: Currencies::new_arc(),
+            verbosity: Verbosity::None,
+        }
+    }
 }
 
 impl Calculator {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Calculator {
-        Calculator { currencies: Currencies::new_arc() }
+    pub fn new(verbosity: Verbosity) -> Calculator {
+        Calculator {
+            environment: Environment::new(),
+            currencies: Currencies::new_arc(),
+            verbosity,
+        }
     }
 
-    pub fn calculate(&self, input: &str, environment: &mut Environment, verbosity: Verbosity) -> Result<CalculatorResult> {
+    pub fn reset(&mut self) { self.environment.clear(); }
+
+    pub fn clone_env(&self) -> Environment { self.environment.clone() }
+
+    pub fn calculate(&mut self, input: &str) -> Result<CalculatorResult> {
         let tokens = tokenize(input)?;
-        if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
+        if matches!(self.verbosity, Verbosity::Tokens | Verbosity::Ast) {
             println!("Tokens:");
             for token in &tokens {
                 println!("{} => {:?}", token.text, token.ty);
@@ -136,18 +162,21 @@ impl Calculator {
             println!();
         }
 
-        let color_segments = ColorSegment::convert(&tokens);
+        let color_segments = ColorSegment::all(&tokens);
 
-        match parse(&tokens, environment)? {
+        match parse(&tokens, &self.environment)? {
             ParserResult::Calculation(ast) => {
-                if verbosity == Verbosity::Ast {
+                if self.verbosity == Verbosity::Ast {
                     println!("AST:");
                     for node in &ast { println!("{}", node); }
                     println!();
                 }
 
-                let result = evaluate(ast, environment, &self.currencies)?;
-                environment.set_variable("ans", Variable(result.result, result.unit.clone())).unwrap();
+                let result = evaluate(ast, &self.environment, &self.currencies)?;
+                self.environment.set_variable(
+                    "ans",
+                    Variable(result.result, result.unit.clone()),
+                ).unwrap();
 
                 let unit = result.unit.as_ref().map(|unit| {
                     if result.is_long_unit {
@@ -159,7 +188,7 @@ impl Calculator {
                 Ok(CalculatorResult::number(result.result, unit, result.format, color_segments))
             }
             ParserResult::EqualityCheck(lhs, rhs) => {
-                if verbosity == Verbosity::Ast {
+                if self.verbosity == Verbosity::Ast {
                     println!("Equality check:\nLHS:");
                     for node in &lhs { println!("{}", node); }
                     println!("RHS:");
@@ -167,20 +196,20 @@ impl Calculator {
                     println!();
                 }
 
-                let lhs_res = evaluate(lhs, environment, &self.currencies)?.result;
-                let rhs_res = evaluate(rhs, environment, &self.currencies)?.result;
+                let lhs_res = evaluate(lhs, &self.environment, &self.currencies)?.result;
+                let rhs_res = evaluate(rhs, &self.environment, &self.currencies)?.result;
 
                 Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
-                        let res = evaluate(ast, environment, &self.currencies)?;
-                        environment.set_variable(&name, Variable(res.result, res.unit)).unwrap();
+                        let res = evaluate(ast, &self.environment, &self.currencies)?;
+                        self.environment.set_variable(&name, Variable(res.result, res.unit)).unwrap();
                         Ok(CalculatorResult::nothing(color_segments))
                     }
                     None => {
-                        environment.remove_variable(&name).unwrap();
+                        self.environment.remove_variable(&name).unwrap();
                         Ok(CalculatorResult::nothing(color_segments))
                     }
                 }
@@ -189,92 +218,70 @@ impl Calculator {
                 match ast {
                     Some(ast) => {
                         let arg_count = args.len();
-                        environment.set_function(&name, Function(args, ast)).unwrap();
+                        self.environment.set_function(&name, Function(args, ast)).unwrap();
                         Ok(CalculatorResult::function(name, arg_count, color_segments))
                     }
                     None => {
-                        environment.remove_function(&name).unwrap();
+                        self.environment.remove_function(&name).unwrap();
                         Ok(CalculatorResult::nothing(color_segments))
                     }
                 }
             }
         }
     }
-}
 
-pub fn round_dp(n: f64, dp: u32) -> String {
-    if n.is_nan() { return "NaN".to_owned(); }
-    if !n.is_finite() { return "infinity".to_owned(); }
-    Decimal::from_f64(n).unwrap().round_dp(dp).to_string()
-}
+    pub fn get_debug_info(&self, input: &str, verbosity: Verbosity) -> Result<String> {
+        let mut output = String::new();
 
-macro_rules! writeln_or_err {
-    ($dst:expr) => {
-        writeln_or_err!($dst, "")
-    };
-    ($dst:expr, $str:expr) => {
-        if writeln!($dst, $str).is_err() {
-            return Ok("Error writing to string".to_string());
+        let tokens = tokenize(input)?;
+        if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
+            writeln_or_err!(&mut output, "Tokens:");
+            for token in &tokens {
+                writeln_or_err!(&mut output, "{} => {:?}", token.text, token.ty);
+            }
+            writeln_or_err!(&mut output);
         }
-    };
-    ($dst:expr, $str:expr, $($arg:expr),*) => {
-        if writeln!($dst, $str, $($arg),*).is_err() {
-            return Ok("Error writing to string".to_string());
-        }
-    };
-}
 
-pub fn get_debug_info(input: &str, env: &Environment, verbosity: Verbosity) -> Result<String> {
-    let mut output = String::new();
-
-    let tokens = tokenize(input)?;
-    if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
-        writeln_or_err!(&mut output, "Tokens:");
-        for token in &tokens {
-            writeln_or_err!(&mut output, "{} => {:?}", token.text, token.ty);
-        }
-        writeln_or_err!(&mut output);
-    }
-
-    if verbosity == Verbosity::Ast {
-        match parse(&tokens, env) {
-            Ok(parser_result) => match parser_result {
-                ParserResult::Calculation(ast) => {
-                    writeln_or_err!(&mut output, "AST:");
-                    for node in &ast { writeln_or_err!(&mut output, "{}", node); }
-                    writeln_or_err!(&mut output);
-                }
-                ParserResult::EqualityCheck(lhs, rhs) => {
-                    writeln_or_err!(&mut output, "Equality check:\nLHS:");
-                    for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
-                    writeln_or_err!(&mut output, "RHS:");
-                    for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
-                    writeln_or_err!(&mut output);
-                }
-                ParserResult::VariableDefinition(name, ast) => {
-                    if let Some(ast) = ast {
-                        writeln_or_err!(&mut output, "Variable Definition: {}\nAST:", name);
+        if verbosity == Verbosity::Ast {
+            match parse(&tokens, &self.environment) {
+                Ok(parser_result) => match parser_result {
+                    ParserResult::Calculation(ast) => {
+                        writeln_or_err!(&mut output, "AST:");
                         for node in &ast { writeln_or_err!(&mut output, "{}", node); }
-                    } else {
-                        writeln_or_err!(&mut output, "Variable removal: {}", name);
+                        writeln_or_err!(&mut output);
+                    }
+                    ParserResult::EqualityCheck(lhs, rhs) => {
+                        writeln_or_err!(&mut output, "Equality check:\nLHS:");
+                        for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
+                        writeln_or_err!(&mut output, "RHS:");
+                        for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
+                        writeln_or_err!(&mut output);
+                    }
+                    ParserResult::VariableDefinition(name, ast) => {
+                        if let Some(ast) = ast {
+                            writeln_or_err!(&mut output, "Variable Definition: {}\nAST:", name);
+                            for node in &ast { writeln_or_err!(&mut output, "{}", node); }
+                        } else {
+                            writeln_or_err!(&mut output, "Variable removal: {}", name);
+                        }
+                    }
+                    ParserResult::FunctionDefinition { name, args, ast } => {
+                        if let Some(ast) = ast {
+                            writeln_or_err!(&mut output, "Function Definition: {}", name);
+                            writeln_or_err!(&mut output, "Arguments: {:?}\nAST:", args);
+                            for node in &ast { writeln_or_err!(&mut output, "{}", node); }
+                        } else {
+                            writeln_or_err!(&mut output, "Function removal: {}", name);
+                        }
                     }
                 }
-                ParserResult::FunctionDefinition { name, args, ast } => {
-                    if let Some(ast) = ast {
-                        writeln_or_err!(&mut output, "Function Definition: {}", name);
-                        writeln_or_err!(&mut output, "Arguments: {:?}\nAST:", args);
-                        for node in &ast { writeln_or_err!(&mut output, "{}", node); }
-                    } else {
-                        writeln_or_err!(&mut output, "Function removal: {}", name);
-                    }
+                Err(e) => {
+                    writeln_or_err!(&mut output, "Error while parsing: {} at {}..{}", e.error, e.start, e.end);
+                    return Ok(output);
                 }
             }
-            Err(e) => {
-                writeln_or_err!(&mut output, "Error while parsing: {} at {}..{}", e.error, e.start, e.end);
-                return Ok(output);
-            }
         }
-    }
 
-    Ok(output)
+        Ok(output)
+    }
 }
