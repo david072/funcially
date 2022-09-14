@@ -84,7 +84,7 @@ pub struct Token {
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>> {
-    let mut tokenizer = Tokenizer::new(input.as_bytes());
+    let mut tokenizer = Tokenizer::new(input);
     let mut result = Vec::new();
 
     while let Some(token) = tokenizer.next()? {
@@ -108,14 +108,16 @@ fn any_of(chars: &str) -> impl Fn(u8) -> bool + '_ {
 }
 
 struct Tokenizer<'a> {
+    source: &'a str,
     string: &'a [u8],
     index: usize,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(string: &'a [u8]) -> Tokenizer {
+    pub fn new(source: &'a str) -> Tokenizer {
         Tokenizer {
-            string,
+            source,
+            string: source.as_bytes(),
             index: 0,
         }
     }
@@ -155,9 +157,17 @@ impl<'a> Tokenizer<'a> {
                     range: start..std::cmp::max(0, end),
                 }))
             }
-            None => Err(ErrorType::InvalidCharacter(
-                String::from_utf8(self.string[start..end].to_owned()).unwrap_or_default()
-            ).with(start..end)),
+            None => {
+                // Move end to a char boundary
+                let mut end = end;
+                while !self.source.is_char_boundary(end) {
+                    end += 1;
+                }
+
+                Err(ErrorType::InvalidCharacter(
+                    String::from_utf8(self.string[start..end].to_owned()).unwrap_or_default()
+                ).with(start..end))
+            },
         }
     }
 
