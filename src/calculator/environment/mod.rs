@@ -27,7 +27,7 @@ const VAR_E: &Variable = &Variable(E, None);
 const VAR_TAU: &Variable = &Variable(TAU, None);
 
 #[derive(Debug, Clone)]
-pub struct Function(pub Vec<String>, pub Vec<AstNode>);
+pub struct Function(pub(crate) Vec<String>, pub(crate) Vec<AstNode>);
 
 const STANDARD_FUNCTIONS: [(&str, usize); 14] = [
     ("sin", 1), ("asin", 1),
@@ -209,27 +209,30 @@ impl Environment {
     }
 
     pub fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
-        for (name, Function(function_args, ast)) in &self.functions {
+        for (name, func) in &self.functions {
             if name == f {
-                let mut temp_env = Environment::new();
-                temp_env.ans = self.ans.clone();
-                temp_env.variables = self.variables.clone();
-
-                for i in 0..args.len() {
-                    temp_env.set_variable(&function_args[i], Variable(args[i], None))?;
-                }
-
-                let value = evaluate(ast.clone(), &temp_env, currencies);
-                for name in function_args { temp_env.remove_variable(name)?; }
-
-                return match value {
-                    Ok(res) => Ok((res.result, res.unit)),
-                    Err(e) => Err(e.error)
-                };
+                return self.resolve_specific_function(func, args, currencies);
             }
         }
 
         Err(ErrorType::UnknownFunction)
+    }
+
+    pub fn resolve_specific_function(&self, f: &Function, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
+        let mut temp_env = Environment::new();
+        temp_env.ans = self.ans.clone();
+        temp_env.variables = self.variables.clone();
+
+        for i in 0..args.len() {
+            temp_env.set_variable(&f.0[i], Variable(args[i], None))?;
+        }
+
+        let value = evaluate(f.1.clone(), &temp_env, currencies);
+
+        match value {
+            Ok(res) => Ok((res.result, res.unit)),
+            Err(e) => Err(e.error)
+        }
     }
 
     pub fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {

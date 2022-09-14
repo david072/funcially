@@ -11,7 +11,7 @@ extern crate calculator;
 
 use eframe::{CreationContext, egui, Frame};
 use egui::*;
-use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity};
+use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -55,7 +55,10 @@ enum Line {
     Line {
         output_text: String,
         color_segments: Vec<ColorSegment>,
-        function: Option<(String, usize)>,
+        /// `name`, `argument count`, `Function`.
+        ///
+        /// Store the function to be able to show redefinitions as well.
+        function: Option<(String, usize, Function)>,
         is_error: bool,
         show_in_plot: bool,
     },
@@ -114,7 +117,7 @@ impl App {
 
         let result = self.calculator.calculate(str);
 
-        let mut function: Option<(String, usize)> = None;
+        let mut function: Option<(String, usize, Function)> = None;
         let mut color_segments: Vec<ColorSegment> = Vec::new();
         let mut is_error: bool = false;
 
@@ -126,8 +129,8 @@ impl App {
                         format!("{}{}", format.format(result), unit.unwrap_or_default())
                     }
                     ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
-                    ResultData::Function(name, arg_count) => {
-                        function = Some((name, arg_count));
+                    ResultData::Function { name, arg_count, function: f } => {
+                        function = Some((name, arg_count, f));
                         String::new()
                     }
                     ResultData::Nothing => String::new(),
@@ -177,7 +180,7 @@ impl App {
                 }
             })
             .map(|l| {
-                if let Line::Line { function: Some((name, _)), .. } = l {
+                if let Line::Line { function: Some((name, ..)), .. } = l {
                     name.clone()
                 } else { unreachable!() }
             })
@@ -202,7 +205,7 @@ impl App {
                     } else { &line };
 
                     let mut res = self.calculate(actual_line);
-                    if let Line::Line { function: Some((name, _)), show_in_plot, .. } = &mut res {
+                    if let Line::Line { function: Some((name, ..)), show_in_plot, .. } = &mut res {
                         if functions.contains(name) {
                             *show_in_plot = true;
                         }
@@ -222,7 +225,7 @@ impl App {
             } else { &line };
 
             let mut res = self.calculate(actual_line);
-            if let Line::Line { function: Some((name, _)), show_in_plot, .. } = &mut res {
+            if let Line::Line { function: Some((name, ..)), show_in_plot, .. } = &mut res {
                 if functions.contains(name) {
                     *show_in_plot = true;
                 }
@@ -246,12 +249,12 @@ impl App {
                                 if function.1 != 1 { continue; }
 
                                 let env = self.calculator.clone_env();
-                                let name = function.0.clone();
+                                let f = function.2.clone();
                                 let currencies = self.calculator.currencies.clone();
 
                                 plot_ui.line(plot::Line::new(
                                     plot::PlotPoints::from_explicit_callback(move |x| {
-                                        let res = env.resolve_custom_function(&name, &[x], &currencies).unwrap();
+                                        let res = env.resolve_specific_function(&f, &[x], &currencies).unwrap();
                                         res.0
                                     }, .., 512)
                                 ).name(&function.0));
@@ -422,7 +425,7 @@ impl eframe::App for App {
                                 ..
                             } = line {
                                 if !*is_error {
-                                    if let Some((_, arg_count)) = function {
+                                    if let Some((_, arg_count, _)) = function {
                                         if *arg_count == 1 {
                                             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                                                 ui.checkbox(show_in_plot, "Show in Plot");

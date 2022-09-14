@@ -23,7 +23,6 @@ use astgen::{tokenizer::tokenize, parser::{parse, ParserResult}};
 use engine::evaluate;
 use rust_decimal::prelude::*;
 use environment::{
-    Function,
     units::format as format_unit,
     currencies::Currencies,
     Environment,
@@ -32,6 +31,7 @@ use environment::{
 use crate::engine::Format;
 
 pub use color::ColorSegment;
+pub use environment::Function;
 
 macro_rules! writeln_or_err {
     ($dst:expr) => {
@@ -78,7 +78,11 @@ pub enum ResultData {
     },
     Boolean(bool),
     /// `name`, `argument count`
-    Function(String, usize),
+    Function {
+        name: String,
+        arg_count: usize,
+        function: Function,
+    },
 }
 
 pub struct CalculatorResult {
@@ -108,9 +112,9 @@ impl CalculatorResult {
         }
     }
 
-    pub fn function(name: String, arg_count: usize, segments: Vec<ColorSegment>) -> Self {
+    pub fn function(name: String, arg_count: usize, function: Function, segments: Vec<ColorSegment>) -> Self {
         Self {
-            data: ResultData::Function(name, arg_count),
+            data: ResultData::Function { name, arg_count, function },
             color_segments: segments,
         }
     }
@@ -218,8 +222,9 @@ impl Calculator {
                 match ast {
                     Some(ast) => {
                         let arg_count = args.len();
-                        self.environment.set_function(&name, Function(args, ast)).unwrap();
-                        Ok(CalculatorResult::function(name, arg_count, color_segments))
+                        let function = Function(args, ast);
+                        self.environment.set_function(&name, function.clone()).unwrap();
+                        Ok(CalculatorResult::function(name, arg_count, function, color_segments))
                     }
                     None => {
                         self.environment.remove_function(&name).unwrap();
