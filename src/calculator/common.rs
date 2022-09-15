@@ -115,7 +115,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub fn round_dp(n: f64, dp: u32) -> String {
     if n.is_nan() { return "NaN".to_owned(); }
     if !n.is_finite() { return "infinity".to_owned(); }
-    Decimal::from_f64(n).unwrap().round_dp(dp).to_string()
+    match Decimal::from_f64(n) {
+        Some(decimal) => decimal.round_dp(dp).to_string(),
+        None => n.to_string(),
+    }
 }
 
 pub mod math {
