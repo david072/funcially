@@ -20,7 +20,7 @@ mod color;
 use std::fmt::Write;
 use common::Result;
 use astgen::{tokenizer::tokenize, parser::{parse, ParserResult}};
-use engine::evaluate;
+use engine::Engine;
 use rust_decimal::prelude::*;
 use environment::{
     units::format as format_unit,
@@ -176,7 +176,7 @@ impl Calculator {
                     println!();
                 }
 
-                let result = evaluate(ast, &self.environment, &self.currencies)?;
+                let result = Engine::evaluate(ast, &self.environment, &self.currencies)?;
                 self.environment.set_variable(
                     "ans",
                     Variable(result.result, result.unit.clone()),
@@ -200,15 +200,15 @@ impl Calculator {
                     println!();
                 }
 
-                let lhs_res = evaluate(lhs, &self.environment, &self.currencies)?.result;
-                let rhs_res = evaluate(rhs, &self.environment, &self.currencies)?.result;
+                let lhs_res = Engine::evaluate(lhs, &self.environment, &self.currencies)?.result;
+                let rhs_res = Engine::evaluate(rhs, &self.environment, &self.currencies)?.result;
 
                 Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
-                        let res = evaluate(ast, &self.environment, &self.currencies)?;
+                        let res = Engine::evaluate(ast, &self.environment, &self.currencies)?;
                         self.environment.set_variable(&name, Variable(res.result, res.unit)).unwrap();
                         Ok(CalculatorResult::nothing(color_segments))
                     }

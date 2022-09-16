@@ -30,7 +30,7 @@ impl Display for Format {
 impl Format {
     pub fn format(&self, n: f64) -> String {
         match self {
-            Format::Decimal => format!("{}", round_dp(n, 10)),
+            Format::Decimal => round_dp(n, 10),
             Format::Hex => format!("{:#X}", n as i64),
             Format::Binary => format!("{:#b}", n as i64),
         }
@@ -50,39 +50,40 @@ impl CalculationResult {
     }
 }
 
-pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<CalculationResult> {
-    if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
-        ast[0].apply_modifiers()?;
-        let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-        let unit = take(&mut ast[0].unit);
-        return Ok(CalculationResult::new(result, unit, true, ast[0].format));
-    }
 
-    let mut engine = Engine::new(&mut ast, env, currencies);
-    engine.eval_functions()?;
-    engine.eval_variables()?;
-    engine.eval_groups()?;
-    engine.eval_operators(&[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
-    engine.eval_operators(&[Operator::Multiply, Operator::Divide])?;
-    engine.eval_operators(&[Operator::Plus, Operator::Minus])?;
-    engine.eval_operators(&[Operator::Of, Operator::In])?;
-
-    ast[0].apply_modifiers()?;
-    let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-    let format = ast[0].format;
-    if format != Format::Decimal { result = result.trunc(); }
-
-    Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
-}
-
-struct Engine<'a> {
+pub struct Engine<'a> {
     ast: &'a mut Vec<AstNode>,
     env: &'a Environment,
     currencies: &'a Currencies,
 }
 
 impl<'a> Engine<'a> {
-    pub fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {
+    pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<CalculationResult> {
+        if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
+            ast[0].apply_modifiers()?;
+            let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
+            let unit = take(&mut ast[0].unit);
+            return Ok(CalculationResult::new(result, unit, true, ast[0].format));
+        }
+
+        let mut engine = Engine::new(&mut ast, env, currencies);
+        engine.eval_functions()?;
+        engine.eval_variables()?;
+        engine.eval_groups()?;
+        engine.eval_operators(&[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
+        engine.eval_operators(&[Operator::Multiply, Operator::Divide])?;
+        engine.eval_operators(&[Operator::Plus, Operator::Minus])?;
+        engine.eval_operators(&[Operator::Of, Operator::In])?;
+
+        ast[0].apply_modifiers()?;
+        let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
+        let format = ast[0].format;
+        if format != Format::Decimal { result = result.trunc(); }
+
+        Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
+    }
+
+    fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {
         Engine { ast, env, currencies }
     }
 
@@ -95,7 +96,7 @@ impl<'a> Engine<'a> {
 
             let mut args = Vec::new();
             for ast in arg_asts {
-                args.push(evaluate(ast.clone(), self.env, self.currencies)?.result);
+                args.push(Self::evaluate(ast.clone(), self.env, self.currencies)?.result);
             }
             let (result, unit) = match self.env.resolve_function(func_name, &args) {
                 Ok(res) => (res, None),
@@ -144,7 +145,7 @@ impl<'a> Engine<'a> {
                 _ => continue,
             };
 
-            let group_result = evaluate(group_ast.clone(), self.env, self.currencies)?;
+            let group_result = Self::evaluate(group_ast.clone(), self.env, self.currencies)?;
             // Construct Literal node with the evaluated result
             let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
             let _ = replace(node, new_node);
@@ -189,7 +190,7 @@ mod tests {
 
     macro_rules! eval {
         ($str:expr) => {
-            evaluate(
+            Engine::evaluate(
                 if let ParserResult::Calculation(ast) = parse(&tokenize($str)?, &Environment::new())? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Environment::new(),
