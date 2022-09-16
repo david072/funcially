@@ -167,7 +167,7 @@ impl<'a> Tokenizer<'a> {
                 Err(ErrorType::InvalidCharacter(
                     String::from_utf8(self.string[start..end].to_owned()).unwrap_or_default()
                 ).with(start..end))
-            },
+            }
         }
     }
 
@@ -227,8 +227,7 @@ impl<'a> Tokenizer<'a> {
                 Some(TokenType::DecimalLiteral)
             }
             // number sign
-            b'+' | b'-' if self.index < self.string.len() &&
-                matches!(self.string[self.index], b'0'..=b'9' | b'.') => {
+            b'+' | b'-' if matches!(self.string.get(self.index), Some(b'0'..=b'9' | b'.')) => {
                 self.index += 1;
                 while self.accept(any_of(NUMBERS)) {}
                 self.accept(any_of("."));
@@ -248,7 +247,7 @@ impl<'a> Tokenizer<'a> {
             b')' => Some(TokenType::CloseBracket),
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),
-            b':' if self.index < self.string.len() && self.string[self.index] == b'=' => {
+            b':' if matches!(self.string.get(self.index), Some(b'=')) => {
                 self.index += 1;
                 Some(TokenType::DefinitionSign)
             }
