@@ -28,7 +28,7 @@ pub enum Operator {
     In,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AstNodeData {
     Literal(f64),
     Operator(Operator),
@@ -36,20 +36,6 @@ pub enum AstNodeData {
     VariableReference(String),
     FunctionInvocation(String, Vec<Vec<AstNode>>),
     Unit(Unit),
-}
-
-impl Debug for AstNodeData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "AstNodeData::")?;
-        match self {
-            AstNodeData::Literal(n) => write!(f, "Literal({:?})", n),
-            AstNodeData::Operator(op) => write!(f, "Operator({:?})", op),
-            AstNodeData::Group(ast) => write!(f, "Group({:?})", ast),
-            AstNodeData::VariableReference(name) => write!(f, "VariableReference({})", name),
-            AstNodeData::FunctionInvocation(name, args) => write!(f, "FunctionInvocation({}, {:?})", name, args),
-            AstNodeData::Unit(name) => write!(f, "Unit({})", name),
-        }
-    }
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
