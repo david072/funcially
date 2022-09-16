@@ -40,6 +40,8 @@ pub enum ErrorType {
     UnknownIdentifier,
     #[error("Unknown Variable")]
     UnknownVariable,
+    #[error("Missing equals sign")]
+    MissingEqualsSign,
     #[error("Equals signs are only allowed at the top level")]
     UnexpectedEqualsSign,
     #[error("Second equals sign")]
@@ -74,6 +76,10 @@ pub enum ErrorType {
     ReservedFunction,
     #[error("Argument name already given")]
     DuplicateArgument,
+    #[error("Unexpected question mark")]
+    UnexpectedQuestionMark,
+    #[error("A question mark is not allowed here")]
+    QuestionMarkNotAllowed,
 
     // engine
     #[error("Cannot divide by zero")]
@@ -88,6 +94,10 @@ pub enum ErrorType {
     UnknownConversion(String, String),
     #[error("Not a number")]
     NotANumber,
+    #[error("Powers can't be used around the unknown variable")]
+    ForbiddenExponentiation,
+    #[error("Expected unknown variable (?)")]
+    ExpectedQuestionMark,
     /// This should never happen
     #[error("")]
     InvalidAst,

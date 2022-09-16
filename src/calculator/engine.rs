@@ -83,6 +83,121 @@ impl<'a> Engine<'a> {
         Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
     }
 
+    // TODO: - Units
+    //       - Formats
+    /// Solves a linear equation
+    pub fn solve(
+        lhs: Vec<AstNode>,
+        rhs: Vec<AstNode>,
+        is_question_mark_in_lhs: bool,
+        env: &Environment,
+        currencies: &Currencies,
+    ) -> Result<CalculationResult> {
+        let (unknown_side, result_side) = if is_question_mark_in_lhs {
+            (lhs, rhs)
+        } else {
+            (rhs, lhs)
+        };
+        let target_result = Self::evaluate(result_side, env, currencies)?;
+        let target_value = target_result.result;
+
+        if unknown_side.len() == 1 {
+            return Ok(target_result);
+        }
+
+        /// Validates that the question mark or its enclosing groups are not surrounded by a
+        /// power sign (^).
+        ///
+        /// **Returns:** An error if it was surrounded by a power sign or a bool indicating whether a
+        /// question mark was found.
+        fn validate_unknown_side(ast: &[AstNode], is_surrounded_by_exponentiation: bool) -> Result<bool> {
+            for i in 0..ast.len() {
+                if !matches!(ast[i].data, AstNodeData::QuestionMark | AstNodeData::Group(_)) {
+                    continue;
+                }
+
+                fn map_fn(node: &AstNode) -> bool {
+                    matches!(node.data, AstNodeData::Operator(Operator::Exponentiation))
+                }
+
+                let prev_node = ast.get(i.saturating_sub(1)).map(map_fn);
+                let next_node = ast.get(i + 1).map(map_fn);
+
+                let has_power_sign = prev_node.unwrap_or(false) || next_node.unwrap_or(false);
+
+                match ast[i].data {
+                    AstNodeData::QuestionMark => {
+                        if has_power_sign || is_surrounded_by_exponentiation {
+                            // TODO: Better error range (power sign)
+                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
+                        }
+
+                        return Ok(true);
+                    }
+                    AstNodeData::Group(ref ast) => {
+                        if validate_unknown_side(ast, has_power_sign || is_surrounded_by_exponentiation)? {
+                            return Ok(true);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            Ok(false)
+        }
+
+        fn replace_question_mark(mut ast: Vec<AstNode>, value: f64) -> Vec<AstNode> {
+            fn replace(ast: &mut [AstNode], value: f64) {
+                for i in 0..ast.len() {
+                    match ast[i].data {
+                        AstNodeData::QuestionMark => {
+                            ast[i] = AstNode::from(&ast[i], AstNodeData::Literal(value));
+                            return;
+                        }
+                        AstNodeData::Group(ref mut ast) => replace(ast, value),
+                        _ => {}
+                    }
+                }
+            }
+
+            replace(&mut ast, value);
+            ast
+        }
+
+        if !validate_unknown_side(&unknown_side, false)? {
+            return Err(ErrorType::ExpectedQuestionMark.with(
+                unknown_side.first().unwrap().range.start..unknown_side.last().unwrap().range.end
+            ));
+        }
+
+        // NOTE: General equation (if ? is a variable): f(?) = a
+        //       => f(?) - a = 0    => y = f(?) - a
+        //       With this, the result value of ? is the x-coordinate of the point where this graph
+        //       intersects the x-axis.
+
+        // Get two points from the linear function
+        const X1: f64 = 1.0;
+        const X2: f64 = 2.0;
+
+        let first_ast = replace_question_mark(unknown_side.clone(), X1);
+        let y1 = Self::evaluate(first_ast, env, currencies)?.result - target_value;
+
+        let second_ast = replace_question_mark(unknown_side, X2);
+        let y2 = Self::evaluate(second_ast, env, currencies)?.result - target_value;
+
+        // Calculate the variables for formula y = mx + c
+        let m = (y2 - y1) / (X2 - X1);
+        let c = y1 - m * X1;
+
+        // y = mx + c           | -c
+        // y - c = mx           | / m
+        // (y - c) / m = x      with y = 0
+        // x = -c / m
+        let result = -c / m;
+
+        Ok(CalculationResult::new(result, None, false, Format::Decimal))
+    }
+
     fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {
         Engine { ast, env, currencies }
     }

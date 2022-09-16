@@ -73,7 +73,7 @@ impl ColorSegment {
     fn from(token: &Token) -> Self {
         let color = match token.ty {
             Whitespace => Color32::TRANSPARENT,
-            DecimalLiteral | HexLiteral | BinaryLiteral => Color32::KHAKI,
+            DecimalLiteral | HexLiteral | BinaryLiteral | QuestionMark => Color32::KHAKI,
             OpenBracket | CloseBracket | ExclamationMark | PercentSign |
             Comma | EqualsSign | DefinitionSign => Color32::WHITE,
             Plus | Minus | Multiply | Divide | Exponentiation | BitwiseAnd | BitwiseOr | Of | In => Color32::GOLD,

@@ -61,15 +61,21 @@ pub enum ParserResult {
         args: Vec<String>,
         ast: Option<Vec<AstNode>>,
     },
+    Equation {
+        lhs: Vec<AstNode>,
+        rhs: Vec<AstNode>,
+        is_question_mark_in_lhs: bool,
+    },
 }
 
 impl std::fmt::Display for ParserResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParserResult::Calculation(_) => write!(f, "Calculation"),
-            ParserResult::EqualityCheck(_, _) => write!(f, "Equality Check"),
-            ParserResult::VariableDefinition(_, _) => write!(f, "Variable Definition"),
-            ParserResult::FunctionDefinition { name: _, args: _, ast: _ } => write!(f, "Function Definition"),
+            ParserResult::EqualityCheck(..) => write!(f, "Equality Check"),
+            ParserResult::VariableDefinition(..) => write!(f, "Variable Definition"),
+            ParserResult::FunctionDefinition { .. } => write!(f, "Function Definition"),
+            ParserResult::Equation { .. } => write!(f, "Equation"),
         }
     }
 }
@@ -210,11 +216,16 @@ struct Parser<'a> {
     tokens: &'a [Token],
     nesting_level: usize,
 
+    equals_sign_index: Option<usize>,
+
+    question_mark_found: bool,
+    allow_question_mark: bool,
+    is_question_mark_in_lhs: bool,
+
     index: usize,
     all_tokens_tys: Vec<TokenType>,
     last_token_ty: Option<TokenType>,
     next_token_modifiers: Vec<AstNodeModifier>,
-    equals_sign_index: Option<usize>,
     result: Vec<AstNode>,
 }
 
@@ -225,18 +236,23 @@ impl<'a> Parser<'a> {
             extra_allowed_variables: None,
             tokens,
             nesting_level,
+            equals_sign_index: None,
+            question_mark_found: false,
+            allow_question_mark: true,
+            is_question_mark_in_lhs: true,
             index: 0,
             all_tokens_tys: TokenType::iter().collect(),
             last_token_ty: None,
             next_token_modifiers: Vec::new(),
-            equals_sign_index: None,
             result: Vec::new(),
         }
     }
 
-    pub fn from(other: &Parser<'a>, tokens: &'a [Token]) -> Parser<'a> {
+    pub fn from(other: &Parser<'a>, tokens: &'a [Token], allow_question_mark: bool) -> Parser<'a> {
         Parser {
             extra_allowed_variables: other.extra_allowed_variables,
+            question_mark_found: other.question_mark_found,
+            allow_question_mark,
             ..Parser::new(tokens, other.nesting_level + 1, other.env)
         }
     }
@@ -251,8 +267,22 @@ impl<'a> Parser<'a> {
         let result = mem::take(&mut self.result);
         if let Some(index) = self.equals_sign_index {
             let (lhs, rhs) = result.split_at(index);
-            Ok(ParserResult::EqualityCheck(lhs.to_vec(), rhs.to_vec()))
+
+            if self.question_mark_found {
+                Ok(ParserResult::Equation {
+                    lhs: lhs.to_vec(),
+                    rhs: rhs.to_vec(),
+                    is_question_mark_in_lhs: self.is_question_mark_in_lhs,
+                })
+            } else {
+                Ok(ParserResult::EqualityCheck(lhs.to_vec(), rhs.to_vec()))
+            }
         } else {
+            if self.nesting_level == 0 && self.question_mark_found {
+                let range = &self.tokens.last().unwrap().range;
+                error!(MissingEqualsSign(range.end - 1 .. range.end));
+            }
+
             Ok(ParserResult::Calculation(result))
         }
     }
@@ -370,6 +400,17 @@ impl<'a> Parser<'a> {
             TokenType::Of => ok_operator!(Of),
             TokenType::In => ok_operator!(In),
             TokenType::DefinitionSign => error!(UnexpectedDefinition(token.range)),
+            TokenType::QuestionMark => {
+                if self.question_mark_found {
+                    error!(UnexpectedQuestionMark(token.range));
+                } else if !self.allow_question_mark {
+                    error!(QuestionMarkNotAllowed(token.range));
+                }
+
+                self.question_mark_found = true;
+                self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
+                Ok(AstNodeData::QuestionMark)
+            }
             _ => unreachable!(),
         }?;
 
@@ -412,10 +453,17 @@ impl<'a> Parser<'a> {
         }
 
         let group_tokens = &self.tokens[group_start..group_end - 1];
-        let group_ast = match Parser::from(self, group_tokens).parse()? {
+
+        let mut parser = Parser::from(self, group_tokens, self.allow_question_mark);
+        let group_ast = match parser.parse()? {
             ParserResult::Calculation(ast) => ast,
             _ => unreachable!(),
         };
+
+        self.question_mark_found = parser.question_mark_found;
+        if parser.question_mark_found {
+            self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
+        }
 
         self.push_new_node(AstNodeData::Group(group_ast), group_range);
         Ok(())
@@ -571,7 +619,7 @@ impl<'a> Parser<'a> {
                     }
                     let argument = &self.tokens[argument_start..self.index - 1];
 
-                    match Parser::from(self, argument).parse()? {
+                    match Parser::from(self, argument, false).parse()? {
                         ParserResult::Calculation(ast) => arguments.push(ast),
                         res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
                     }
@@ -582,7 +630,7 @@ impl<'a> Parser<'a> {
                     if nesting_level == 0 {
                         if argument_start != self.index - 1 {
                             let argument = &self.tokens[argument_start..self.index - 1];
-                            match Parser::from(self, argument).parse()? {
+                            match Parser::from(self, argument, false).parse()? {
                                 ParserResult::Calculation(ast) => arguments.push(ast),
                                 res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
                             }

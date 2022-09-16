@@ -232,6 +232,25 @@ impl Calculator {
                     }
                 }
             }
+            ParserResult::Equation { lhs, rhs, is_question_mark_in_lhs } => {
+                if self.verbosity == Verbosity::Ast {
+                    println!("Equation:");
+                    println!("QuestionMark is in {}\nLHS:", if is_question_mark_in_lhs { "LHS" } else { "RHS" });
+                    for node in &lhs { println!("{}", node); }
+                    println!("RHS:");
+                    for node in &rhs { println!("{}", node); }
+                    println!();
+                }
+
+                let result = Engine::solve(
+                    lhs,
+                    rhs,
+                    is_question_mark_in_lhs,
+                    &self.environment,
+                    &self.currencies,
+                )?;
+                Ok(CalculatorResult::number(result.result, None, Format::Decimal, color_segments))
+            }
         }
     }
 
@@ -278,6 +297,14 @@ impl Calculator {
                         } else {
                             writeln_or_err!(&mut output, "Function removal: {}", name);
                         }
+                    }
+                    ParserResult::Equation { lhs, rhs, is_question_mark_in_lhs } => {
+                        writeln_or_err!(&mut output, "Equation:");
+                        writeln_or_err!(&mut output, "QuestionMark is in {}\nLHS:", if is_question_mark_in_lhs { "LHS" } else { "RHS" });
+                        for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
+                        writeln_or_err!(&mut output, "RHS:");
+                        for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
+                        writeln_or_err!(&mut output);
                     }
                 }
                 Err(e) => {

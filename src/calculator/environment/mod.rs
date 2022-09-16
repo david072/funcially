@@ -13,7 +13,7 @@ use std::f64::consts::{PI, E, TAU};
 use crate::{
     common::ErrorType,
     Currencies,
-    evaluate,
+    Engine,
     astgen::ast::AstNode,
 };
 use self::units::Unit;
@@ -227,7 +227,7 @@ impl Environment {
             temp_env.set_variable(&f.0[i], Variable(args[i], None))?;
         }
 
-        let value = evaluate(f.1.clone(), &temp_env, currencies);
+        let value = Engine::evaluate(f.1.clone(), &temp_env, currencies);
 
         match value {
             Ok(res) => Ok((res.result, res.unit)),

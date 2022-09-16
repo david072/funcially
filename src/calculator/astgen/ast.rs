@@ -36,6 +36,7 @@ pub enum AstNodeData {
     VariableReference(String),
     FunctionInvocation(String, Vec<Vec<AstNode>>),
     Unit(Unit),
+    QuestionMark,
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
@@ -342,6 +343,7 @@ impl Display for AstNode {
                 Ok(())
             }
             AstNodeData::Unit(ref name) => write!(f, "Unit: {}", name),
+            AstNodeData::QuestionMark => write!(f, "QuestionMark"),
         }
     }
 }

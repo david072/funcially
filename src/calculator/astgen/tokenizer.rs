@@ -40,20 +40,19 @@ pub enum TokenType {
     Comma,
     EqualsSign,
     DefinitionSign,
+    QuestionMark,
 }
 
 impl TokenType {
     pub fn is_literal(&self) -> bool {
         matches!(self, Self::DecimalLiteral
             | Self::HexLiteral
-            | Self::BinaryLiteral)
+            | Self::BinaryLiteral
+            | Self::QuestionMark) // '?' has the same rules a literal
     }
 
     pub fn is_number(&self) -> bool {
-        matches!(self, Self::DecimalLiteral
-            | Self::HexLiteral
-            | Self::BinaryLiteral
-            | Self::OpenBracket
+        self.is_literal() || matches!(self, Self::OpenBracket
             | Self::CloseBracket
             | Self::Identifier)
     }
@@ -251,6 +250,7 @@ impl<'a> Tokenizer<'a> {
                 self.index += 1;
                 Some(TokenType::DefinitionSign)
             }
+            b'?' => Some(TokenType::QuestionMark),
             _ => None
         };
 
