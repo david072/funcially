@@ -177,10 +177,7 @@ impl Calculator {
                 }
 
                 let result = Engine::evaluate(ast, &self.environment, &self.currencies)?;
-                self.environment.set_variable(
-                    "ans",
-                    Variable(result.result, result.unit.clone()),
-                ).unwrap();
+                self.environment.set_ans_variable(Variable(result.result, result.unit.clone()));
 
                 let unit = result.unit.as_ref().map(|unit| {
                     if result.is_long_unit {
@@ -249,7 +246,9 @@ impl Calculator {
                     &self.environment,
                     &self.currencies,
                 )?;
-                Ok(CalculatorResult::number(result.result, None, Format::Decimal, color_segments))
+
+                self.environment.set_ans_variable(Variable(result.result, result.unit.clone()));
+                Ok(CalculatorResult::number(result.result, None, result.format, color_segments))
             }
         }
     }

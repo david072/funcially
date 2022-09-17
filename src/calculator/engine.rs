@@ -84,7 +84,6 @@ impl<'a> Engine<'a> {
     }
 
     // TODO: - Units
-    //       - Formats
     /// Solves a linear equation
     pub fn solve(
         lhs: Vec<AstNode>,
@@ -180,7 +179,8 @@ impl<'a> Engine<'a> {
         const X2: f64 = 2.0;
 
         let first_ast = replace_question_mark(unknown_side.clone(), X1);
-        let y1 = Self::evaluate(first_ast, env, currencies)?.result - target_value;
+        let y1_result = Self::evaluate(first_ast, env, currencies)?;
+        let y1 = y1_result.result - target_value;
 
         let second_ast = replace_question_mark(unknown_side, X2);
         let y2 = Self::evaluate(second_ast, env, currencies)?.result - target_value;
@@ -195,7 +195,13 @@ impl<'a> Engine<'a> {
         // x = -c / m
         let result = -c / m;
 
-        Ok(CalculationResult::new(result, None, false, Format::Decimal))
+        let format = if target_result.format != Format::Decimal {
+            target_result.format
+        } else {
+            y1_result.format
+        };
+
+        Ok(CalculationResult::new(result, None, false, format))
     }
 
     fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {

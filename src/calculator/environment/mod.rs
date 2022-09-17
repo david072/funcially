@@ -115,6 +115,8 @@ impl Environment {
         Ok(())
     }
 
+    pub fn set_ans_variable(&mut self, value: Variable) { self.ans = value; }
+
     pub fn remove_variable(&mut self, var: &str) -> Result<(), ErrorType> {
         if var == "ans" {
             self.ans = Variable(0.0, None);
