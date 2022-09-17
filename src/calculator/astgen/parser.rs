@@ -306,6 +306,7 @@ impl<'a> Parser<'a> {
                 TokenType::Binary => self.result.last_mut().unwrap().format = Format::Binary,
                 _ => unreachable!(),
             }
+            self.last_token_ty = Some(token.ty);
             return Ok(true);
         }
 
