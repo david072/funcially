@@ -537,6 +537,7 @@ impl<'a> Parser<'a> {
                     }
 
                     last.unit = Some(unit);
+                    last.range.end = identifier.range.end;
                     Ok(())
                 }
             }
