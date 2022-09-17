@@ -49,9 +49,11 @@ impl ColorSegment {
                     let color = bracket_colors.pop().unwrap_or(Color32::WHITE);
                     result.push(ColorSegment::new(token.range.clone(), color));
 
-                    nesting -= 1;
-                    if nesting == 0 {
-                        rng = SmallRng::seed_from_u64(INITIAL_RNG_SEED);
+                    if nesting > 0 {
+                        nesting -= 1;
+                        if nesting == 0 {
+                            rng = SmallRng::seed_from_u64(INITIAL_RNG_SEED);
+                        }
                     }
                 }
                 Divide if last_token.is_some() &&
