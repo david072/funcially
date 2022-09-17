@@ -92,6 +92,11 @@ impl<'a> Engine<'a> {
         env: &Environment,
         currencies: &Currencies,
     ) -> Result<CalculationResult> {
+        if lhs.is_empty() || rhs.is_empty() {
+            return Err(ErrorType::InvalidAst.with(0..1));
+        }
+
+        let rhs_range = rhs.first().unwrap().range.start..rhs.last().unwrap().range.end;
         let (unknown_side, result_side) = if is_question_mark_in_lhs {
             (lhs, rhs)
         } else {
@@ -107,9 +112,9 @@ impl<'a> Engine<'a> {
         /// Validates that the question mark or its enclosing groups are not surrounded by a
         /// power sign (^).
         ///
-        /// **Returns:** An error if it was surrounded by a power sign or a bool indicating whether a
-        /// question mark was found.
-        fn validate_unknown_side(ast: &[AstNode], is_surrounded_by_exponentiation: bool) -> Result<bool> {
+        /// **Returns:** An error if it was surrounded by a power sign or an option, indicating
+        /// whether a question mark was found, and if so, its unit.
+        fn validate_and_get_unit(ast: &[AstNode], is_surrounded_by_exponentiation: bool) -> Result<Option<Option<Unit>>> {
             for i in 0..ast.len() {
                 if !matches!(ast[i].data, AstNodeData::QuestionMark | AstNodeData::Group(_)) {
                     continue;
@@ -131,18 +136,19 @@ impl<'a> Engine<'a> {
                             return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
                         }
 
-                        return Ok(true);
+                        let unit = ast[i].unit.clone();
+                        return Ok(Some(unit));
                     }
                     AstNodeData::Group(ref ast) => {
-                        if validate_unknown_side(ast, has_power_sign || is_surrounded_by_exponentiation)? {
-                            return Ok(true);
+                        if let Some(unit) = validate_and_get_unit(ast, has_power_sign || is_surrounded_by_exponentiation)? {
+                            return Ok(Some(unit));
                         }
                     }
                     _ => {}
                 }
             }
 
-            Ok(false)
+            Ok(None)
         }
 
         fn replace_question_mark(mut ast: Vec<AstNode>, value: f64) -> Vec<AstNode> {
@@ -163,11 +169,12 @@ impl<'a> Engine<'a> {
             ast
         }
 
-        if !validate_unknown_side(&unknown_side, false)? {
-            return Err(ErrorType::ExpectedQuestionMark.with(
+        let question_mark_unit = match validate_and_get_unit(&unknown_side, false)? {
+            Some(unit) => unit,
+            None => return Err(ErrorType::ExpectedQuestionMark.with(
                 unknown_side.first().unwrap().range.start..unknown_side.last().unwrap().range.end
-            ));
-        }
+            )),
+        };
 
         // NOTE: General equation (if ? is a variable): f(?) = a
         //       => f(?) - a = 0    => y = f(?) - a
@@ -179,7 +186,13 @@ impl<'a> Engine<'a> {
         const X2: f64 = 2.0;
 
         let first_ast = replace_question_mark(unknown_side.clone(), X1);
+
         let y1_result = Self::evaluate(first_ast, env, currencies)?;
+        if y1_result.unit != target_result.unit {
+            let expected_unit = y1_result.unit.map(|u| u.to_string()).unwrap_or_default();
+            return Err(ErrorType::WrongUnit(expected_unit).with(rhs_range));
+        }
+
         let y1 = y1_result.result - target_value;
 
         let second_ast = replace_question_mark(unknown_side, X2);
@@ -201,7 +214,7 @@ impl<'a> Engine<'a> {
             y1_result.format
         };
 
-        Ok(CalculationResult::new(result, None, false, format))
+        Ok(CalculationResult::new(result, question_mark_unit, false, format))
     }
 
     fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {

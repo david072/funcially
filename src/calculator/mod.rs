@@ -248,7 +248,7 @@ impl Calculator {
                 )?;
 
                 self.environment.set_ans_variable(Variable(result.result, result.unit.clone()));
-                Ok(CalculatorResult::number(result.result, None, result.format, color_segments))
+                Ok(CalculatorResult::number(result.result, result.unit.map(|u| u.to_string()), result.format, color_segments))
             }
         }
     }

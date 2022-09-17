@@ -98,6 +98,8 @@ pub enum ErrorType {
     ForbiddenExponentiation,
     #[error("Expected unknown variable (?)")]
     ExpectedQuestionMark,
+    #[error("Wrong unit, expected {0}")]
+    WrongUnit(String),
     /// This should never happen
     #[error("")]
     InvalidAst,
