@@ -9,7 +9,7 @@ use std::mem::{take, replace};
 use crate::{
     astgen::ast::{Operator, AstNode, AstNodeData},
     match_ast_node,
-    environment::{Environment, Variable, units::Unit},
+    environment::{Environment, Variable, units::{Unit, convert as convert_units}},
     common::*,
     Currencies,
 };
@@ -83,7 +83,6 @@ impl<'a> Engine<'a> {
         Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
     }
 
-    // TODO: - Units
     /// Solves a linear equation
     pub fn solve(
         lhs: Vec<AstNode>,
@@ -103,7 +102,7 @@ impl<'a> Engine<'a> {
             (rhs, lhs)
         };
         let target_result = Self::evaluate(result_side, env, currencies)?;
-        let target_value = target_result.result;
+        let mut target_value = target_result.result;
 
         if unknown_side.len() == 1 {
             return Ok(target_result);
@@ -188,9 +187,23 @@ impl<'a> Engine<'a> {
         let first_ast = replace_question_mark(unknown_side.clone(), X1);
 
         let y1_result = Self::evaluate(first_ast, env, currencies)?;
-        if y1_result.unit != target_result.unit {
-            let expected_unit = y1_result.unit.map(|u| u.to_string()).unwrap_or_default();
-            return Err(ErrorType::WrongUnit(expected_unit).with(rhs_range));
+        if y1_result.unit.is_some() && target_result.unit.is_none() {
+            return Err(ErrorType::WrongUnit(y1_result.unit.unwrap().to_string()).with(rhs_range));
+        } else if y1_result.unit.is_none() && target_result.unit.is_some() {
+            return Err(ErrorType::WrongUnit("none".to_string()).with(rhs_range));
+        } else if y1_result.unit.is_some() && target_result.unit.is_some() {
+            let y1_unit = y1_result.unit.clone().unwrap();
+
+            target_value = match convert_units(
+                &target_result.unit.unwrap(),
+                &y1_unit,
+                target_value,
+                currencies,
+                &rhs_range
+            ) {
+                Ok(n) => n,
+                Err(_) => return Err(ErrorType::WrongUnit(y1_unit.to_string()).with(rhs_range)),
+            };
         }
 
         let y1 = y1_result.result - target_value;
@@ -215,6 +228,29 @@ impl<'a> Engine<'a> {
         };
 
         Ok(CalculationResult::new(result, question_mark_unit, false, format))
+    }
+
+    pub fn equals(lhs: &CalculationResult, rhs: &CalculationResult, currencies: &Currencies) -> bool {
+        let lhs_unit = &lhs.unit;
+        let rhs_unit = &rhs.unit;
+
+        if (lhs_unit.is_some() && rhs_unit.is_none()) || (lhs_unit.is_none() && rhs_unit.is_some()) {
+            false
+        } else if lhs_unit.is_some() && rhs_unit.is_some() {
+            let range: std::ops::Range<usize> = 0..1; // this doesn't matter since we discard the error
+            match convert_units(
+                rhs_unit.as_ref().unwrap(),
+                lhs_unit.as_ref().unwrap(),
+                rhs.result,
+                currencies,
+                &range,
+            ) {
+                Ok(rhs) => lhs.result == rhs,
+                Err(_) => false,
+            }
+        } else {
+            lhs.result == rhs.result
+        }
     }
 
     fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {

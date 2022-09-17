@@ -197,10 +197,9 @@ impl Calculator {
                     println!();
                 }
 
-                let lhs_res = Engine::evaluate(lhs, &self.environment, &self.currencies)?.result;
-                let rhs_res = Engine::evaluate(rhs, &self.environment, &self.currencies)?.result;
-
-                Ok(CalculatorResult::bool(lhs_res == rhs_res, color_segments))
+                let lhs = Engine::evaluate(lhs, &self.environment, &self.currencies)?;
+                let rhs = Engine::evaluate(rhs, &self.environment, &self.currencies)?;
+                Ok(CalculatorResult::bool(Engine::equals(&lhs, &rhs, &self.currencies), color_segments))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
