@@ -33,6 +33,8 @@ use crate::engine::Format;
 pub use color::ColorSegment;
 pub use environment::Function;
 
+const CRASH_REPORTS_DIR: &str = "crash_reports";
+
 macro_rules! writeln_or_err {
     ($dst:expr) => {
         writeln_or_err!($dst, "")
@@ -144,7 +146,29 @@ impl Default for Calculator {
 }
 
 impl Calculator {
+    /// Creates a new `Calculator` and sets a panic hook, printing the full stacktrace + panic info
+    /// to a file.
     pub fn new(verbosity: Verbosity) -> Calculator {
+        // Write stack trace + PanicInfo to a file
+        std::panic::set_hook(Box::new(|info| {
+            let backtrace = backtrace::Backtrace::new();
+            let current_millis = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
+            let contents = format!("{:?}\n\n{}", backtrace, info);
+
+            let path = common::data_dir().join(CRASH_REPORTS_DIR);
+            #[allow(clippy::collapsible_if)] // allow for readability
+            if !path.try_exists().unwrap_or(false) {
+                if std::fs::create_dir(path.clone()).is_err() { return; }
+            }
+
+            let path = path.join(format!("report_{}.txt", current_millis));
+            let _ = std::fs::write(path, contents);
+        }));
+
         Calculator {
             environment: Environment::new(),
             currencies: Currencies::new_arc(),

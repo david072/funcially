@@ -6,9 +6,6 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-extern crate eframe;
-extern crate calculator;
-
 use eframe::{CreationContext, egui, Frame};
 use egui::*;
 use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function};

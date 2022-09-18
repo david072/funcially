@@ -5,9 +5,12 @@
  */
 
 use std::ops::Range;
+use std::path::PathBuf;
 use rust_decimal::Decimal;
 use thiserror::Error;
 use crate::FromPrimitive;
+
+const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ErrorType {
@@ -132,6 +135,10 @@ pub fn round_dp(n: f64, dp: u32) -> String {
         None => n.to_string(),
     }
 }
+
+pub fn cache_dir() -> PathBuf { dirs::cache_dir().unwrap().join(CRATE_NAME) }
+
+pub fn data_dir() -> PathBuf { dirs::data_local_dir().unwrap().join(CRATE_NAME) }
 
 pub mod math {
     pub fn factorial(num: i64) -> i64 {

@@ -87,8 +87,8 @@ impl Currencies {
 mod updating {
     use super::Currencies;
     use std::collections::HashMap;
+    use crate::common::cache_dir;
 
-    const CRATE_NAME: &str = env!("CARGO_CRATE_NAME");
     const CURRENCIES_FILE_NAME: &str = "currencies.txt";
     const CURRENCY_API_URL: &str = "https://api.exchangerate.host/latest?base=EUR";
 
@@ -99,13 +99,7 @@ mod updating {
         rates: HashMap<String, f64>,
     }
 
-    fn cache_folder_path() -> std::path::PathBuf {
-        dirs::cache_dir().unwrap().join(CRATE_NAME)
-    }
-
-    fn cache_file_path() -> std::path::PathBuf {
-        cache_folder_path().join(CURRENCIES_FILE_NAME)
-    }
+    fn cache_file_path() -> std::path::PathBuf { cache_dir().join(CURRENCIES_FILE_NAME) }
 
     pub fn update_currencies(currencies: std::sync::Arc<Currencies>) {
         std::thread::spawn(move || {
@@ -125,8 +119,8 @@ mod updating {
             *currencies.base.lock().unwrap() = Some(base);
             *currencies.currencies.lock().unwrap() = Some(rates);
 
-            if !cache_folder_path().try_exists().unwrap_or(false) {
-                let _ = std::fs::create_dir(cache_folder_path());
+            if !cache_dir().try_exists().unwrap_or(false) {
+                let _ = std::fs::create_dir(cache_dir());
             }
 
             let file = cache_file_path();
