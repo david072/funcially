@@ -104,7 +104,7 @@ impl<'a> Engine<'a> {
         let target_result = Self::evaluate(result_side, env, currencies)?;
         let mut target_value = target_result.result;
 
-        if unknown_side.len() == 1 {
+        if unknown_side.len() == 1 && matches!(unknown_side[0].data, AstNodeData::Literal(_)) {
             return Ok(target_result);
         }
 
@@ -113,12 +113,14 @@ impl<'a> Engine<'a> {
         ///
         /// **Returns:** An error if it was surrounded by a power sign or an option, indicating
         /// whether a question mark was found, and if so, its unit.
-        fn validate_and_get_unit(ast: &[AstNode], is_surrounded_by_exponentiation: bool) -> Result<Option<Option<Unit>>> {
+        fn validate_and_get_unit(
+            ast: &[AstNode],
+            env: &Environment,
+            is_surrounded_by_exponentiation: bool,
+            // The name of a variable that "contains" the question mark (e.g. function arg name)
+            question_mark_variable_name: Option<&str>,
+        ) -> Result<Option<Option<Unit>>> {
             for i in 0..ast.len() {
-                if !matches!(ast[i].data, AstNodeData::QuestionMark | AstNodeData::Group(_)) {
-                    continue;
-                }
-
                 fn map_fn(node: &AstNode) -> bool {
                     matches!(node.data, AstNodeData::Operator(Operator::Exponentiation))
                 }
@@ -127,10 +129,11 @@ impl<'a> Engine<'a> {
                 let next_node = ast.get(i + 1).map(map_fn);
 
                 let has_power_sign = prev_node.unwrap_or(false) || next_node.unwrap_or(false);
+                let is_surrounded_by_exponentiation = has_power_sign || is_surrounded_by_exponentiation;
 
-                match ast[i].data {
+                match &ast[i].data {
                     AstNodeData::QuestionMark => {
-                        if has_power_sign || is_surrounded_by_exponentiation {
+                        if is_surrounded_by_exponentiation {
                             // TODO: Better error range (power sign)
                             return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
                         }
@@ -138,9 +141,62 @@ impl<'a> Engine<'a> {
                         let unit = ast[i].unit.clone();
                         return Ok(Some(unit));
                     }
-                    AstNodeData::Group(ref ast) => {
-                        if let Some(unit) = validate_and_get_unit(ast, has_power_sign || is_surrounded_by_exponentiation)? {
+                    AstNodeData::VariableReference(name) => {
+                        if question_mark_variable_name.is_none() ||
+                            question_mark_variable_name.unwrap() != name { continue; }
+
+                        if is_surrounded_by_exponentiation {
+                            // TODO: Better error range (power sign)
+                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
+                        }
+
+                        let unit = ast[i].unit.clone();
+                        return Ok(Some(unit));
+                    }
+                    AstNodeData::Group(ast) => {
+                        if let Some(unit) = validate_and_get_unit(ast, env, is_surrounded_by_exponentiation, None)? {
                             return Ok(Some(unit));
+                        }
+                    }
+                    AstNodeData::FunctionInvocation(name, args) => {
+                        let f = env.get_function(name).unwrap();
+
+                        let mut question_mark_arg_name: Option<&str> = None;
+                        let mut question_mark_range: Option<std::ops::Range<usize>> = None;
+
+                        for (i, arg) in args.iter().enumerate() {
+                            if validate_and_get_unit(arg, env, is_surrounded_by_exponentiation, None)?.is_some() {
+                                let range = arg.first().unwrap().range.start..arg.last().unwrap().range.end;
+                                if question_mark_arg_name.is_some() {
+                                    return Err(ErrorType::UnexpectedQuestionMark.with(range));
+                                }
+
+                                question_mark_arg_name = Some(&f.0[i]);
+                                question_mark_range = Some(range);
+                            }
+                        }
+
+                        if question_mark_arg_name.is_some() {
+                            match validate_and_get_unit(
+                                &f.1,
+                                env,
+                                is_surrounded_by_exponentiation,
+                                question_mark_arg_name,
+                            ) {
+                                Ok(val) => if let Some(unit) = val {
+                                    return Ok(Some(unit));
+                                }
+                                Err(mut e) => {
+                                    // TODO: Maybe somehow show the corresponding variable
+                                    //  reference in the function source in addition to this.
+                                    let range = question_mark_range.unwrap();
+                                    e.start = range.start;
+                                    e.end = range.end;
+                                    return Err(e);
+                                }
+                            }
+                        } else {
+                            return Ok(None);
                         }
                     }
                     _ => {}
@@ -159,6 +215,9 @@ impl<'a> Engine<'a> {
                             return;
                         }
                         AstNodeData::Group(ref mut ast) => replace(ast, value),
+                        AstNodeData::FunctionInvocation(_, ref mut args) => {
+                            for arg in args { replace(arg, value); }
+                        }
                         _ => {}
                     }
                 }
@@ -168,7 +227,7 @@ impl<'a> Engine<'a> {
             ast
         }
 
-        let question_mark_unit = match validate_and_get_unit(&unknown_side, false)? {
+        let question_mark_unit = match validate_and_get_unit(&unknown_side, env, false, None)? {
             Some(unit) => unit,
             None => return Err(ErrorType::ExpectedQuestionMark.with(
                 unknown_side.first().unwrap().range.start..unknown_side.last().unwrap().range.end
@@ -199,7 +258,7 @@ impl<'a> Engine<'a> {
                 &y1_unit,
                 target_value,
                 currencies,
-                &rhs_range
+                &rhs_range,
             ) {
                 Ok(n) => n,
                 Err(_) => return Err(ErrorType::WrongUnit(y1_unit.to_string()).with(rhs_range)),

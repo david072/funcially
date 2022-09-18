@@ -153,6 +153,13 @@ impl Environment {
         false
     }
 
+    pub(crate) fn get_function(&self, f: &str) -> Option<&Function> {
+        for (name, function) in &self.functions {
+            if name == f { return Some(function); }
+        }
+        None
+    }
+
     pub fn function_argument_count(&self, name: &str) -> Option<usize> {
         for (f, arg_count) in STANDARD_FUNCTIONS {
             if f == name { return Some(arg_count); }

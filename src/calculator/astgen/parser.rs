@@ -603,6 +603,8 @@ impl<'a> Parser<'a> {
             error!(UnknownFunction(identifier.range));
         }
 
+        let allow_question_mark_in_args = !self.env.is_standard_function(&identifier.text);
+
         let open_bracket = &self.tokens[self.index];
         self.index += 1;
 
@@ -621,10 +623,19 @@ impl<'a> Parser<'a> {
                     }
                     let argument = &self.tokens[argument_start..self.index - 1];
 
-                    match Parser::from(self, argument, false).parse()? {
+                    let mut parser = Parser::from(self, argument, allow_question_mark_in_args);
+                    match parser.parse()? {
                         ParserResult::Calculation(ast) => arguments.push(ast),
                         res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
                     }
+
+                    if allow_question_mark_in_args {
+                        self.question_mark_found = parser.question_mark_found;
+                        if parser.question_mark_found {
+                            self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
+                        }
+                    }
+
                     argument_start = self.index;
                 }
                 TokenType::CloseBracket => {
@@ -632,9 +643,18 @@ impl<'a> Parser<'a> {
                     if nesting_level == 0 {
                         if argument_start != self.index - 1 {
                             let argument = &self.tokens[argument_start..self.index - 1];
-                            match Parser::from(self, argument, false).parse()? {
+
+                            let mut parser = Parser::from(self, argument, allow_question_mark_in_args);
+                            match parser.parse()? {
                                 ParserResult::Calculation(ast) => arguments.push(ast),
                                 res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
+                            }
+
+                            if allow_question_mark_in_args {
+                                self.question_mark_found = parser.question_mark_found;
+                                if parser.question_mark_found {
+                                    self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
+                                }
                             }
                         }
                         finished = true;
