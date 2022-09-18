@@ -254,8 +254,13 @@ impl App {
 
                                 plot_ui.line(plot::Line::new(
                                     plot::PlotPoints::from_explicit_callback(move |x| {
-                                        let res = env.resolve_specific_function(&f, &[x], &currencies).unwrap();
-                                        res.0
+                                        match env.resolve_specific_function(&f, &[x], &currencies) {
+                                            Ok(v) => v.0,
+                                            // preferably, if the function does not return a value,
+                                            // we should just not draw a point, however this is the
+                                            // best we can do with this plot implementation
+                                            Err(_) => f64::INFINITY,
+                                        }
                                     }, .., 512)
                                 ).name(&function.0));
                             }
