@@ -617,10 +617,18 @@ impl<'a> Parser<'a> {
         while let Some(token) = self.tokens.get(self.index) {
             self.index += 1;
             match token.ty {
-                TokenType::Comma => {
-                    if argument_start == self.index - 1 {
+                TokenType::Comma | TokenType::CloseBracket => {
+                    if token.ty == TokenType::Comma && argument_start == self.index - 1 {
                         error!(ExpectedElements(self.tokens[self.index - 1].range));
                     }
+                    else if token.ty == TokenType::CloseBracket {
+                        nesting_level -= 1;
+                        if nesting_level == 0 {
+                            finished = true;
+                            if argument_start == self.index - 1 { break; }
+                        }
+                    }
+
                     let argument = &self.tokens[argument_start..self.index - 1];
 
                     let mut parser = Parser::from(self, argument, allow_question_mark_in_args);
@@ -636,30 +644,8 @@ impl<'a> Parser<'a> {
                         }
                     }
 
+                    if finished { break; }
                     argument_start = self.index;
-                }
-                TokenType::CloseBracket => {
-                    nesting_level -= 1;
-                    if nesting_level == 0 {
-                        if argument_start != self.index - 1 {
-                            let argument = &self.tokens[argument_start..self.index - 1];
-
-                            let mut parser = Parser::from(self, argument, allow_question_mark_in_args);
-                            match parser.parse()? {
-                                ParserResult::Calculation(ast) => arguments.push(ast),
-                                res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
-                            }
-
-                            if allow_question_mark_in_args {
-                                self.question_mark_found = parser.question_mark_found;
-                                if parser.question_mark_found {
-                                    self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
-                                }
-                            }
-                        }
-                        finished = true;
-                        break;
-                    }
                 }
                 TokenType::OpenBracket => nesting_level += 1,
                 _ => {}
