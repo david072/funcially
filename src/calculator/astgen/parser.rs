@@ -356,6 +356,23 @@ impl<'a> Parser<'a> {
                 return Ok(true);
             }
             TokenType::Identifier => {
+                // parse scientific notation (e.g. `1e3`)
+                if (token.text == "e" || token.text == "E") &&
+                    self.last_token_ty.map(|ty| ty.is_number()).unwrap_or(false) {
+                    if let Some(exponent) = self.tokens.get(self.index) {
+                        if exponent.ty.is_number() {
+                            // insert (<num1>) `* 10 ^` (<num2>)
+                            // (num1 already inserted; num2 will be handled in next iterations)
+                            let range = token.range.clone();
+                            self.push_new_node(AstNodeData::Operator(Operator::Multiply), range.clone());
+                            self.push_new_node(AstNodeData::Literal(10.0), range.clone());
+                            self.push_new_node(AstNodeData::Operator(Operator::Exponentiation), range);
+                            self.last_token_ty = Some(TokenType::Exponentiation);
+                            return Ok(true);
+                        }
+                    }
+                }
+
                 self.next_identifier(token)?;
                 self.last_token_ty = Some(token.ty);
                 return Ok(true);
@@ -618,8 +635,7 @@ impl<'a> Parser<'a> {
                 TokenType::Comma | TokenType::CloseBracket => {
                     if token.ty == TokenType::Comma && argument_start == self.index - 1 {
                         error!(ExpectedElements(self.tokens[self.index - 1].range));
-                    }
-                    else if token.ty == TokenType::CloseBracket {
+                    } else if token.ty == TokenType::CloseBracket {
                         nesting_level -= 1;
                         if nesting_level == 0 {
                             finished = true;
@@ -1005,6 +1021,22 @@ mod tests {
         assert_eq!(name, "f");
         assert_eq!(args, vec!["x", "y"]);
         assert!(ast.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn scientific_notation() -> Result<()> {
+        let ast = calculation!("1e2");
+        assert_eq!(ast.len(), 5); // 1 * 10 ^ 2
+        assert!(matches!(ast[0].data, AstNodeData::Literal(_)));
+        assert!(matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
+        assert!(matches!(ast[2].data, AstNodeData::Literal(_)));
+        assert!(matches!(ast[3].data, AstNodeData::Operator(Operator::Exponentiation)));
+        assert!(matches!(ast[4].data, AstNodeData::Literal(_)));
+
+        let ast = calculation!("1e");
+        assert_eq!(ast.len(), 3);
+        assert!(matches!(ast[2].data, AstNodeData::VariableReference(_)));
         Ok(())
     }
 
