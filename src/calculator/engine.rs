@@ -70,7 +70,11 @@ impl<'a> Engine<'a> {
         engine.eval_functions()?;
         engine.eval_variables()?;
         engine.eval_groups()?;
-        engine.eval_operators(&[Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr])?;
+        // extended operators
+        engine.eval_operators(&[
+            Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr,
+            Operator::BitShiftLeft, Operator::BitShiftRight, Operator::Modulo
+        ])?;
         engine.eval_operators(&[Operator::Multiply, Operator::Divide])?;
         engine.eval_operators(&[Operator::Plus, Operator::Minus])?;
         engine.eval_operators(&[Operator::Of, Operator::In])?;

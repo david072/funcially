@@ -398,8 +398,11 @@ impl<'a> Parser<'a> {
             TokenType::Exponentiation => ok_operator!(Exponentiation),
             TokenType::BitwiseAnd => ok_operator!(BitwiseAnd),
             TokenType::BitwiseOr => ok_operator!(BitwiseOr),
+            TokenType::BitShiftLeft => ok_operator!(BitShiftLeft),
+            TokenType::BitShiftRight => ok_operator!(BitShiftRight),
             TokenType::Of => ok_operator!(Of),
             TokenType::In => ok_operator!(In),
+            TokenType::Modulo => ok_operator!(Modulo),
             TokenType::DefinitionSign => error!(UnexpectedDefinition(token.range)),
             TokenType::QuestionMark => {
                 if self.question_mark_found {

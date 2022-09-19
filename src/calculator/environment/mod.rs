@@ -236,8 +236,8 @@ impl Environment {
         temp_env.ans = self.ans.clone();
         temp_env.variables = self.variables.clone();
 
-        for i in 0..args.len() {
-            temp_env.set_variable(&f.0[i], Variable(args[i], None))?;
+        for (i, arg) in args.iter().enumerate() {
+            temp_env.set_variable(&f.0[i], Variable(*arg, None))?;
         }
 
         let value = Engine::evaluate(f.1.clone(), &temp_env, currencies);

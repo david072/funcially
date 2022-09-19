@@ -24,8 +24,11 @@ pub enum Operator {
     Exponentiation,
     BitwiseAnd,
     BitwiseOr,
+    BitShiftLeft,
+    BitShiftRight,
     Of,
     In,
+    Modulo,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -197,12 +200,23 @@ impl AstNode {
                     _ => unreachable!(),
                 }
             }
+            Operator::BitShiftLeft | Operator::BitShiftRight => {
+                expect_int!(lhs, self.range, op);
+                expect_int!(rhs_value, self.range, op);
+
+                match op {
+                    Operator::BitShiftLeft => *lhs = ((*lhs as i64) << (rhs_value as i64)) as f64,
+                    Operator::BitShiftRight => *lhs = ((*lhs as i64) >> (rhs_value as i64)) as f64,
+                    _ => unreachable!(),
+                }
+            }
             Operator::Of => {
                 expect!(self.modifiers.contains(&AstNodeModifier::Percent),
                     ExpectedPercentage, self.range);
                 *lhs *= rhs_value;
             }
             Operator::In => {}
+            Operator::Modulo => *lhs %= rhs_value,
         }
 
         Ok(())

@@ -73,14 +73,22 @@ impl ColorSegment {
     }
 
     fn from(token: &Token) -> Self {
-        let color = match token.ty {
-            Whitespace => Color32::TRANSPARENT,
-            DecimalLiteral | HexLiteral | BinaryLiteral | QuestionMark => Color32::KHAKI,
-            OpenBracket | CloseBracket | ExclamationMark | PercentSign |
-            Comma | EqualsSign | DefinitionSign => Color32::WHITE,
-            Plus | Minus | Multiply | Divide | Exponentiation | BitwiseAnd | BitwiseOr | Of | In => Color32::GOLD,
-            Decimal | Hex | Binary | Identifier => IDENTIFIER_COLOR,
+        let ty = &token.ty;
+        let color = if ty.is_literal() {
+            Color32::KHAKI
+        } else if ty.is_operator() {
+            Color32::GOLD
+        } else if ty.is_format() || *ty == Identifier {
+            IDENTIFIER_COLOR
+        } else {
+            match token.ty {
+                Whitespace => Color32::TRANSPARENT,
+                OpenBracket | CloseBracket | ExclamationMark | PercentSign |
+                Comma | EqualsSign | DefinitionSign => Color32::WHITE,
+                _ => unreachable!(),
+            }
         };
+
         ColorSegment {
             range: token.range.clone(),
             color,

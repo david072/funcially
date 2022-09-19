@@ -26,8 +26,11 @@ pub enum TokenType {
     Exponentiation,
     BitwiseAnd,
     BitwiseOr,
+    BitShiftLeft,
+    BitShiftRight,
     Of,
     In,
+    Modulo,
     // Modifiers
     ExclamationMark,
     PercentSign,
@@ -65,8 +68,11 @@ impl TokenType {
             | Self::Exponentiation
             | Self::BitwiseAnd
             | Self::BitwiseOr
+            | Self::BitShiftLeft
+            | Self::BitShiftRight
             | Self::Of
             | Self::In
+            | Self::Modulo
             | Self::EqualsSign) // '=' has the same rules as an operator
     }
 
@@ -143,6 +149,7 @@ impl<'a> Tokenizer<'a> {
                     ty = match slice.to_lowercase().as_str() {
                         "of" => TokenType::Of,
                         "in" => TokenType::In,
+                        "mod" => TokenType::Modulo,
                         "decimal" => TokenType::Decimal,
                         "hex" => TokenType::Hex,
                         "binary" => TokenType::Binary,
@@ -181,6 +188,19 @@ impl<'a> Tokenizer<'a> {
         }
 
         false
+    }
+
+    fn is_next(&mut self, char: u8) -> bool {
+        if let Some(c) = self.string.get(self.index) {
+            if *c == char {
+                self.index += 1;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     fn next_type(&mut self) -> Option<TokenType> {
@@ -240,16 +260,15 @@ impl<'a> Tokenizer<'a> {
             b'^' => Some(TokenType::Exponentiation),
             b'&' => Some(TokenType::BitwiseAnd),
             b'|' => Some(TokenType::BitwiseOr),
+            b'<' if self.is_next(b'<') => Some(TokenType::BitShiftLeft),
+            b'>' if self.is_next(b'>') => Some(TokenType::BitShiftRight),
             b'!' => Some(TokenType::ExclamationMark),
             b'%' => Some(TokenType::PercentSign),
             b'(' => Some(TokenType::OpenBracket),
             b')' => Some(TokenType::CloseBracket),
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),
-            b':' if matches!(self.string.get(self.index), Some(b'=')) => {
-                self.index += 1;
-                Some(TokenType::DefinitionSign)
-            }
+            b':' if self.is_next(b'=') => Some(TokenType::DefinitionSign),
             b'?' => Some(TokenType::QuestionMark),
             _ => None
         };
@@ -257,8 +276,7 @@ impl<'a> Tokenizer<'a> {
         if res.is_some() { return res; }
 
         if c == 0xC2 { // First byte of "°"
-            if self.index < self.string.len() && self.string[self.index] == 0xB0 { // Second byte of "°"
-                self.index += 1;
+            if self.is_next(0xB0) { // Second byte of "°"
                 while self.accept(any_of(LETTERS)) {}
                 Some(TokenType::Identifier)
             } else {
