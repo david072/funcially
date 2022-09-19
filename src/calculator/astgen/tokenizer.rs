@@ -38,6 +38,7 @@ pub enum TokenType {
     Decimal,
     Hex,
     Binary,
+    Scientific,
     // Identifier
     Identifier,
     Comma,
@@ -77,7 +78,7 @@ impl TokenType {
     }
 
     pub fn is_format(&self) -> bool {
-        matches!(self, Self::Decimal | Self::Hex | Self::Binary)
+        matches!(self, Self::Decimal | Self::Hex | Self::Binary | Self::Scientific)
     }
 }
 
@@ -153,6 +154,7 @@ impl<'a> Tokenizer<'a> {
                         "decimal" => TokenType::Decimal,
                         "hex" => TokenType::Hex,
                         "binary" => TokenType::Binary,
+                        "scientific" | "sci" => TokenType::Scientific,
                         _ => ty,
                     };
                 }

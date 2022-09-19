@@ -8,6 +8,7 @@ use std::fmt::{Display, Formatter};
 use std::mem::{take, replace};
 use crate::{
     astgen::ast::{Operator, AstNode, AstNodeData},
+    astgen::tokenizer::TokenType,
     match_ast_node,
     environment::{Environment, Variable, units::{Unit, convert as convert_units}},
     common::*,
@@ -15,17 +16,7 @@ use crate::{
 };
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum Format { Decimal, Hex, Binary }
-
-impl Display for Format {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Format::Decimal => write!(f, "decimal"),
-            Format::Hex => write!(f, "hex"),
-            Format::Binary => write!(f, "binary"),
-        }
-    }
-}
+pub enum Format { Decimal, Hex, Binary, Scientific }
 
 impl Format {
     pub fn format(&self, n: f64) -> String {
@@ -33,6 +24,25 @@ impl Format {
             Format::Decimal => round_dp(n, 10),
             Format::Hex => format!("{:#X}", n as i64),
             Format::Binary => format!("{:#b}", n as i64),
+            Format::Scientific => format!("{:#e}", n),
+        }
+    }
+}
+
+impl Display for Format {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
+impl From<TokenType> for Format {
+    fn from(ty: TokenType) -> Self {
+        match ty {
+            TokenType::Decimal => Format::Decimal,
+            TokenType::Hex => Format::Hex,
+            TokenType::Binary => Format::Binary,
+            TokenType::Scientific => Format::Scientific,
+            _ => panic!("Invalid token"),
         }
     }
 }

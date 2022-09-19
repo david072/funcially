@@ -300,12 +300,7 @@ impl<'a> Parser<'a> {
         // Handle formats
         if token.ty.is_format() {
             self.result.remove(self.result.len() - 1);
-            match token.ty {
-                TokenType::Decimal => self.result.last_mut().unwrap().format = Format::Decimal,
-                TokenType::Hex => self.result.last_mut().unwrap().format = Format::Hex,
-                TokenType::Binary => self.result.last_mut().unwrap().format = Format::Binary,
-                _ => unreachable!(),
-            }
+            self.result.last_mut().unwrap().format = Format::from(token.ty);
             self.last_token_ty = Some(token.ty);
             return Ok(true);
         }
