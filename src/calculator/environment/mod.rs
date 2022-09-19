@@ -29,15 +29,16 @@ const VAR_TAU: &Variable = &Variable(TAU, None);
 #[derive(Debug, Clone)]
 pub struct Function(pub(crate) Vec<String>, pub(crate) Vec<AstNode>);
 
-const STANDARD_FUNCTIONS: [(&str, usize); 14] = [
+const STANDARD_FUNCTIONS: [(&str, usize); 17] = [
     ("sin", 1), ("asin", 1),
     ("cos", 1), ("acos", 1),
     ("tan", 1), ("atan", 1),
     ("ln", 1), ("log", 2), // log arg2 to base arg1
-    ("sqrt", 1),
+    ("sqrt", 1), ("cbrt", 1), ("root", 2), // root with "index" arg1 of arg2
     ("abs", 1),
     ("floor", 1), ("ceil", 1),
     ("clamp", 3), ("map", 5), // map arg1 from range arg2..arg3 to range arg4..arg5
+    ("round", 1),
 ];
 
 #[derive(Clone)]
@@ -197,6 +198,8 @@ impl Environment {
                 args[1].log(args[0])
             }),
             "sqrt" => Ok(args[0].sqrt()),
+            "cbrt" => Ok(args[0].cbrt()),
+            "root" => Ok(args[1].powf(1.0 / args[0])),
             "abs" => Ok(args[0].abs()),
             "floor" => Ok(args[0].floor()),
             "ceil" => Ok(args[0].ceil()),
@@ -213,6 +216,7 @@ impl Environment {
                 let b2 = args[4];
                 Ok((args[0] - a1) * (b2 - a2) / (b1 - a1) + a2)
             }
+            "round" => Ok(args[0].round()),
             _ => Err(ErrorType::UnknownFunction),
         }
     }
