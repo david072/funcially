@@ -285,7 +285,8 @@ impl<'a> Tokenizer<'a> {
                 None
             }
         } else if LETTERS.contains(c as char) {
-            while self.accept(any_of(LETTERS)) {}
+            while self.accept(any_of(LETTERS)) ||
+                self.accept(any_of(NUMBERS)) {}
             Some(TokenType::Identifier)
         } else {
             None
