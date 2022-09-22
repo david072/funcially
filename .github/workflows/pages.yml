@@ -8,7 +8,7 @@ on:
       - master
 
 permissions:
-  contents: write # for commiting to gh-pages branch
+  contents: write # for committing to gh-pages branch
 
 jobs:
   build-github-pages:
@@ -28,10 +28,10 @@ jobs:
       - name: Build # build
         # "${GITHUB_REPOSITORY#*/}" evaluates into the name of the repository
         # using --public-url something will allow trunk to modify all the href paths like from favicon.ico to repo_name/favicon.ico .
-        # this is necessary for github pages where the site is deployed to username.github.io/repo_name and all files must be requested
+        # this is necessary for GitHub pages where the site is deployed to username.github.io/repo_name and all files must be requested
         # relatively as eframe_template/favicon.ico. if we skip public-url option, the href paths will instead request username.github.io/favicon.ico which
         # will obviously return error 404 not found.
-        run: ./trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
+        run: cd gui && ./trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
