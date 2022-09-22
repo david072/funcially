@@ -6,6 +6,7 @@
 
 use strum::IntoEnumIterator;
 use std::mem;
+use std::ops::Range;
 use crate::{
     Format,
     astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier},
@@ -65,6 +66,7 @@ pub enum ParserResult {
         lhs: Vec<AstNode>,
         rhs: Vec<AstNode>,
         is_question_mark_in_lhs: bool,
+        output_variable: Option<(String, Range<usize>)>,
     },
 }
 
@@ -221,6 +223,7 @@ struct Parser<'a> {
     question_mark_found: bool,
     allow_question_mark: bool,
     is_question_mark_in_lhs: bool,
+    question_mark_variable: Option<(String, Range<usize>)>,
 
     index: usize,
     all_tokens_tys: Vec<TokenType>,
@@ -240,6 +243,7 @@ impl<'a> Parser<'a> {
             question_mark_found: false,
             allow_question_mark: true,
             is_question_mark_in_lhs: true,
+            question_mark_variable: None,
             index: 0,
             all_tokens_tys: TokenType::iter().collect(),
             last_token_ty: None,
@@ -252,6 +256,7 @@ impl<'a> Parser<'a> {
         Parser {
             extra_allowed_variables: other.extra_allowed_variables,
             question_mark_found: other.question_mark_found,
+            question_mark_variable: other.question_mark_variable.clone(),
             allow_question_mark,
             ..Parser::new(tokens, other.nesting_level + 1, other.env)
         }
@@ -273,6 +278,7 @@ impl<'a> Parser<'a> {
                     lhs: lhs.to_vec(),
                     rhs: rhs.to_vec(),
                     is_question_mark_in_lhs: self.is_question_mark_in_lhs,
+                    output_variable: self.question_mark_variable.clone(),
                 })
             } else {
                 Ok(ParserResult::EqualityCheck(lhs.to_vec(), rhs.to_vec()))
@@ -373,7 +379,38 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                self.next_identifier(token)?;
+                if let Err(e) = self.next_identifier(token) {
+                    return match e.error {
+                        ErrorType::UnknownIdentifier => {
+                            if let Some(Token { ty, .. }) = self.tokens.get(self.index) {
+                                if *ty == TokenType::QuestionMark {
+                                    self.question_mark_variable =
+                                        Some((token.text.clone(), token.range.clone()));
+                                    return Ok(true); // Don't set last_token, since we ignore the identifier token
+                                }
+                            }
+                            Err(e)
+                        }
+                        _ => Err(e),
+                    };
+                }
+
+                if let Some(Token { ty, .. }) = self.tokens.get(self.index) {
+                    if *ty == TokenType::QuestionMark {
+                        if let Some(
+                            AstNode {
+                                data: AstNodeData::VariableReference(var_name),
+                                range,
+                                ..
+                            }
+                        ) = self.result.last() {
+                            self.question_mark_variable = Some((var_name.clone(), range.clone()));
+                            self.result.remove(self.result.len() - 1);
+                            return Ok(true); // Don't set last_token, since the variable_token was deleted
+                        }
+                    }
+                }
+
                 self.last_token_ty = Some(token.ty);
                 return Ok(true);
             }
@@ -477,6 +514,7 @@ impl<'a> Parser<'a> {
         };
 
         self.question_mark_found = parser.question_mark_found;
+        self.question_mark_variable = parser.question_mark_variable;
         if parser.question_mark_found {
             self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
         }
@@ -653,6 +691,7 @@ impl<'a> Parser<'a> {
 
                     if allow_question_mark_in_args {
                         self.question_mark_found = parser.question_mark_found;
+                        self.question_mark_variable = parser.question_mark_variable;
                         if parser.question_mark_found {
                             self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
                         }
@@ -686,13 +725,13 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn push_new_node(&mut self, data: AstNodeData, range: std::ops::Range<usize>) {
+    fn push_new_node(&mut self, data: AstNodeData, range: Range<usize>) {
         let mut new_node = AstNode::new(data, range);
         new_node.modifiers = mem::take(&mut self.next_token_modifiers);
         self.result.push(new_node);
     }
 
-    fn infer_multiplication(&mut self, range: std::ops::Range<usize>) {
+    fn infer_multiplication(&mut self, range: Range<usize>) {
         if let Some(last_ty) = self.last_token_ty {
             if last_ty.is_number() {
                 self.result.push(AstNode::new(

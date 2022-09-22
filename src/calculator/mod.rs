@@ -252,7 +252,12 @@ impl Calculator {
                     }
                 }
             }
-            ParserResult::Equation { lhs, rhs, is_question_mark_in_lhs } => {
+            ParserResult::Equation {
+                lhs,
+                rhs,
+                is_question_mark_in_lhs,
+                output_variable,
+            } => {
                 if self.verbosity == Verbosity::Ast {
                     println!("Equation:");
                     println!("QuestionMark is in {}\nLHS:", if is_question_mark_in_lhs { "LHS" } else { "RHS" });
@@ -271,6 +276,14 @@ impl Calculator {
                 )?;
 
                 self.environment.set_ans_variable(Variable(result.result, result.unit.clone()));
+                if let Some((name, range)) = output_variable {
+                    if let Err(ty) = self.environment.set_variable(
+                        &name,
+                        Variable(result.result, result.unit.clone())) {
+                        return Err(ty.with(range));
+                    }
+                }
+
                 Ok(CalculatorResult::number(result.result, result.unit.map(|u| u.to_string()), result.format, color_segments))
             }
         }
@@ -320,9 +333,14 @@ impl Calculator {
                             writeln_or_err!(&mut output, "Function removal: {}", name);
                         }
                     }
-                    ParserResult::Equation { lhs, rhs, is_question_mark_in_lhs } => {
+                    ParserResult::Equation {
+                        lhs,
+                        rhs,
+                        is_question_mark_in_lhs,
+                        output_variable
+                    } => {
                         writeln_or_err!(&mut output, "Equation:");
-                        writeln_or_err!(&mut output, "QuestionMark is in {}\nLHS:", if is_question_mark_in_lhs { "LHS" } else { "RHS" });
+                        writeln_or_err!(&mut output, "QuestionMark is in {}, output variable: {:?}\nLHS:", if is_question_mark_in_lhs { "LHS" } else { "RHS" }, output_variable);
                         for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
                         writeln_or_err!(&mut output, "RHS:");
                         for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
