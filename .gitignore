@@ -1,5 +1,5 @@
 .idea
 /target
 /SPEC.md
-/dist
+**/dist
 **/default_currencies.rs
