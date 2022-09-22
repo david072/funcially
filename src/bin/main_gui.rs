@@ -6,9 +6,9 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::{CreationContext, egui, Frame};
+use eframe::{CreationContext, egui, Frame, Storage};
 use egui::*;
-use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function};
+use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function as CalcFn};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -46,25 +46,35 @@ fn main() {
     ).expect("Failed to start eframe");
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct Function(String, usize, #[serde(skip)] CalcFn);
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 enum Line {
     Empty,
     Line {
+        #[serde(skip)]
         output_text: String,
+        #[serde(skip)]
         color_segments: Vec<ColorSegment>,
         /// `name`, `argument count`, `Function`.
         ///
         /// Store the function to be able to show redefinitions as well.
-        function: Option<(String, usize, Function)>,
-        is_error: bool,
+        function: Option<Function>,
         show_in_plot: bool,
+        #[serde(skip)]
+        is_error: bool,
     },
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 struct App {
+    #[serde(skip)]
     calculator: Calculator,
 
     source: String,
+    #[serde(skip)]
     source_old: String,
     lines: Vec<Line>,
 
@@ -77,16 +87,20 @@ struct App {
     is_debug_info_open: bool,
     debug_information: Option<String>,
 
+    #[serde(skip)]
     first_frame: bool,
+    #[serde(skip)]
     input_text_paragraph: usize,
+    #[serde(skip)]
     default_bottom_text: String,
+    #[serde(skip)]
     bottom_text: Option<String>,
+    #[serde(skip)]
     cached_help_window_color_segments: Vec<Vec<ColorSegment>>,
 }
 
-impl App {
-    fn new(cc: &CreationContext<'_>) -> Self {
-        cc.egui_ctx.set_visuals(Visuals::dark());
+impl Default for App {
+    fn default() -> Self {
         App {
             calculator: Calculator::default(),
             source_old: String::new(),
@@ -106,6 +120,18 @@ impl App {
             cached_help_window_color_segments: Vec::new(),
         }
     }
+}
+
+impl App {
+    fn new(cc: &CreationContext<'_>) -> Self {
+        cc.egui_ctx.set_visuals(Visuals::dark());
+
+        if let Some(storage) = cc.storage {
+            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        }
+
+        App::default()
+    }
 
     fn calculate(&mut self, str: &str) -> Line {
         let str = str.to_string();
@@ -114,7 +140,7 @@ impl App {
 
         let result = self.calculator.calculate(str);
 
-        let mut function: Option<(String, usize, Function)> = None;
+        let mut function: Option<Function> = None;
         let mut color_segments: Vec<ColorSegment> = Vec::new();
         let mut is_error: bool = false;
 
@@ -127,7 +153,7 @@ impl App {
                     }
                     ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
                     ResultData::Function { name, arg_count, function: f } => {
-                        function = Some((name, arg_count, f));
+                        function = Some(Function(name, arg_count, f));
                         String::new()
                     }
                     ResultData::Nothing => String::new(),
@@ -177,7 +203,7 @@ impl App {
                 }
             })
             .map(|l| {
-                if let Line::Line { function: Some((name, ..)), .. } = l {
+                if let Line::Line { function: Some(Function(name, ..)), .. } = l {
                     name.clone()
                 } else { unreachable!() }
             })
@@ -202,7 +228,7 @@ impl App {
                     } else { &line };
 
                     let mut res = self.calculate(actual_line);
-                    if let Line::Line { function: Some((name, ..)), show_in_plot, .. } = &mut res {
+                    if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
                         if functions.contains(name) {
                             *show_in_plot = true;
                         }
@@ -222,7 +248,7 @@ impl App {
             } else { &line };
 
             let mut res = self.calculate(actual_line);
-            if let Line::Line { function: Some((name, ..)), show_in_plot, .. } = &mut res {
+            if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
                 if functions.contains(name) {
                     *show_in_plot = true;
                 }
@@ -378,7 +404,9 @@ impl eframe::App for App {
             })
         });
 
-        if self.is_plot_open { self.plot_panel(ctx); }
+        // We wait for the second frame to have the lines updated if they've been loaded on startup
+        if !self.first_frame && self.is_plot_open { self.plot_panel(ctx); }
+
         if self.is_help_open { self.help_window(ctx); }
         #[cfg(target_arch = "wasm32")]
         if self.is_download_open { self.download_window(ctx); }
@@ -427,7 +455,7 @@ impl eframe::App for App {
                                 ..
                             } = line {
                                 if !*is_error {
-                                    if let Some((_, arg_count, _)) = function {
+                                    if let Some(Function(_, arg_count, _)) = function {
                                         if *arg_count == 1 {
                                             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                                                 ui.checkbox(show_in_plot, "Show in Plot");
@@ -450,6 +478,10 @@ impl eframe::App for App {
             let text = if let Some(text) = &self.bottom_text { text } else { &self.default_bottom_text };
             ui.label(RichText::new(text).font(FontId::proportional(14.0)));
         });
+    }
+
+    fn save(&mut self, storage: &mut dyn Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
     }
 }
 

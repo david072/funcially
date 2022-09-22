@@ -26,7 +26,7 @@ const VAR_PI: &Variable = &Variable(PI, None);
 const VAR_E: &Variable = &Variable(E, None);
 const VAR_TAU: &Variable = &Variable(TAU, None);
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Function(pub(crate) Vec<String>, pub(crate) Vec<AstNode>);
 
 const STANDARD_FUNCTIONS: [(&str, usize); 17] = [
