@@ -187,26 +187,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "calculator-cli"
-version = "0.4.0"
-dependencies = [
- "calculator",
- "clap",
- "colored",
-]
-
-[[package]]
-name = "calculator-gui"
-version = "0.4.0"
-dependencies = [
- "calculator",
- "console_error_panic_hook",
- "eframe",
- "serde",
- "tracing-wasm",
-]
-
-[[package]]
 name = "calloop"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -283,6 +263,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
+]
+
+[[package]]
+name = "cli"
+version = "0.4.0"
+dependencies = [
+ "calculator",
+ "clap",
+ "colored",
 ]
 
 [[package]]
@@ -956,6 +945,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3da5951a1569dbab865c6f2a863efafff193a93caf05538d193e9e3816d21696"
 dependencies = [
  "gl_generator",
+]
+
+[[package]]
+name = "gui"
+version = "0.4.0"
+dependencies = [
+ "calculator",
+ "console_error_panic_hook",
+ "eframe",
+ "serde",
+ "tracing-wasm",
 ]
 
 [[package]]
