@@ -285,6 +285,15 @@ impl<'a> Tokenizer<'a> {
                 None
             }
         } else if LETTERS.contains(c as char) {
+            let mut iterations = 0usize;
+            while self.accept(any_of(LETTERS)) { iterations += 1; }
+            // Necessary for scientific notation (need 'e' and number separately)
+            // e.g. in "1e2" the "e2" should result in two tokens
+            if iterations == 0 &&
+                (self.string[self.index - 1] == b'e' || self.string[self.index - 1] == b'E') {
+                return Some(TokenType::Identifier);
+            }
+
             while self.accept(any_of(LETTERS)) ||
                 self.accept(any_of(NUMBERS)) {}
             Some(TokenType::Identifier)
