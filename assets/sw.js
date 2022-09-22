@@ -17,9 +17,19 @@ self.addEventListener('install', function (e) {
 
 /* Serve cached content when offline */
 self.addEventListener('fetch', function (e) {
+  // "Stale while revalidate" approach
+
   e.respondWith(
-    caches.match(e.request).then(function (response) {
-      return response || fetch(e.request);
+    caches.match(e.request).then(cachedResponse => {
+      const networkFetch = fetch(e.request).then(response => {
+        // update the cache
+        caches.open(cacheName).then(cache => {
+          cache.put(e.request, response.clone());
+        });
+      });
+
+      // prioritize cached response over network
+      return cachedResponse || networkFetch;
     })
   );
 });
