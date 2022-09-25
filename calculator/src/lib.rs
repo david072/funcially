@@ -23,7 +23,7 @@ use environment::{
 };
 use crate::engine::Format;
 
-pub use color::ColorSegment;
+pub use color::{ColorSegment, Color};
 pub use environment::Function;
 
 const CRASH_REPORTS_DIR: &str = "crash_reports";

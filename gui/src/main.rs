@@ -8,7 +8,15 @@
 
 use eframe::{CreationContext, egui, Frame, Storage};
 use egui::*;
-use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function as CalcFn};
+use calculator::{
+    Calculator,
+    ResultData,
+    ColorSegment,
+    colorize_text,
+    Verbosity,
+    Function as CalcFn,
+    Color,
+};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -16,7 +24,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
 const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
-const ERROR_COLOR: Color32 = Color32::RED;
+const ERROR_COLOR: Color = Color::RED;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
@@ -698,7 +706,13 @@ fn layout_segments(
             job.sections.push(section(*end..range_start, Color32::GRAY));
         }
 
-        job.sections.push(section(range_start..range_end, segment.color));
+        let color = Color32::from_rgba_premultiplied(
+            segment.color.0[0],
+            segment.color.0[1],
+            segment.color.0[2],
+            segment.color.0[3],
+        );
+        job.sections.push(section(range_start..range_end, color));
         *end = range_end;
     }
 
