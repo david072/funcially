@@ -171,7 +171,7 @@ checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
 
 [[package]]
 name = "calculator"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "backtrace",
  "dirs",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "cli"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "calculator",
  "clap",
@@ -948,7 +948,7 @@ dependencies = [
 
 [[package]]
 name = "gui"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "calculator",
  "console_error_panic_hook",

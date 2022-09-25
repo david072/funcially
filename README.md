@@ -5,12 +5,16 @@ A calculator working purely with text inputs.
 ![Image](/media/image.png)
 
 ## Downloading
+
 - Desktop Version (Windows + Mac) available in the `Releases` Tab
 - Web Version available [here](https://david072.github.io/calculator)!
 
 ## Features
 
-- GUI and CLI applications
+- Desktop, Web (downloadable as mobile "app" (PWA)) and CLI
+    - GUIs: Input data is persisted across restarts
+    - GUIs: Plotting single argument functions
+    - GUIs: Syntax highlighting
 - Literals in decimal, hex and binary
     - The integer part of floats can be omitted
 - Basic operators (`+ - * /`)
@@ -26,14 +30,17 @@ A calculator working purely with text inputs.
 - Number modifiers (such as `!` for factorial or Bitwise NOT or `%` as a shorthand for `n / 100`)
 - `of` operator for taking a percentage from a number
 - Equality checks (`4 = 2 * 2`)
+    - Supports convertible units being used (`60min = 1h`)
 - Units
     - Unit suffixes such as (`m`, `lb` or `°C`)
     - Unit prefixes such as (`k` (Kilo), `g` (Giga), or `m` (Milli))
+    - Supports units that are built from two units, delimited by a `/`. Conversions are supported (`3km/h`)
 - `in` operator
     - Conversion between units
     - Conversion between representations (if last thing in line)
-- Plotting single argument functions in the GUI
-- Web version + PWA (downloadable website)
+- Solving **linear** equations (`3 + ? = 30`)
+    - Assign the result to a variable (`3 + x? = 30` => `x = 27`)
+    - Supports units
 
 ### Order of operations
 
@@ -48,13 +55,9 @@ A calculator working purely with text inputs.
 
 1. Clone the project with `git clone https://github.com/david072/calculator`
 2. `cd calculator`
-3. Run the CLI version with `cargo run --bin cli` or the GUI version with `cargo run --bin gui`
+3. Run the CLI version with `cargo run -p cli` or the GUI version with `cargo run -p gui`
 
-While it should also work on Linux, it has only been tested on Windows and Mac so far.
-
-## TODO
-
-- Constructs such as the unit `W` being constructed from the units `V` and `A`
+To pass arguments to the CLI, use `cargo run -p cli -- <args>`
 
 ## Contributing
 
