@@ -23,7 +23,7 @@ jobs:
       - name: Run Tests
         run: cargo test
       - name: Build
-        run: cargo build --bin cli --release && cargo build --bin gui --release
+        run: cargo build --bin cli --release && cargo build --bin gui --release && cargo build --bin discord --release
       - name: Rename
         run: mv ./target/release/cli ./target/release/cli-linux &&  mv ./target/release/gui ./target/release/gui-linux
       - name: Upload CLI
@@ -57,7 +57,7 @@ jobs:
       - name: Run Tests
         run: cargo test
       - name: Build
-        run: cargo build --bin cli --release && cargo build --bin gui --release
+        run: cargo build --bin cli --release && cargo build --bin gui --release && cargo build --bin discord --release
       - name: Rename
         run: mv ./target/release/cli.exe ./target/release/cli-windows.exe &&  mv ./target/release/gui.exe ./target/release/gui-windows.exe
       - name: Upload CLI
@@ -91,7 +91,7 @@ jobs:
       - name: Run Tests
         run: cargo test
       - name: Build
-        run: cargo build --bin cli --release && cargo build --bin gui --release
+        run: cargo build --bin cli --release && cargo build --bin gui --release && cargo build --bin discord --release
       - name: Rename
         run: mv ./target/release/cli ./target/release/cli-macos &&  mv ./target/release/gui ./target/release/gui-macos
       - name: Upload CLI
