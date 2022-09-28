@@ -142,9 +142,7 @@ impl App {
     }
 
     fn calculate(&mut self, str: &str) -> Line {
-        let str = str.to_string();
-        let str = str.trim();
-        if str.is_empty() { return Line::Empty; }
+        if str.trim().is_empty() { return Line::Empty; }
 
         let result = self.calculator.calculate(str);
 
@@ -230,7 +228,7 @@ impl App {
                 }
                 continue;
             } else {
-                if !line.trim().starts_with('#') {
+                if !line.starts_with('#') {
                     let actual_line = if let Some(index) = line.find('#') {
                         &line[0..index]
                     } else { &line };
@@ -250,7 +248,7 @@ impl App {
             }
         }
 
-        if !line.is_empty() && !line.trim().starts_with('#') {
+        if !line.is_empty() && !line.starts_with('#') {
             let actual_line = if let Some(index) = line.find('#') {
                 &line[0..index]
             } else { &line };
