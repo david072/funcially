@@ -35,7 +35,7 @@ impl Currencies {
             base: Mutex::new(base),
             currencies: Mutex::new(currencies),
         });
-        updating::update_currencies(res.clone());
+        updating::update_currencies(Some(res.clone()));
         res
     }
 
@@ -45,6 +45,8 @@ impl Currencies {
             currencies: Mutex::new(None),
         }
     }
+
+    pub fn update() { updating::update_currencies(None); }
 
     pub fn convert(&self, src_curr: &str, dst_curr: &str, n: f64, range: &Range<usize>) -> Result<f64> {
         if src_curr == dst_curr { return Ok(n); }
@@ -101,7 +103,8 @@ mod updating {
 
     fn cache_file_path() -> std::path::PathBuf { cache_dir().join(CURRENCIES_FILE_NAME) }
 
-    pub fn update_currencies(currencies: std::sync::Arc<Currencies>) {
+    /// Update currency file, and optionally update `Currencies` struct
+    pub fn update_currencies(currencies: Option<std::sync::Arc<Currencies>>) {
         std::thread::spawn(move || {
             let ApiResponse { base, rates } =
                 reqwest::blocking::get(CURRENCY_API_URL).unwrap().json().unwrap();
@@ -116,8 +119,10 @@ mod updating {
                 file_content += &num.to_string();
             }
 
-            *currencies.base.lock().unwrap() = Some(base);
-            *currencies.currencies.lock().unwrap() = Some(rates);
+            if let Some(currencies) = currencies {
+                *currencies.base.lock().unwrap() = Some(base);
+                *currencies.currencies.lock().unwrap() = Some(rates);
+            }
 
             if !cache_dir().try_exists().unwrap_or(false) {
                 let _ = std::fs::create_dir(cache_dir());
