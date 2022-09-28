@@ -2,6 +2,7 @@
 //!
 //! Requires a `.env` file containing DISCORD_TOKEN
 
+use std::time::Duration;
 use serenity::{async_trait, Client};
 use serenity::builder::CreateEmbed;
 use serenity::client::{Context, EventHandler};
@@ -10,6 +11,7 @@ use serenity::model::gateway::{Activity, Ready};
 use serenity::model::prelude::command::Command;
 use serenity::prelude::GatewayIntents;
 use serenity::utils::Colour;
+use calculator::{Calculator, Verbosity};
 
 #[tokio::main]
 async fn main() {
@@ -27,6 +29,14 @@ async fn main() {
         .event_handler(Handler)
         .await
         .expect("Failed to create the client.");
+
+    // Update currencies every 5 minutes
+    tokio::task::spawn(async {
+        loop {
+            tokio::time::sleep(Duration::from_secs(5 * 60)).await; // (5min)
+            Calculator::update_currencies();
+        }
+    });
 
     if let Err(e) = client.start().await {
         println!("Client error {:?}", e);

@@ -139,6 +139,8 @@ impl Default for Calculator {
 }
 
 impl Calculator {
+    pub fn update_currencies() { Currencies::update(); }
+
     /// Creates a new `Calculator` and sets a panic hook, printing the full stacktrace + panic info
     /// to a file.
     pub fn new(verbosity: Verbosity) -> Calculator {
