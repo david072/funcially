@@ -77,9 +77,9 @@ enum Line {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(default)]
-struct App {
+struct App<'a> {
     #[serde(skip)]
-    calculator: Calculator,
+    calculator: Calculator<'a>,
 
     source: String,
     #[serde(skip)]
@@ -107,7 +107,7 @@ struct App {
     cached_help_window_color_segments: Vec<Vec<ColorSegment>>,
 }
 
-impl Default for App {
+impl Default for App<'_> {
     fn default() -> Self {
         App {
             calculator: Calculator::default(),
@@ -130,7 +130,7 @@ impl Default for App {
     }
 }
 
-impl App {
+impl App<'_> {
     fn new(cc: &CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(Visuals::dark());
 
@@ -379,7 +379,7 @@ impl App {
     }
 }
 
-impl eframe::App for App {
+impl eframe::App for App<'_> {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         self.bottom_text = None;
         if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
