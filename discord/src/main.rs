@@ -2,16 +2,31 @@
 //!
 //! Requires a `.env` file containing DISCORD_TOKEN
 
+use std::collections::HashMap;
 use std::time::Duration;
 use serenity::{async_trait, Client};
 use serenity::builder::CreateEmbed;
 use serenity::client::{Context, EventHandler};
 use serenity::model::application::interaction::{Interaction, InteractionResponseType};
 use serenity::model::gateway::{Activity, Ready};
+use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::prelude::command::Command;
 use serenity::prelude::GatewayIntents;
 use serenity::utils::Colour;
-use calculator::{Calculator, Verbosity};
+use calculator::{Calculator, Environment};
+
+type Sessions = HashMap<ChannelId, (String, Environment)>;
+
+#[derive(Default)]
+struct Data {
+    sessions: HashMap<GuildId, Sessions>,
+}
+
+struct DataKey;
+
+impl serenity::prelude::TypeMapKey for DataKey {
+    type Value = Data;
+}
 
 #[tokio::main]
 async fn main() {
@@ -38,6 +53,11 @@ async fn main() {
         }
     });
 
+    {
+        let mut data = client.data.write().await;
+        data.insert::<DataKey>(Data::default());
+    }
+
     if let Err(e) = client.start().await {
         println!("Client error {:?}", e);
     }
@@ -56,6 +76,7 @@ impl EventHandler for Handler {
             commands
                 .create_application_command(|c| commands::ping::register(c))
                 .create_application_command(|c| commands::calc::register(c))
+                .create_application_command(|c| commands::session::register(c))
         }).await;
 
         if let Err(e) = res {
@@ -69,12 +90,24 @@ impl EventHandler for Handler {
         if let Interaction::ApplicationCommand(command) = interaction {
             println!("Received command interaction: {:#?}", command);
 
-            let embed = match command.data.name.as_str() {
-                "ping" => commands::ping::run(),
-                "calc" => commands::calc::run(&command.data.options),
-                _ => create_embed(|e| {
+            let res = match command.data.name.as_str() {
+                "ping" => Ok(Some(commands::ping::run())),
+                "calc" => Ok(Some(commands::calc::run(&ctx, &command, &command.data.options).await)),
+                "session" => commands::session::run(&ctx, &command).await,
+                _ => Ok(Some(create_embed(|e| {
                     e.color(Colour::DARK_RED).title("Unknown command")
-                }),
+                }))),
+            };
+
+            let embed = match res {
+                Ok(embed) => match embed {
+                    Some(e) => e,
+                    None => return,
+                },
+                Err(e) => error_embed(|embed| {
+                    embed.title("An internal error occurred")
+                        .field("Error", e, false)
+                })
             };
 
             if let Err(e) = command.create_interaction_response(&ctx.http, |response| {
@@ -95,9 +128,26 @@ fn create_embed<F: FnOnce(&mut CreateEmbed) -> &mut CreateEmbed>(f: F) -> Create
     embed
 }
 
+fn error_embed<F: FnOnce(&mut CreateEmbed) -> &mut CreateEmbed>(f: F) -> CreateEmbed {
+    let mut embed = CreateEmbed::default();
+    embed.color(Colour::RED);
+    f(&mut embed);
+    embed
+}
+
+fn success_embed<F: FnOnce(&mut CreateEmbed) -> &mut CreateEmbed>(f: F) -> CreateEmbed {
+    let mut embed = CreateEmbed::default();
+    embed.color(Colour::GOLD);
+    f(&mut embed);
+    embed
+}
+
 mod commands {
     use serenity::builder::CreateApplicationCommand;
     use serenity::model::application::interaction::application_command::CommandDataOption;
+    use serenity::builder::CreateEmbed;
+    use serenity::utils::Colour;
+    use serenity::client::Context;
     use crate::create_embed;
 
     pub mod ping {
@@ -114,14 +164,13 @@ mod commands {
     }
 
     pub mod calc {
-        use serenity::builder::CreateEmbed;
         use serenity::model::prelude::command::CommandOptionType;
-        use serenity::model::prelude::interaction::application_command::CommandDataOptionValue;
-        use serenity::utils::Colour;
+        use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
         use calculator::{Calculator, ResultData, Verbosity};
+        use crate::DataKey;
         use super::*;
 
-        pub fn run(options: &[CommandDataOption]) -> CreateEmbed {
+        pub async fn run(ctx: &Context, command: &ApplicationCommandInteraction, options: &[CommandDataOption]) -> CreateEmbed {
             let mut embed = CreateEmbed::default();
 
             if let Some(
@@ -130,7 +179,20 @@ mod commands {
                     ..
                 }
             ) = options.get(0) {
-                let mut calc = Calculator::new(Verbosity::None);
+                let mut data = ctx.data.write().await;
+                let data = data.get_mut::<DataKey>().unwrap();
+
+                let environment = data.sessions
+                    .get_mut(&command.guild_id.unwrap())
+                    .and_then(|s| s.get_mut(&command.channel_id));
+
+                let mut calc = match environment {
+                    Some((_, env)) => {
+                        Calculator::with_environment(Verbosity::None, env)
+                    }
+                    None => Calculator::new(Verbosity::None),
+                };
+
                 match calc.calculate(input) {
                     Ok(res) => {
                         embed.description(format!("`{input}`"));
@@ -188,6 +250,175 @@ mod commands {
                 .description("Calculates the input")
                 .create_option(|opt| {
                     opt.name("input").description("What to calculate").required(true).kind(CommandOptionType::String)
+                })
+        }
+    }
+
+    pub mod session {
+        use chrono::Local;
+        use serenity::model::prelude::command::CommandOptionType;
+        use serenity::http::Http;
+        use serenity::model::prelude::ChannelType;
+        use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
+        use serenity::Result;
+        use calculator::Environment;
+        use crate::{DataKey, error_embed, Sessions, success_embed};
+        use super::*;
+
+        pub async fn run(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<Option<CreateEmbed>> {
+            let options = &command.data.options;
+            if let Some(sub_command) = options.first() {
+                if sub_command.kind == CommandOptionType::SubCommand {
+                    let mut data = ctx.data.write().await;
+                    let data = data.get_mut::<DataKey>().unwrap();
+
+                    let guild_id = command.guild_id.unwrap();
+                    let sessions = data.sessions.entry(guild_id)
+                        .or_insert_with(Sessions::new);
+
+                    match sub_command.name.as_str() {
+                        "new" => return new(
+                            sessions,
+                            &ctx.http,
+                            command,
+                            &sub_command.options,
+                        ).await.map(Some),
+                        "delete" => return delete(
+                            sessions,
+                            &ctx.http,
+                            command,
+                            &sub_command.options,
+                        ).await,
+                        _ => {}
+                    }
+                }
+            }
+
+            Ok(Some(error_embed(|e| e.title("Invalid usage!"))))
+        }
+
+        async fn new(sessions: &mut Sessions, http: &Http, command: &ApplicationCommandInteraction, options: &[CommandDataOption]) -> Result<CreateEmbed> {
+            if let Some(name) = options.first() {
+                if let Some(CommandDataOptionValue::String(name)) = &name.resolved {
+                    if name.len() > 100 {
+                        return Ok(error_embed(|e| {
+                            e.title("Invalid usage")
+                                .description(format!("Name must not exceed 100 characters (was {} characters long)", name.len()))
+                        }));
+                    }
+
+                    if sessions.iter().any(|(_, (session_name, _))| session_name == name) {
+                        return Ok(error_embed(|e| {
+                            e.title("New Session")
+                                .description(format!("A session with the name `{}` already exists.", name))
+                        }));
+                    }
+
+                    let creation_time = Local::now();
+
+                    let embed = create_embed(|embed| {
+                        embed.color(Colour::DARK_MAGENTA)
+                            .title("Session")
+                            .field("Name", name, false)
+                            .field("Created At", creation_time.format("%B %d, %Y"), false)
+                    });
+
+                    let msg = command.channel_id.send_message(http, |m| m.set_embed(embed)).await?;
+                    let thread = command.channel_id.create_public_thread(
+                        http,
+                        msg.id,
+                        |thread| thread.name(name).kind(ChannelType::PublicThread),
+                    ).await?;
+
+                    thread.id.add_thread_member(http, command.member.as_ref().unwrap().user.id).await?;
+
+                    sessions.insert(thread.id, (name.to_owned(), Environment::new()));
+
+                    return Ok(create_embed(|e| {
+                        e.color(Colour::GOLD)
+                            .title("Session created")
+                            .description(format!("Successfully created session `{}`", name))
+                    }));
+                }
+            }
+
+            Ok(error_embed(|embed| {
+                embed.title("New Session").description("Expected name argument")
+            }))
+        }
+
+        async fn delete(sessions: &mut Sessions, http: &Http, command: &ApplicationCommandInteraction, options: &[CommandDataOption]) -> Result<Option<CreateEmbed>> {
+            let data = if let Some(name) = options.first() {
+                if let Some(CommandDataOptionValue::String(name)) = &name.resolved {
+                    if name.len() > 100 {
+                        return Ok(Some(error_embed(|e| {
+                            e.title("Invalid usage")
+                                .description(format!("Name must not exceed 100 characters (was {} characters long)", name.len()))
+                        })));
+                    }
+
+                    let channel = sessions.iter()
+                        .find(|(_, (session_name, _))| session_name == name)
+                        .map(|(id, _)| *id);
+
+                    Some((channel, Some(name)))
+                } else { None }
+            } else if sessions.contains_key(&command.channel_id) {
+                Some((Some(command.channel_id), None))
+            } else { None };
+
+            if let Some((channel, name)) = data {
+                return match channel {
+                    Some(channel) => {
+                        channel.delete(http).await?;
+                        sessions.remove(&channel);
+
+                        if let Some(name) = name {
+                            Ok(Some(success_embed(|e| {
+                                e.title("Session deleted")
+                                    .description(format!("Successfully deleted session `{}`", name))
+                            })))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                    None => {
+                        let description = if let Some(name) = name {
+                            format!("Could not find session thread with name `{}`", name)
+                        } else { "This is not a session thread".to_owned() };
+
+                        Ok(Some(error_embed(|e| {
+                            e.title("Delete Session")
+                                .description(description)
+                        })))
+                    }
+                };
+            }
+
+            Ok(Some(error_embed(|embed| {
+                embed.title("Delete Session").description("Expected name argument")
+            })))
+        }
+
+        pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
+            command
+                .name("session")
+                .description("Manage sessions")
+                .create_option(|opt| {
+                    opt.name("new").description("Create a new session")
+                        .kind(CommandOptionType::SubCommand)
+                        .create_sub_option(|opt| {
+                            opt.name("name").description("Session name")
+                                .kind(CommandOptionType::String).required(true).max_length(100)
+                        })
+                })
+                .create_option(|opt| {
+                    opt.name("delete").description("Delete a session")
+                        .kind(CommandOptionType::SubCommand)
+                        .create_sub_option(|opt| {
+                            opt.name("name").description("Session name")
+                                .kind(CommandOptionType::String).max_length(100)
+                        })
                 })
         }
     }

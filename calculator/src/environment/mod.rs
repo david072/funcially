@@ -63,13 +63,13 @@ impl Environment {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.ans = Variable(0.0, None);
         self.variables.clear();
         self.functions.clear();
     }
 
-    pub fn is_valid_variable(&self, var: &str) -> bool {
+    pub(crate) fn is_valid_variable(&self, var: &str) -> bool {
         if STANDARD_VARIABLES.contains(&var.to_lowercase().as_str()) { true } else {
             for (name, _) in &self.variables {
                 if var == name { return true; }
@@ -78,11 +78,11 @@ impl Environment {
         }
     }
 
-    pub fn is_standard_variable(&self, var: &str) -> bool {
+    pub(crate) fn is_standard_variable(&self, var: &str) -> bool {
         STANDARD_VARIABLES.contains(&var)
     }
 
-    pub fn resolve_variable(&self, var: &str) -> Result<&Variable, ErrorType> {
+    pub(crate) fn resolve_variable(&self, var: &str) -> Result<&Variable, ErrorType> {
         match var {
             "pi" => Ok(VAR_PI),
             "e" => Ok(VAR_E),
@@ -97,7 +97,7 @@ impl Environment {
         }
     }
 
-    pub fn set_variable(&mut self, var: &str, value: Variable) -> Result<(), ErrorType> {
+    pub(crate) fn set_variable(&mut self, var: &str, value: Variable) -> Result<(), ErrorType> {
         if var == "ans" {
             self.ans = value;
             return Ok(());
@@ -116,9 +116,9 @@ impl Environment {
         Ok(())
     }
 
-    pub fn set_ans_variable(&mut self, value: Variable) { self.ans = value; }
+    pub(crate) fn set_ans_variable(&mut self, value: Variable) { self.ans = value; }
 
-    pub fn remove_variable(&mut self, var: &str) -> Result<(), ErrorType> {
+    pub(crate) fn remove_variable(&mut self, var: &str) -> Result<(), ErrorType> {
         if var == "ans" {
             self.ans = Variable(0.0, None);
             return Ok(());
@@ -136,7 +136,7 @@ impl Environment {
         Ok(())
     }
 
-    pub fn is_valid_function(&self, name: &str) -> bool {
+    pub(crate) fn is_valid_function(&self, name: &str) -> bool {
         let name = &name.to_lowercase();
         for (f, _) in STANDARD_FUNCTIONS {
             if f == name { return true; }
@@ -147,7 +147,7 @@ impl Environment {
         false
     }
 
-    pub fn is_standard_function(&self, f: &str) -> bool {
+    pub(crate) fn is_standard_function(&self, f: &str) -> bool {
         for (name, _) in STANDARD_FUNCTIONS {
             if name == f { return true; }
         }
@@ -161,7 +161,7 @@ impl Environment {
         None
     }
 
-    pub fn function_argument_count(&self, name: &str) -> Option<usize> {
+    pub(crate) fn function_argument_count(&self, name: &str) -> Option<usize> {
         for (f, arg_count) in STANDARD_FUNCTIONS {
             if f == name { return Some(arg_count); }
         }
@@ -171,7 +171,7 @@ impl Environment {
         None
     }
 
-    pub fn resolve_function(&self, f: &str, args: &[f64]) -> Result<f64, ErrorType> {
+    pub(crate) fn resolve_function(&self, f: &str, args: &[f64]) -> Result<f64, ErrorType> {
         match f {
             "sin" => Ok(args[0].to_radians().sin()),
             "asin" => {
@@ -221,7 +221,7 @@ impl Environment {
         }
     }
 
-    pub fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
+    pub(crate) fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
         for (name, func) in &self.functions {
             if name == f {
                 return self.resolve_specific_function(func, args, currencies);
@@ -248,7 +248,7 @@ impl Environment {
         }
     }
 
-    pub fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {
+    pub(crate) fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {
         if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction); }
 
         for (i, (name, _)) in self.functions.iter().enumerate() {
@@ -262,7 +262,7 @@ impl Environment {
         Ok(())
     }
 
-    pub fn remove_function(&mut self, f: &str) -> Result<(), ErrorType> {
+    pub(crate) fn remove_function(&mut self, f: &str) -> Result<(), ErrorType> {
         if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction); }
 
         for (i, (name, _)) in self.functions.iter().enumerate() {

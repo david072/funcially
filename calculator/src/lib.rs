@@ -18,13 +18,12 @@ use rust_decimal::prelude::*;
 use environment::{
     units::format as format_unit,
     currencies::Currencies,
-    Environment,
     Variable,
 };
 use crate::engine::Format;
 
 pub use color::{ColorSegment, Color};
-pub use environment::Function;
+pub use environment::{Environment, Function};
 
 const CRASH_REPORTS_DIR: &str = "crash_reports";
 
@@ -122,28 +121,54 @@ pub fn colorize_text(input: &str) -> Option<Vec<ColorSegment>> {
     }
 }
 
-pub struct Calculator {
-    environment: Environment,
+enum Env<'a> {
+    Owned(Environment),
+    Ref(&'a mut Environment),
+}
+
+pub struct Calculator<'a> {
+    environment: Env<'a>,
     pub currencies: std::sync::Arc<Currencies>,
     verbosity: Verbosity,
 }
 
-impl Default for Calculator {
+impl<'a> Default for Calculator<'a> {
     fn default() -> Self {
+        Calculator::set_panic_hook();
+
         Calculator {
-            environment: Environment::new(),
+            environment: Env::Owned(Environment::new()),
             currencies: Currencies::new_arc(),
             verbosity: Verbosity::None,
         }
     }
 }
 
-impl Calculator {
+impl<'a> Calculator<'a> {
     pub fn update_currencies() { Currencies::update(); }
 
-    /// Creates a new `Calculator` and sets a panic hook, printing the full stacktrace + panic info
-    /// to a file.
-    pub fn new(verbosity: Verbosity) -> Calculator {
+    pub fn new(verbosity: Verbosity) -> Calculator<'a> {
+        Calculator::set_panic_hook();
+
+        Calculator {
+            environment: Env::Owned(Environment::new()),
+            currencies: Currencies::new_arc(),
+            verbosity,
+        }
+    }
+
+    pub fn with_environment(verbosity: Verbosity, environment: &'a mut Environment) -> Calculator<'a> {
+        Calculator::set_panic_hook();
+
+        Calculator {
+            environment: Env::Ref(environment),
+            currencies: Currencies::new_arc(),
+            verbosity,
+        }
+    }
+
+    /// Sets a panic hook, writing stack trace + PanicInfo to a file
+    fn set_panic_hook() {
         // Write stack trace + PanicInfo to a file
         std::panic::set_hook(Box::new(|info| {
             let backtrace = backtrace::Backtrace::new();
@@ -163,17 +188,25 @@ impl Calculator {
             let path = path.join(format!("report_{}.txt", current_millis));
             let _ = std::fs::write(path, contents);
         }));
+    }
 
-        Calculator {
-            environment: Environment::new(),
-            currencies: Currencies::new_arc(),
-            verbosity,
+    pub fn reset(&mut self) { self.env_mut().clear(); }
+
+    pub fn clone_env(&self) -> Environment { self.env().clone() }
+
+    fn env(&self) -> &Environment {
+        match &self.environment {
+            Env::Owned(env) => env,
+            Env::Ref(env) => *env,
         }
     }
 
-    pub fn reset(&mut self) { self.environment.clear(); }
-
-    pub fn clone_env(&self) -> Environment { self.environment.clone() }
+    fn env_mut(&mut self) -> &mut Environment {
+        match &mut self.environment {
+            Env::Owned(env) => env,
+            Env::Ref(env) => *env,
+        }
+    }
 
     pub fn calculate(&mut self, input: &str) -> Result<CalculatorResult> {
         let tokens = tokenize(input)?;
@@ -187,7 +220,8 @@ impl Calculator {
 
         let color_segments = ColorSegment::all(&tokens);
 
-        match parse(&tokens, &self.environment)? {
+        // let environment = self.env_mut();
+        match parse(&tokens, self.env_mut())? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
@@ -195,8 +229,8 @@ impl Calculator {
                     println!();
                 }
 
-                let result = Engine::evaluate(ast, &self.environment, &self.currencies)?;
-                self.environment.set_ans_variable(Variable(result.result, result.unit.clone()));
+                let result = Engine::evaluate(ast, self.env(), &self.currencies)?;
+                self.env_mut().set_ans_variable(Variable(result.result, result.unit.clone()));
 
                 let unit = result.unit.as_ref().map(|unit| {
                     if result.is_long_unit {
@@ -216,19 +250,19 @@ impl Calculator {
                     println!();
                 }
 
-                let lhs = Engine::evaluate(lhs, &self.environment, &self.currencies)?;
-                let rhs = Engine::evaluate(rhs, &self.environment, &self.currencies)?;
+                let lhs = Engine::evaluate(lhs, self.env(), &self.currencies)?;
+                let rhs = Engine::evaluate(rhs, self.env(), &self.currencies)?;
                 Ok(CalculatorResult::bool(Engine::equals(&lhs, &rhs, &self.currencies), color_segments))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
-                        let res = Engine::evaluate(ast, &self.environment, &self.currencies)?;
-                        self.environment.set_variable(&name, Variable(res.result, res.unit)).unwrap();
+                        let res = Engine::evaluate(ast, self.env(), &self.currencies)?;
+                        self.env_mut().set_variable(&name, Variable(res.result, res.unit)).unwrap();
                         Ok(CalculatorResult::nothing(color_segments))
                     }
                     None => {
-                        self.environment.remove_variable(&name).unwrap();
+                        self.env_mut().remove_variable(&name).unwrap();
                         Ok(CalculatorResult::nothing(color_segments))
                     }
                 }
@@ -238,11 +272,11 @@ impl Calculator {
                     Some(ast) => {
                         let arg_count = args.len();
                         let function = Function(args, ast);
-                        self.environment.set_function(&name, function.clone()).unwrap();
+                        self.env_mut().set_function(&name, function.clone()).unwrap();
                         Ok(CalculatorResult::function(name, arg_count, function, color_segments))
                     }
                     None => {
-                        self.environment.remove_function(&name).unwrap();
+                        self.env_mut().remove_function(&name).unwrap();
                         Ok(CalculatorResult::nothing(color_segments))
                     }
                 }
@@ -266,13 +300,13 @@ impl Calculator {
                     lhs,
                     rhs,
                     is_question_mark_in_lhs,
-                    &self.environment,
+                    self.env(),
                     &self.currencies,
                 )?;
 
-                self.environment.set_ans_variable(Variable(result.result, result.unit.clone()));
+                self.env_mut().set_ans_variable(Variable(result.result, result.unit.clone()));
                 if let Some((name, range)) = output_variable {
-                    if let Err(ty) = self.environment.set_variable(
+                    if let Err(ty) = self.env_mut().set_variable(
                         &name,
                         Variable(result.result, result.unit.clone())) {
                         return Err(ty.with(range));
@@ -296,8 +330,10 @@ impl Calculator {
             writeln_or_err!(&mut output);
         }
 
+        let environment = self.env();
+
         if verbosity == Verbosity::Ast {
-            match parse(&tokens, &self.environment) {
+            match parse(&tokens, environment) {
                 Ok(parser_result) => match parser_result {
                     ParserResult::Calculation(ast) => {
                         writeln_or_err!(&mut output, "AST:");
