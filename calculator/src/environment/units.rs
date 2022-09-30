@@ -16,7 +16,7 @@ use crate::{
 /// e.g. for `"km/h"`:
 /// - numerator (0): `"km"`
 /// - denominator (1): `"h"`
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Unit(pub String, pub Option<String>);
 
 impl std::fmt::Display for Unit {

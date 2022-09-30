@@ -3,6 +3,8 @@
 //! Requires a `.env` file containing DISCORD_TOKEN
 
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::fs;
 use std::time::Duration;
 use serenity::{async_trait, Client};
 use serenity::builder::CreateEmbed;
@@ -13,11 +15,13 @@ use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::prelude::command::Command;
 use serenity::prelude::GatewayIntents;
 use serenity::utils::Colour;
-use calculator::{Calculator, Environment};
+use calculator::{Calculator, Environment, data_dir};
+
+const SESSIONS_DIRECTORY: &str = "dc_sessions";
 
 type Sessions = HashMap<ChannelId, (String, Environment)>;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Data {
     sessions: HashMap<GuildId, Sessions>,
 }
@@ -55,12 +59,97 @@ async fn main() {
 
     {
         let mut data = client.data.write().await;
-        data.insert::<DataKey>(Data::default());
+        let new_data = load_sessions();
+        println!("Loaded session data for {} guilds", new_data.sessions.len());
+        data.insert::<DataKey>(new_data);
     }
 
     if let Err(e) = client.start().await {
         println!("Client error {:?}", e);
     }
+}
+
+macro_rules! ignore_error {
+    ($e:expr) => {
+        match $e {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("An error occurred: {:?}", e);
+                continue;
+            },
+        }
+    }
+}
+
+fn sessions_directory() -> PathBuf {
+    data_dir().join(SESSIONS_DIRECTORY)
+}
+
+fn load_sessions() -> Data {
+    let mut data = Data::default();
+
+    if !sessions_directory().try_exists().unwrap_or(false) { return data; }
+
+    let paths = match fs::read_dir(sessions_directory()) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to read_dir: {}", e);
+            return data;
+        }
+    };
+
+    for path in paths {
+        println!("path: {:?}", path);
+        match path {
+            Ok(entry) => {
+                // TODO: Check whether this data is valid (guilds exist, threads exist, etc.)
+                let id = ignore_error!(ignore_error!(
+                    entry.file_name().into_string().map(|str| str.parse::<u64>())
+                ));
+                let guild_id = GuildId(id);
+
+                let contents = ignore_error!(fs::read_to_string(entry.path()));
+                let sessions = ignore_error!(ron::from_str::<Sessions>(&contents));
+                data.sessions.insert(guild_id, sessions);
+            }
+            Err(_) => continue,
+        }
+    }
+
+    data
+}
+
+fn save_sessions(sessions: Sessions, guild_id: GuildId) {
+    tokio::spawn(async move {
+        if !sessions_directory().try_exists().unwrap_or(false) {
+            if let Err(e) = fs::create_dir_all(sessions_directory()) {
+                eprintln!("Failed to create directory {:?}: {}", sessions_directory(), e);
+                return;
+            }
+        }
+
+        let path = sessions_directory().join(guild_id.to_string());
+
+        if sessions.is_empty() {
+            if !path.try_exists().unwrap_or(false) { return; }
+
+            if let Err(e) = fs::remove_file(path.clone()) {
+                eprintln!("Could not remove file at {:?}: {}", path, e);
+            }
+            return;
+        }
+
+        let str = match ron::ser::to_string(&sessions) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Failed to serialize sessions ({:?}): {}", sessions, e);
+                return;
+            }
+        };
+        if let Err(e) = fs::write(path.clone(), str) {
+            eprintln!("Failed to write to file {:?}: {}", path, e);
+        }
+    });
 }
 
 struct Handler;
@@ -167,7 +256,7 @@ mod commands {
         use serenity::model::prelude::command::CommandOptionType;
         use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
         use calculator::{Calculator, ResultData, Verbosity};
-        use crate::DataKey;
+        use crate::{DataKey, save_sessions};
         use super::*;
 
         pub async fn run(ctx: &Context, command: &ApplicationCommandInteraction, options: &[CommandDataOption]) -> CreateEmbed {
@@ -182,9 +271,11 @@ mod commands {
                 let mut data = ctx.data.write().await;
                 let data = data.get_mut::<DataKey>().unwrap();
 
-                let environment = data.sessions
-                    .get_mut(&command.guild_id.unwrap())
-                    .and_then(|s| s.get_mut(&command.channel_id));
+                let guild_id = command.guild_id.unwrap();
+                let environment = match data.sessions.get_mut(&guild_id) {
+                    Some(s) => s.get_mut(&command.channel_id),
+                    None => None,
+                };
 
                 let mut calc = match environment {
                     Some((_, env)) => {
@@ -211,6 +302,10 @@ mod commands {
                                     .title(if b { "True" } else { "False" });
                             }
                             _ => {}
+                        }
+
+                        if let Some(sessions) = data.sessions.get(&guild_id) {
+                            save_sessions(sessions.clone(), guild_id);
                         }
                     }
                     Err(error) => {
@@ -262,7 +357,7 @@ mod commands {
         use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
         use serenity::Result;
         use calculator::Environment;
-        use crate::{DataKey, error_embed, Sessions, success_embed};
+        use crate::{DataKey, error_embed, save_sessions, Sessions, success_embed};
         use super::*;
 
         pub async fn run(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<Option<CreateEmbed>> {
@@ -333,10 +428,10 @@ mod commands {
                     thread.id.add_thread_member(http, command.member.as_ref().unwrap().user.id).await?;
 
                     sessions.insert(thread.id, (name.to_owned(), Environment::new()));
+                    save_sessions(sessions.clone(), command.guild_id.unwrap());
 
-                    return Ok(create_embed(|e| {
-                        e.color(Colour::GOLD)
-                            .title("Session created")
+                    return Ok(success_embed(|e| {
+                        e.title("Session created")
                             .description(format!("Successfully created session `{}`", name))
                     }));
                 }
@@ -373,6 +468,8 @@ mod commands {
                         channel.delete(http).await?;
                         sessions.remove(&channel);
 
+                        save_sessions(sessions.clone(), command.guild_id.unwrap());
+
                         if let Some(name) = name {
                             Ok(Some(success_embed(|e| {
                                 e.title("Session deleted")
@@ -399,6 +496,7 @@ mod commands {
                 embed.title("Delete Session").description("Expected name argument")
             })))
         }
+
 
         pub fn register(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
             command

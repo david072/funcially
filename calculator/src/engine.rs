@@ -15,7 +15,7 @@ use crate::{
     Currencies,
 };
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Format { Decimal, Hex, Binary, Scientific }
 
 impl Format {
