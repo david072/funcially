@@ -673,13 +673,21 @@ impl<'a> Parser<'a> {
             self.index += 1;
             match token.ty {
                 TokenType::Comma | TokenType::CloseBracket => {
-                    if token.ty == TokenType::Comma && argument_start == self.index - 1 {
-                        error!(ExpectedElements(self.tokens[self.index - 1].range));
+                    if token.ty == TokenType::Comma {
+                        if argument_start == self.index - 1 {
+                            error!(ExpectedElements(self.tokens[self.index - 1].range));
+                        }
+
+                        // Ignore commas if they're not on the base level
+                        if nesting_level != 1 { continue; }
                     } else if token.ty == TokenType::CloseBracket {
                         nesting_level -= 1;
                         if nesting_level == 0 {
                             finished = true;
                             if argument_start == self.index - 1 { break; }
+                        } else if nesting_level == 1 {
+                            // Ignore brackets if they're not on the base level
+                            continue;
                         }
                     }
 
