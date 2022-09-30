@@ -92,9 +92,8 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies
         )?;
         Ok(numerator / denominator)
     } else {
-        let src_unit = if let Some(u) = &src_unit.1 { u.clone() } else { String::new() };
-        let dst_unit = if let Some(u) = &dst_unit.1 { u.clone() } else { String::new() };
-        Err(ErrorType::UnknownConversion(src_unit, dst_unit).with(range.clone()))
+        Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string())
+            .with(range.clone()))
     }
 }
 
