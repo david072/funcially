@@ -657,15 +657,27 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
         if !lines.is_empty() {
             let mut end = 0usize;
             let mut offset = 0usize;
-            for (i, line) in string.lines().enumerate() {
+            let mut i = 0usize;
+
+            for line in string.lines() {
                 if i >= lines.len() { break; }
-                if let Line::Line { color_segments, .. } = &lines[i] {
-                    if !layout_segments(color_segments, &mut job, string, &mut end, offset) {
-                        break;
+
+                let trimmed_line = line.trim();
+                // Skip empty lines
+                if !trimmed_line.is_empty() && !trimmed_line.starts_with('#') {
+                    // NOTE: We use `Line::Empty`s to add spacing if the line spans multiple rows.
+                    //  We have to skip these lines here to get to the actual color segments.
+                    while matches!(lines[i], Line::Empty) { i += 1; }
+
+                    if let Line::Line { color_segments, .. } = &lines[i] {
+                        if !layout_segments(color_segments, &mut job, string, &mut end, offset) {
+                            break;
+                        }
                     }
                 }
 
                 offset += line.len() + 1;
+                i += 1;
             }
 
             if end != string.len() {

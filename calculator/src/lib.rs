@@ -178,7 +178,9 @@ impl<'a> Calculator<'a> {
                 .unwrap()
                 .as_secs();
 
-            let contents = format!("{:?}\n\n{}", backtrace, info);
+            let contents = format!("{}\n\n{:?}", info, backtrace);
+
+            eprintln!("{contents}");
 
             let path = data_dir().join(CRASH_REPORTS_DIR);
             #[allow(clippy::collapsible_if)] // allow for readability
