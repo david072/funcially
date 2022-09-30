@@ -24,6 +24,7 @@ use crate::engine::Format;
 
 pub use color::{ColorSegment, Color};
 pub use environment::{Environment, Function};
+pub use common::data_dir;
 
 const CRASH_REPORTS_DIR: &str = "crash_reports";
 

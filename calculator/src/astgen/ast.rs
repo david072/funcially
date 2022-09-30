@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Operator {
     Plus,
     Minus,
@@ -31,7 +31,7 @@ pub enum Operator {
     Modulo,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AstNodeData {
     Literal(f64),
     Operator(Operator),
@@ -42,7 +42,7 @@ pub enum AstNodeData {
     QuestionMark,
 }
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AstNodeModifier {
     Factorial,
     BitwiseNot,
@@ -73,13 +73,14 @@ impl Display for AstNodeModifier {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct AstNode {
     pub data: AstNodeData,
     pub modifiers: Vec<AstNodeModifier>,
     pub unit: Option<Unit>,
     pub format: Format,
     pub range: Range<usize>,
+    #[serde(skip)]
     did_apply_modifiers: bool,
 }
 

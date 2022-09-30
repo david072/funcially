@@ -18,7 +18,7 @@ use crate::{
 };
 use self::units::Unit;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Variable(pub f64, pub Option<Unit>);
 
 const STANDARD_VARIABLES: [&str; 4] = ["pi", "e", "tau", "ans"];
@@ -26,7 +26,7 @@ const VAR_PI: &Variable = &Variable(PI, None);
 const VAR_E: &Variable = &Variable(E, None);
 const VAR_TAU: &Variable = &Variable(TAU, None);
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Function(pub(crate) Vec<String>, pub(crate) Vec<AstNode>);
 
 const STANDARD_FUNCTIONS: [(&str, usize); 17] = [
@@ -41,7 +41,7 @@ const STANDARD_FUNCTIONS: [(&str, usize); 17] = [
     ("round", 1),
 ];
 
-#[derive(Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Environment {
     ans: Variable,
     variables: Vec<(String, Variable)>,
