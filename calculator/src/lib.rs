@@ -180,7 +180,7 @@ impl<'a> Calculator<'a> {
 
             let contents = format!("{:?}\n\n{}", backtrace, info);
 
-            let path = common::data_dir().join(CRASH_REPORTS_DIR);
+            let path = data_dir().join(CRASH_REPORTS_DIR);
             #[allow(clippy::collapsible_if)] // allow for readability
             if !path.try_exists().unwrap_or(false) {
                 if std::fs::create_dir(path.clone()).is_err() { return; }

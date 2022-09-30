@@ -232,10 +232,7 @@ impl Environment {
     }
 
     pub fn resolve_specific_function(&self, f: &Function, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
-        let mut temp_env = Environment::new();
-        temp_env.ans = self.ans.clone();
-        temp_env.variables = self.variables.clone();
-
+        let mut temp_env = self.clone();
         for (i, arg) in args.iter().enumerate() {
             temp_env.set_variable(&f.0[i], Variable(*arg, None))?;
         }

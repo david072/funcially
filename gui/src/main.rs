@@ -363,6 +363,7 @@ impl App<'_> {
 
         Window::new("Debug Information")
             .open(&mut self.is_debug_info_open)
+            .vscroll(true)
             .show(ctx, |ui| {
                 if let Some(debug_information) = debug_information {
                     if ui.button("📋").clicked() {
