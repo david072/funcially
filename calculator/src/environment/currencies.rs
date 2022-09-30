@@ -70,14 +70,16 @@ impl Currencies {
         if src_curr != base {
             value /= match get_currency(src_curr) {
                 Some(v) => v,
-                None => return Err(ErrorType::UnknownIdentifier.with(range.clone())),
+                None => return Err(ErrorType::UnknownIdentifier(src_curr.to_owned())
+                    .with(range.clone())),
             };
         }
         // Convert from base currency to dst currency if needed
         if dst_curr != base {
             value *= match get_currency(dst_curr) {
                 Some(v) => v,
-                None => return Err(ErrorType::UnknownIdentifier.with(range.clone())),
+                None => return Err(ErrorType::UnknownIdentifier(dst_curr.to_owned())
+                    .with(range.clone())),
             };
         }
 

@@ -92,7 +92,7 @@ impl Environment {
                 for (name, variable) in &self.variables {
                     if name == var { return Ok(variable); }
                 }
-                Err(ErrorType::UnknownVariable)
+                Err(ErrorType::UnknownVariable(var.to_owned()))
             }
         }
     }
@@ -102,7 +102,7 @@ impl Environment {
             self.ans = value;
             return Ok(());
         } else if self.is_standard_variable(var) {
-            return Err(ErrorType::ReservedVariable);
+            return Err(ErrorType::ReservedVariable(var.to_owned()));
         }
 
         for (i, (name, _)) in self.variables.iter().enumerate() {
@@ -123,7 +123,7 @@ impl Environment {
             self.ans = Variable(0.0, None);
             return Ok(());
         } else if self.is_standard_variable(var) {
-            return Err(ErrorType::ReservedVariable);
+            return Err(ErrorType::ReservedVariable(var.to_owned()));
         }
 
         for (i, (name, _)) in self.variables.iter().enumerate() {
@@ -217,7 +217,7 @@ impl Environment {
                 Ok((args[0] - a1) * (b2 - a2) / (b1 - a1) + a2)
             }
             "round" => Ok(args[0].round()),
-            _ => Err(ErrorType::UnknownFunction),
+            _ => Err(ErrorType::UnknownFunction(f.to_owned())),
         }
     }
 
@@ -228,7 +228,7 @@ impl Environment {
             }
         }
 
-        Err(ErrorType::UnknownFunction)
+        Err(ErrorType::UnknownFunction(f.to_owned()))
     }
 
     pub fn resolve_specific_function(&self, f: &Function, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
@@ -246,7 +246,7 @@ impl Environment {
     }
 
     pub(crate) fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {
-        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction); }
+        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction(f.to_owned())); }
 
         for (i, (name, _)) in self.functions.iter().enumerate() {
             if name == f {
@@ -260,7 +260,7 @@ impl Environment {
     }
 
     pub(crate) fn remove_function(&mut self, f: &str) -> Result<(), ErrorType> {
-        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction); }
+        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction(f.to_owned())); }
 
         for (i, (name, _)) in self.functions.iter().enumerate() {
             if name == f {

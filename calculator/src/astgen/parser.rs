@@ -24,7 +24,7 @@ macro_rules! error {
     }
 }
 
-macro_rules! error_with_args {
+macro_rules! error_args {
     ($variant:ident($range:expr) $($arg:expr),*) => {
         return Err(ErrorType::$variant($($arg),*).with($range.clone()))
     }
@@ -106,7 +106,7 @@ pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
                 let variable_ast = match Parser::new(rhs, 1, env).parse()? {
                     ParserResult::Calculation(ast) => ast,
                     res =>
-                        error_with_args!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end) res.to_string()),
+                        error_args!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end) res.to_string()),
                 };
 
                 Ok(ParserResult::VariableDefinition(name, Some(variable_ast)))
@@ -125,7 +125,7 @@ pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
                 let function_ast = match parser.parse()? {
                     ParserResult::Calculation(ast) => ast,
                     res =>
-                        error_with_args!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end) res.to_string()),
+                        error_args!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end) res.to_string()),
                 };
                 Ok(ParserResult::FunctionDefinition {
                     name,
@@ -155,9 +155,9 @@ fn parse_definition_identifier(tokens: &[Token], env: &Environment) -> Result<De
 
     let name = tokens[0].text.clone();
     if env.is_standard_variable(&name) {
-        error!(ReservedVariable(tokens[0].range));
+        error_args!(ReservedVariable(tokens[0].range) name);
     } else if env.is_standard_function(&name) {
-        error!(ReservedFunction(tokens[0].range));
+        error_args!(ReservedFunction(tokens[0].range) name);
     }
 
     if tokens.len() == 1 {
@@ -185,7 +185,9 @@ fn parse_definition_identifier(tokens: &[Token], env: &Environment) -> Result<De
                 }
                 TokenType::Comma => {
                     if token.ty != TokenType::Identifier { error!(ExpectedIdentifier(token.range)); }
-                    if args.contains(&token.text) { error!(DuplicateArgument(token.range)); }
+                    if args.contains(&token.text) {
+                        error_args!(DuplicateArgument(token.range) token.text.to_owned());
+                    }
                     args.push(token.text.clone());
                 }
                 _ => unreachable!(),
@@ -381,7 +383,7 @@ impl<'a> Parser<'a> {
 
                 if let Err(e) = self.next_identifier(token) {
                     return match e.error {
-                        ErrorType::UnknownIdentifier => {
+                        ErrorType::UnknownIdentifier(_) => {
                             if let Some(Token { ty, .. }) = self.tokens.get(self.index) {
                                 if *ty == TokenType::QuestionMark {
                                     self.question_mark_variable =
@@ -614,17 +616,17 @@ impl<'a> Parser<'a> {
                 }
                 return Ok(None);
             } else {
-                error!(UnknownIdentifier(identifier.range));
+                error_args!(UnknownIdentifier(identifier.range) identifier.text.to_owned());
             }
         } else if is_unit(&identifier.text) {
             (identifier.text.clone(), false)
         } else if is_prefix(first) {
             if !is_unit(&identifier.text[1..]) {
-                error!(UnknownIdentifier(identifier.range));
+                error_args!(UnknownIdentifier(identifier.range) identifier.text.to_owned());
             }
             (identifier.text.clone(), true)
         } else {
-            error!(UnknownIdentifier(identifier.range));
+            error_args!(UnknownIdentifier(identifier.range) identifier.text.to_owned());
         };
 
         // Handle units with exponentiation (e.g. m^2 (square meters))
@@ -635,13 +637,13 @@ impl<'a> Parser<'a> {
                 next.range.start == identifier.range.end {
                 let literal = &self.tokens[self.index + 1];
                 if !literal.ty.is_literal() {
-                    error!(UnknownIdentifier(identifier.range.start..next.range.end));
+                    error_args!(UnknownIdentifier(identifier.range.start..next.range.end) format!("{}{}", identifier.text, next.text));
                 }
 
                 unit += &next.text;
                 unit += &literal.text;
                 if !is_unit(if has_prefix { &unit[1..] } else { &unit }) {
-                    error!(UnknownIdentifier(identifier.range.start..literal.range.end));
+                    error_args!(UnknownIdentifier(identifier.range.start..literal.range.end) unit);
                 }
 
                 self.index += 2;
@@ -653,7 +655,7 @@ impl<'a> Parser<'a> {
 
     fn next_function(&mut self, identifier: &Token) -> Result<()> {
         if !self.env.is_valid_function(&identifier.text) {
-            error!(UnknownFunction(identifier.range));
+            error_args!(UnknownFunction(identifier.range) identifier.text.to_owned());
         }
 
         let allow_question_mark_in_args = !self.env.is_standard_function(&identifier.text);
@@ -686,7 +688,7 @@ impl<'a> Parser<'a> {
                     let mut parser = Parser::from(self, argument, allow_question_mark_in_args);
                     match parser.parse()? {
                         ParserResult::Calculation(ast) => arguments.push(ast),
-                        res => error_with_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
+                        res => error_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
                     }
 
                     if allow_question_mark_in_args {
@@ -715,7 +717,7 @@ impl<'a> Parser<'a> {
         let function_args_count = self.env.function_argument_count(&name).unwrap();
         if arguments.len() != function_args_count {
             let range = open_bracket.range.start..self.tokens[self.index - 1].range.end;
-            error_with_args!(WrongNumberOfArguments(range) function_args_count);
+            error_args!(WrongNumberOfArguments(range) function_args_count);
         }
 
         self.push_new_node(
@@ -814,6 +816,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::astgen::tokenizer::tokenize;
+    use crate::common::ErrorType::*;
     use super::*;
 
     macro_rules! parse {
@@ -823,8 +826,8 @@ mod tests {
     }
 
     macro_rules! assert_error_type {
-        ($result:expr, $variant:ident) => {
-            assert_eq!($result.err().unwrap().error, ErrorType::$variant)
+        ($result:expr, $variant:pat) => {
+            assert!(matches!($result.err().unwrap().error, $variant))
         }
     }
 
@@ -1124,28 +1127,28 @@ mod tests {
     #[test]
     fn unknown_identifier() -> Result<()> {
         let ast = parse!("something");
-        assert_error_type!(ast, UnknownIdentifier);
+        assert_error_type!(ast, UnknownIdentifier(_));
         Ok(())
     }
 
     #[test]
     fn reserved_variable() -> Result<()> {
         let err = parse!("pi :=");
-        assert_error_type!(err, ReservedVariable);
+        assert_error_type!(err, ReservedVariable(_));
         Ok(())
     }
 
     #[test]
     fn reserved_function() -> Result<()> {
         let err = parse!("sin(x) :=");
-        assert_error_type!(err, ReservedFunction);
+        assert_error_type!(err, ReservedFunction(_));
         Ok(())
     }
 
     #[test]
     fn duplicate_argument() -> Result<()> {
         let err = parse!("f(x, x) :=");
-        assert_error_type!(err, DuplicateArgument);
+        assert_error_type!(err, DuplicateArgument(_));
         Ok(())
     }
 

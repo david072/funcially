@@ -39,18 +39,18 @@ pub enum ErrorType {
     MissingClosingBracket,
     #[error("Expected an identifier")]
     ExpectedIdentifier,
-    #[error("Unknown Identifier")]
-    UnknownIdentifier,
-    #[error("Unknown Variable")]
-    UnknownVariable,
+    #[error("Unknown Identifier \"{0}\"")]
+    UnknownIdentifier(String),
+    #[error("Unknown Variable \"{0}\"")]
+    UnknownVariable(String),
     #[error("Missing equals sign")]
     MissingEqualsSign,
     #[error("Equals signs are only allowed at the top level")]
     UnexpectedEqualsSign,
     #[error("Second equals sign")]
     UnexpectedSecondEqualsSign,
-    #[error("Unknown function")]
-    UnknownFunction,
+    #[error("Unknown function \"{0}\"")]
+    UnknownFunction(String),
     #[error("Wrong number of arguments (expected {0} arguments)")]
     WrongNumberOfArguments(usize),
     #[error("Expected unit")]
@@ -73,12 +73,12 @@ pub enum ErrorType {
     ExpectedCloseBracket,
     #[error("Expected comma")]
     ExpectedComma,
-    #[error("Cannot redefine standard variable")]
-    ReservedVariable,
-    #[error("Cannot redefine standard function")]
-    ReservedFunction,
-    #[error("Argument name already given")]
-    DuplicateArgument,
+    #[error("Can't redefine standard variable \"{0}\"")]
+    ReservedVariable(String),
+    #[error("Can't redefine standard function \"{0}\"")]
+    ReservedFunction(String),
+    #[error("Argument \"{0}\" already given")]
+    DuplicateArgument(String),
     #[error("Unexpected question mark")]
     UnexpectedQuestionMark,
     #[error("A question mark is not allowed here")]

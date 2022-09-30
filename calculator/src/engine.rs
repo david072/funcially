@@ -344,7 +344,7 @@ impl<'a> Engine<'a> {
             let (result, unit) = match self.env.resolve_function(func_name, &args) {
                 Ok(res) => (res, None),
                 Err(ty) => {
-                    if ty == ErrorType::UnknownFunction {
+                    if matches!(ty, ErrorType::UnknownFunction(_)) {
                         match self.env.resolve_custom_function(func_name, &args, self.currencies) {
                             Ok(res) => res,
                             Err(ty) => return Err(ty.with(node.range.clone())),
