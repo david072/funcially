@@ -288,7 +288,7 @@ impl App<'_> {
                                             // preferably, if the function does not return a value,
                                             // we should just not draw a point, however this is the
                                             // best we can do with this plot implementation
-                                            Err(_) => f64::INFINITY,
+                                            Err(_) => f64::NAN,
                                         }
                                     }, .., 512)
                                 ).name(&function.0));
