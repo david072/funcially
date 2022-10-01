@@ -1,0 +1,2 @@
+#define IDI_ICON 0x101
+IDI_ICON ICON "../../assets/app_icon_256.ico"

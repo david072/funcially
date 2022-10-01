@@ -4,3 +4,6 @@
 **/dist
 **/default_currencies.rs
 .env
+**.wixobj
+**.wixpdb
+**.msi

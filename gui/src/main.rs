@@ -6,17 +6,9 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::{CreationContext, egui, Frame, Storage};
+use eframe::{CreationContext, egui, Frame, IconData, Storage};
 use egui::*;
-use calculator::{
-    Calculator,
-    ResultData,
-    ColorSegment,
-    colorize_text,
-    Verbosity,
-    Function as CalcFn,
-    Color,
-};
+use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function as CalcFn, Color};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -28,12 +20,38 @@ const ERROR_COLOR: Color = Color::RED;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    let icon = if cfg!(debug_assertions) {
+        Some(image::open("./gui/assets/app_icon_256.ico")
+            .expect("Failed to open icon")
+            .to_rgba8())
+    } else {
+        match std::env::current_exe() {
+            Ok(mut path) => {
+                path.pop();
+                path = path.join("app_icon_256.ico");
+
+                Some(image::open(path).expect("Failed to open icon").to_rgba8())
+            },
+            Err(_) => None,
+        }
+    };
+
     let options = eframe::NativeOptions {
         initial_window_size: Some(Vec2::new(500.0, 400.0)),
+        icon_data: {
+            if let Some(icon) = icon {
+                let (icon_width, icon_height) = icon.dimensions();
+                Some(IconData {
+                    rgba: icon.into_raw(),
+                    width: icon_width,
+                    height: icon_height,
+                })
+            } else { None }
+        },
         ..Default::default()
     };
     eframe::run_native(
-        "axioma",
+        "Axioma",
         options,
         Box::new(|cc| Box::new(App::new(cc))),
     );
