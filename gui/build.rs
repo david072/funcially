@@ -1,4 +1,4 @@
 fn main() {
     #[cfg(windows)]
-    embed_resource::compile("./installer/wix/axioma.rc");
+    embed_resource::compile("./installers/wix/axioma.rc");
 }

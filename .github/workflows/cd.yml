@@ -64,7 +64,7 @@ jobs:
         run: |
           cargo build --bin gui --release
           ./WiX.*/tools/candle.exe -nologo -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
-            -out "./axioma.wixobj" "gui/installer/wix/axioma.wxs"
+            -out "./axioma.wixobj" "gui/installers/wix/axioma.wxs"
           ./WiX.*/tools/light.exe -nologo -ext WixUIExtension -ext WixUtilExtension \
             -out "./axioma-${GITHUB_REF##*/}-installer.msi" -sice:ICE61 -sice:ICE91 \
             "./axioma.wixobj"
@@ -105,9 +105,9 @@ jobs:
       - name: Build GUI (installer)
         run: |
           cargo build --bin gui --release
-          mkdir ./gui/installer/macos/axioma.app/Contents/MacOS
-          cp ./target/release/gui ./gui/installer/macos/axioma.app/Contents/MacOS/axioma
-          hdiutil create axioma-${GITHUB_REF##*/}.dmg -volname axioma -srcfolder gui/installer/macos -ov
+          mkdir ./gui/installers/macos/axioma.app/Contents/MacOS
+          cp ./target/release/gui ./gui/installers/macos/axioma.app/Contents/MacOS/axioma
+          hdiutil create axioma-${GITHUB_REF##*/}.dmg -volname axioma -srcfolder gui/installers/macos -ov
       - name: Rename
         run: mv ./target/release/cli ./target/release/cli-macos
       - name: Upload CLI

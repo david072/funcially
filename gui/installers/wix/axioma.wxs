@@ -4,7 +4,7 @@
         <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
         <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
         <Icon Id="axiomaIco" SourceFile=".\gui\assets\app_icon_256.ico"/>
-        <WixVariable Id="WixUILicenseRtf" Value=".\gui\installer\wix\license.rtf"/>
+        <WixVariable Id="WixUILicenseRtf" Value=".\gui\installers\wix\license.rtf"/>
         <Property Id="ARPPRODUCTICON" Value="axiomaIco"/>
         <MediaTemplate EmbedCab="yes"/>
         <UIRef Id="WixUI_Minimal"/>
