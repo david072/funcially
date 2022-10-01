@@ -20,21 +20,23 @@ const ERROR_COLOR: Color = Color::RED;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    let icon = if cfg!(debug_assertions) {
-        Some(image::open("./gui/assets/app_icon_256.ico")
-            .expect("Failed to open icon")
-            .to_rgba8())
-    } else {
-        match std::env::current_exe() {
-            Ok(mut path) => {
-                path.pop();
-                path = path.join("app_icon_256.ico");
+    let icon = if cfg!(windows) {
+        if cfg!(debug_assertions) {
+            Some(image::open("./gui/assets/app_icon_256.ico")
+                .expect("Failed to open icon")
+                .to_rgba8())
+        } else {
+            match std::env::current_exe() {
+                Ok(mut path) => {
+                    path.pop();
+                    path = path.join("app_icon_256.ico");
 
-                Some(image::open(path).expect("Failed to open icon").to_rgba8())
-            },
-            Err(_) => None,
+                    Some(image::open(path).expect("Failed to open icon").to_rgba8())
+                }
+                Err(_) => None,
+            }
         }
-    };
+    } else { None };
 
     let options = eframe::NativeOptions {
         initial_window_size: Some(Vec2::new(500.0, 400.0)),
