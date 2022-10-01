@@ -13,6 +13,9 @@
             <ComponentRef Id="axiomaExe"/>
             <ComponentRef Id="axiomaShortcut"/>
             <ComponentRef Id="ModifyPathEnv"/>
+            <ComponentRef Id="axiomaAppDataCrashReportsFolder"/>
+            <ComponentRef Id="axiomaAppDataDcSessionsFolder"/>
+            <ComponentRef Id="axiomaAppDataFolder"/>
         </Feature>
 
         <!-- Create directories -->
@@ -22,6 +25,29 @@
             </Directory>
             <Directory Id="ProgramMenuFolder">
                 <Directory Id="axiomaProgramMenu" Name="axioma"/>
+            </Directory>
+
+            <!-- Delete AppData/Local directory -->
+            <Directory Id="LocalAppDataFolder" Name="LocalAppDataFolder">
+                <Directory Id="axiomaAppDataFolder" Name="axioma">
+                    <Component Id="axiomaAppDataCrashReportsFolder" Guid="9442a72e-e7b7-41e7-add6-1a441b8b8b81">
+                        <RegistryValue Root='HKCU' Key='Software\Microsoft\axioma' Name="AppDataCrashReportsFolder" Value="1" Type="integer" KeyPath="yes" />
+                        <CreateFolder />
+                        <RemoveFile Id="PurgeCrashReportsFolder" Name="*.*" On="uninstall" />
+                        <RemoveFolder Id="axiomaAppDataCrashReportsFolder" On="uninstall" />
+                    </Component>
+                    <Component Id="axiomaAppDataDcSessionsFolder" Guid="7fcc417d-0395-4453-8dc2-c670a170220f">
+                        <RegistryValue Root='HKCU' Key='Software\Microsoft\axioma' Name="AppDataDcSessionsFolder" Value="1" Type="integer" KeyPath="yes" />
+                        <RemoveFile Id="PurgeDcSessionsFolder" Name="*.*" On="uninstall" />
+                        <RemoveFolder Id="axiomaAppDataDcSessionsFolder" On="uninstall" />
+                    </Component>
+                    <Component Id="axiomaAppDataFolder" Guid="45a43d82-3043-4626-9ce8-0e8ffd891741">
+                        <RegistryValue Root='HKCU' Key='Software\Microsoft\axioma' Name="AppDataFolder" Value="1" Type="integer" KeyPath="yes" />
+                        <CreateFolder />
+                        <RemoveFile Id="PurgeAppFolder" Name="*.*" On="uninstall" />
+                        <RemoveFolder Id="axiomaAppDataFolder" On="uninstall" />
+                    </Component>
+                </Directory>
             </Directory>
         </Directory>
 
