@@ -100,10 +100,16 @@ jobs:
         uses: Swatinem/rust-cache@v1
       - name: Run Tests
         run: cargo test
-      - name: Build
-        run: cargo build --bin cli --release && cargo build --bin gui --release && cargo build --bin discord --release
+      - name: Build CLI
+        run: cargo build --bin cli --release
+      - name: Build GUI (installer)
+        run: |
+          cargo build --bin gui --release
+          mkdir ./gui/installer/macos/axioma.app/Contents/MacOS
+          cp ./target/release/gui ./gui/installer/macos/axioma.app/Contents/MacOS/axioma
+          hdiutil create axioma-${GITHUB_REF##*/}.dmg -volname axioma -srcfolder gui/installer/macos -ov
       - name: Rename
-        run: mv ./target/release/cli ./target/release/cli-macos &&  mv ./target/release/gui ./target/release/gui-macos
+        run: mv ./target/release/cli ./target/release/cli-macos
       - name: Upload CLI
         uses: actions/upload-artifact@v3
         with:
@@ -114,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: gui-macos
-          path: ./target/release/gui-macos
+          path: ./axioma-${GITHUB_REF##*/}.dmg
           if-no-files-found: error
 
   release:
@@ -142,7 +148,7 @@ jobs:
           files: |
             gui-linux/gui-linux
             gui-windows/axioma-${GITHUB_REF##*/}-installer.msi
-            gui-macos/gui-macos
+            gui-macos/axioma-${GITHUB_REF##*/}.dmg
             cli-linux/cli-linux
             cli-windows/cli-windows.exe
             cli-macos/cli-macos
