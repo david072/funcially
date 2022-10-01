@@ -174,7 +174,7 @@ mod updating {
     use super::Currencies;
     use std::collections::HashMap;
 
-    pub fn update_currencies(_: std::sync::Arc<Currencies>) {}
+    pub fn update_currencies(_: std::option::Option<std::sync::Arc<Currencies>>) {}
 
     pub fn load_currencies() -> Option<(String, HashMap<String, f64>)> { None }
 }

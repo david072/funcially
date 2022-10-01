@@ -1,4 +1,4 @@
-var cacheName = 'calculator-pwa';
+var cacheName = 'axioma-pwa';
 var filesToCache = [
   './',
   './index.html',

@@ -1,6 +1,6 @@
 {
-  "name": "Calculator PWA",
-  "short_name": "calculator-pwa",
+  "name": "axioma",
+  "short_name": "axioma",
   "icons": [
     {
       "src": "./icon-256.png",

@@ -109,7 +109,7 @@ jobs:
 
   release:
     name: Release
-    if: github.repository == 'david072/calculator'
+    if: github.repository == 'david072/axioma'
     needs: [ build-linux, build-windows, build-macos ]
     runs-on: ubuntu-latest
     steps:

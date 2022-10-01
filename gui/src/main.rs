@@ -33,7 +33,7 @@ fn main() {
         ..Default::default()
     };
     eframe::run_native(
-        "Calculator",
+        "axioma",
         options,
         Box::new(|cc| Box::new(App::new(cc))),
     );
@@ -320,7 +320,7 @@ impl App<'_> {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     ui.label("If you're on desktop, you can download the ");
-                    ui.hyperlink_to("desktop app", "https://github.com/david072/calculator/releases");
+                    ui.hyperlink_to("desktop app", "https://github.com/david072/axioma/releases");
                     ui.label(".");
                 });
                 ui.separator();

@@ -1,4 +1,4 @@
-# Calculator
+# axioma
 
 A calculator working purely with text inputs.
 
@@ -7,7 +7,7 @@ A calculator working purely with text inputs.
 ## Downloading
 
 - Desktop Version (Windows + Mac) available in the `Releases` Tab
-- Web Version available [here](https://david072.github.io/calculator)!
+- Web Version available [here](https://david072.github.io/axioma)!
 
 ## Features
 
@@ -53,9 +53,9 @@ A calculator working purely with text inputs.
 
 ## Building
 
-1. Clone the project with `git clone https://github.com/david072/calculator`
-2. `cd calculator`
-3. Run the CLI version with `cargo run -p cli` or the GUI version with `cargo run -p gui`
+1. Clone the project with `git clone https://github.com/david072/axioma`
+2. `cd axioma`
+3. Run the CLI version with `cargo run -p cli`, the GUI version with `cargo run -p gui`
 
 To pass arguments to the CLI, use `cargo run -p cli -- <args>`
 
