@@ -289,6 +289,7 @@ impl App<'_> {
                 .coordinates_formatter(
                     plot::Corner::LeftBottom, plot::CoordinatesFormatter::default(),
                 )
+                .legend(plot::Legend::default().position(plot::Corner::RightBottom))
                 .show(ui, |plot_ui| {
                     for line in &self.lines {
                         if let Line::Line { function, show_in_plot, .. } = line {
@@ -304,9 +305,6 @@ impl App<'_> {
                                     plot::PlotPoints::from_explicit_callback(move |x| {
                                         match env.resolve_specific_function(&f, &[x], &currencies) {
                                             Ok(v) => v.0,
-                                            // preferably, if the function does not return a value,
-                                            // we should just not draw a point, however this is the
-                                            // best we can do with this plot implementation
                                             Err(_) => f64::NAN,
                                         }
                                     }, .., 512)
