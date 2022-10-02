@@ -402,10 +402,9 @@ impl App<'_> {
 
         for event in &ui.input().events {
             if let Event::Key { key, pressed, modifiers } = event {
+                if !*pressed { continue; }
                 match key {
-                    Key::Num0 if *pressed && modifiers.command && modifiers.shift => {
-                        result = true;
-
+                    Key::Num0 if modifiers.command && modifiers.shift => {
                         let start_line = cursor_range.primary.pcursor.paragraph;
                         let end_line = cursor_range.secondary.pcursor.paragraph;
 
@@ -414,14 +413,12 @@ impl App<'_> {
                             .take(if end_line == 0 { 1 } else { end_line })
                             .any(|l| !l.trim_start().starts_with('#'));
 
-                        let lines = self.source.split_terminator('\n');
-
                         // If there is an uncommented line, we even the lines out by commenting
                         // uncommented lines too.
                         // Otherwise, we uncomment, since all lines are commented.
 
                         let mut new_source = String::new();
-                        for (i, line) in lines.enumerate() {
+                        for (i, line) in self.source.lines().enumerate() {
                             if i < start_line || i > end_line {
                                 new_source += line;
                                 new_source.push('\n');
@@ -450,6 +447,37 @@ impl App<'_> {
                             }
                         }
 
+                        result = true;
+                        self.source = new_source;
+                    }
+                    Key::B if modifiers.command => {
+                        // Check that we have a range spanning only one line
+                        let primary = &cursor_range.primary.pcursor;
+                        let secondary = &cursor_range.secondary.pcursor;
+
+                        if (*primary == *secondary) || (primary.paragraph != secondary.paragraph) {
+                            continue;
+                        }
+
+                        let mut new_source = String::new();
+                        for (i, line) in self.source.lines().enumerate() {
+                            if i != primary.paragraph {
+                                new_source += line;
+                                new_source.push('\n');
+                                continue;
+                            }
+
+                            let start = std::cmp::min(primary.offset, secondary.offset);
+                            let end = std::cmp::max(primary.offset, secondary.offset);
+
+                            let mut line = line.to_string();
+                            line.insert(start, '(');
+                            line.insert(end + 1, ')');
+                            new_source += line.as_str();
+                            new_source.push('\n');
+                        }
+
+                        result = true;
                         self.source = new_source;
                     }
                     _ => {}
