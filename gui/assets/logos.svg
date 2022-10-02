@@ -28,9 +28,9 @@
      inkscape:document-units="px"
      showgrid="false"
      showborder="false"
-     inkscape:zoom="0.8409652"
-     inkscape:cx="3128.548"
-     inkscape:cy="-548.17964"
+     inkscape:zoom="0.5946522"
+     inkscape:cx="2937.8518"
+     inkscape:cy="-489.36168"
      inkscape:window-width="1920"
      inkscape:window-height="1009"
      inkscape:window-x="1912"
@@ -173,24 +173,24 @@
        id="path261"
        style="fill:#1b1b1b;fill-opacity:1;stroke-width:0.0613899"
        d="m 825.27326,-177.37725 a 11.288902,11.288862 0 0 0 -11.28897,11.28909 v 22.5777 22.57745 a 11.288902,11.288862 0 0 0 11.28897,11.28909 h 45.15575 a 11.288902,11.288862 0 0 0 11.28861,-11.28909 v -22.57745 -22.5777 a 11.288902,11.288862 0 0 0 -11.28861,-11.28909 z"
-       inkscape:export-filename=".\installer_ico_256.svg"
+       inkscape:export-filename=".\app_ico_256.svg"
        inkscape:export-xdpi="96"
        inkscape:export-ydpi="96" />
     <text
        xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:23.205px;font-family:Hack;-inkscape-font-specification:Hack;fill:#2cafe3;fill-opacity:1;stroke-width:1.93375"
-       x="835.56232"
-       y="-133.78305"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:23.205px;font-family:Consolas;-inkscape-font-specification:Consolas;fill:#2cafe3;fill-opacity:1;stroke-width:1.93375"
+       x="838.02673"
+       y="-135.00108"
        id="text269"
-       transform="scale(0.98290501,1.0173923)"><tspan
+       transform="scale(0.98290502,1.0173923)"><tspan
          sodipodi:role="line"
          id="tspan267"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Hack;-inkscape-font-specification:Hack;fill:#2cafe3;fill-opacity:1;stroke-width:1.93375"
-         x="835.56232"
-         y="-133.78305"><tspan
-   style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Hack;-inkscape-font-specification:Hack;fill:#add8e6;fill-opacity:1;stroke-width:1.93375"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Consolas;-inkscape-font-specification:Consolas;fill:#2cafe3;fill-opacity:1;stroke-width:1.93375"
+         x="838.02673"
+         y="-135.00108"><tspan
+   style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Consolas;-inkscape-font-specification:Consolas;fill:#add8e6;fill-opacity:1;stroke-width:1.93375"
    id="tspan263">a</tspan>(<tspan
-   style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Hack;-inkscape-font-specification:Hack;fill:#add8e6;fill-opacity:1;stroke-width:1.93375"
+   style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Consolas;-inkscape-font-specification:Consolas;fill:#add8e6;fill-opacity:1;stroke-width:1.93375"
    id="tspan265">x</tspan>)</tspan></text>
   </g>
 </svg>

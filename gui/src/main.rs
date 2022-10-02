@@ -22,16 +22,14 @@ const ERROR_COLOR: Color = Color::RED;
 fn main() {
     let icon = if cfg!(windows) {
         if cfg!(debug_assertions) {
-            Some(image::open("./gui/assets/app_icon_256.ico")
-                .expect("Failed to open icon")
-                .to_rgba8())
+            image::open("./gui/assets/app_icon_256.ico").ok().map(|i| i.to_rgba8())
         } else {
             match std::env::current_exe() {
                 Ok(mut path) => {
                     path.pop();
                     path = path.join("app_icon_256.ico");
 
-                    Some(image::open(path).expect("Failed to open icon").to_rgba8())
+                    image::open(path).ok().map(|i| i.to_rgba8())
                 }
                 Err(_) => None,
             }
