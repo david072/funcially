@@ -396,10 +396,7 @@ impl App<'_> {
             });
     }
 
-    /// Returns `true` when if we need to wait for the next frame for the data to update correctly
-    fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) -> bool {
-        let mut result = false;
-
+    fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
         for event in &ui.input().events {
             if let Event::Key { key, pressed, modifiers } = event {
                 if !*pressed { continue; }
@@ -447,7 +444,6 @@ impl App<'_> {
                             }
                         }
 
-                        result = true;
                         self.source = new_source;
                     }
                     Key::B if modifiers.command => {
@@ -477,15 +473,12 @@ impl App<'_> {
                             new_source.push('\n');
                         }
 
-                        result = true;
                         self.source = new_source;
                     }
                     _ => {}
                 }
             }
         }
-
-        result
     }
 }
 
@@ -549,9 +542,6 @@ impl eframe::App for App<'_> {
                         .show(ui);
                     if let Some(range) = output.cursor_range {
                         self.input_text_paragraph = range.primary.pcursor.paragraph;
-                        if self.handle_shortcuts(ui, range) {
-                            return;
-                        }
                     }
 
                     if self.first_frame {
@@ -560,6 +550,10 @@ impl eframe::App for App<'_> {
                     }
 
                     self.update_lines(output.galley);
+
+                    if let Some(range) = output.cursor_range {
+                        self.handle_shortcuts(ui, range);
+                    }
 
                     vertical_spacer(ui);
 
