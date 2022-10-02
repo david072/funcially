@@ -8,6 +8,7 @@
 
 use eframe::{CreationContext, egui, Frame, IconData, Storage};
 use egui::*;
+use egui::text_edit::CursorRange;
 use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function as CalcFn, Color};
 use std::ops::Range;
 use std::sync::Arc;
@@ -394,6 +395,70 @@ impl App<'_> {
                 }
             });
     }
+
+    /// Returns `true` when if we need to wait for the next frame for the data to update correctly
+    fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) -> bool {
+        let mut result = false;
+
+        for event in &ui.input().events {
+            if let Event::Key { key, pressed, modifiers } = event {
+                match key {
+                    Key::Num0 if *pressed && modifiers.command && modifiers.shift => {
+                        result = true;
+
+                        let start_line = cursor_range.primary.pcursor.paragraph;
+                        let end_line = cursor_range.secondary.pcursor.paragraph;
+
+                        let has_uncommented_line = self.source.lines()
+                            .skip(start_line)
+                            .take(if end_line == 0 { 1 } else { end_line })
+                            .any(|l| !l.trim_start().starts_with('#'));
+
+                        let lines = self.source.split_terminator('\n');
+
+                        // If there is an uncommented line, we even the lines out by commenting
+                        // uncommented lines too.
+                        // Otherwise, we uncomment, since all lines are commented.
+
+                        let mut new_source = String::new();
+                        for (i, line) in lines.enumerate() {
+                            if i < start_line || i > end_line {
+                                new_source += line;
+                                new_source.push('\n');
+                                continue;
+                            }
+
+                            let trimmed = line.trim_start();
+                            let offset = line.len() - trimmed.len();
+
+                            if has_uncommented_line {
+                                if !line.trim_start().starts_with('#') {
+                                    for _ in 0..offset { new_source.push(' '); }
+                                    new_source.push('#');
+                                    new_source += &line[offset..];
+                                    new_source.push('\n');
+                                } else {
+                                    new_source += line;
+                                    new_source.push('\n');
+                                }
+                            } else {
+                                for _ in 0..offset { new_source.push(' '); }
+                                new_source += line.chars()
+                                    .skip(offset + 1)
+                                    .collect::<String>().as_str();
+                                new_source.push('\n');
+                            }
+                        }
+
+                        self.source = new_source;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        result
+    }
 }
 
 impl eframe::App for App<'_> {
@@ -456,6 +521,9 @@ impl eframe::App for App<'_> {
                         .show(ui);
                     if let Some(range) = output.cursor_range {
                         self.input_text_paragraph = range.primary.pcursor.paragraph;
+                        if self.handle_shortcuts(ui, range) {
+                            return;
+                        }
                     }
 
                     if self.first_frame {
@@ -685,9 +753,9 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
                 if !trimmed_line.is_empty() && !trimmed_line.starts_with('#') {
                     // NOTE: We use `Line::Empty`s to add spacing if the line spans multiple rows.
                     //  We have to skip these lines here to get to the actual color segments.
-                    while matches!(lines[i], Line::Empty) { i += 1; }
+                    while matches!(lines.get(i), Some(Line::Empty)) { i += 1; }
 
-                    if let Line::Line { color_segments, .. } = &lines[i] {
+                    if let Some(Line::Line { color_segments, .. }) = &lines.get(i) {
                         if !layout_segments(color_segments, &mut job, string, &mut end, offset) {
                             break;
                         }
