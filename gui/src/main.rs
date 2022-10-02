@@ -397,6 +397,7 @@ impl App<'_> {
     }
 
     fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
+        let mut copied_text = String::new();
         for event in &ui.input().events {
             if let Event::Key { key, pressed, modifiers } = event {
                 if !*pressed { continue; }
@@ -475,10 +476,20 @@ impl App<'_> {
 
                         self.source = new_source;
                     }
+                    Key::C if modifiers.command && modifiers.shift => {
+                        let line = cursor_range.primary.rcursor.row;
+                        if let Some(Line::Line { output_text, .. }) = self.lines.get(line) {
+                            copied_text = output_text.to_owned();
+                            // Taking the ui.output() lock here leads to a deadlock, so we have to
+                            // do it after the loop.
+                        }
+                    }
                     _ => {}
                 }
             }
         }
+
+        ui.output().copied_text = copied_text;
     }
 }
 
