@@ -6,7 +6,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::{CreationContext, egui, Frame, IconData, Storage};
+use eframe::{CreationContext, egui, Frame, Storage};
 use egui::*;
 use egui::text_edit::CursorRange;
 use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function as CalcFn, Color};
@@ -42,7 +42,7 @@ fn main() {
         icon_data: {
             if let Some(icon) = icon {
                 let (icon_width, icon_height) = icon.dimensions();
-                Some(IconData {
+                Some(eframe::IconData {
                     rgba: icon.into_raw(),
                     width: icon_width,
                     height: icon_height,

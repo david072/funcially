@@ -1,4 +1,6 @@
 fn main() {
     #[cfg(windows)]
-    embed_resource::compile("./installers/wix/axioma.rc");
+    if !std::env::var("TARGET").unwrap_or_default().contains("wasm32") {
+        embed_resource::compile("./installers/wix/axioma.rc");
+    }
 }
