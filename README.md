@@ -1,8 +1,8 @@
 # axioma
 
-A calculator working purely with text inputs.
+An advanced scientific calculator working with text inputs.
 
-![Image](/media/image.png)
+![Image](/media/thumbnail.png)
 
 ## Downloading
 
@@ -12,9 +12,12 @@ A calculator working purely with text inputs.
 ## Features
 
 - Desktop, Web (downloadable as mobile "app" (PWA)) and CLI
-    - GUIs: Input data is persisted across restarts
-    - GUIs: Plotting single argument functions
-    - GUIs: Syntax highlighting
+- GUI:
+    - Input data is persisted across restarts
+    - Plotting single argument functions
+    - Syntax highlighting
+    - Installation with installers
+    - Shortcuts
 - Literals in decimal, hex and binary
     - The integer part of floats can be omitted
 - Basic operators (`+ - * /`)

@@ -228,7 +228,7 @@ checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
 
 [[package]]
 name = "calculator"
-version = "0.4.1"
+version = "1.0.0"
 dependencies = [
  "backtrace",
  "dirs",
@@ -338,7 +338,7 @@ dependencies = [
 
 [[package]]
 name = "cli"
-version = "0.4.1"
+version = "1.0.0"
 dependencies = [
  "calculator",
  "clap",
@@ -674,7 +674,7 @@ dependencies = [
 
 [[package]]
 name = "discord"
-version = "0.4.1"
+version = "1.0.0"
 dependencies = [
  "calculator",
  "chrono",
@@ -1201,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "gui"
-version = "0.4.1"
+version = "1.0.0"
 dependencies = [
  "calculator",
  "console_error_panic_hook",
