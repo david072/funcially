@@ -1,6 +1,6 @@
 # axioma
 
-An advanced scientific calculator working with text inputs. 
+An advanced scientific calculator working with text inputs.
 
 [Documentation](https://github.com/david072/axioma/wiki)
 
@@ -9,7 +9,9 @@ An advanced scientific calculator working with text inputs.
 ## Downloading
 
 - Desktop Versions with installers available in the [Releases tab](https://github.com/david072/axioma/releases)
-- Web Version available [here](https://david072.github.io/axioma)
+- Web:
+    - [Release version](https://david072.github.io/axioma)
+    - [Main branch version](https://david072.github.io/axioma/master) (might be buggy / unstable)
 
 ## Building
 
@@ -20,6 +22,7 @@ Building this project requires that [Rust](https://www.rust-lang.org/) is instal
 3. Run the CLI version with `cargo run -p cli`, the GUI version with `cargo run -p gui`
 
 For the Discord Bot:
+
 1. Create the file `.env` in the top level, and put `DISCORD_TOKEN=<your-bot-token>` into the
    file
 2. Run `cargo run -p discord`

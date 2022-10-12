@@ -3,6 +3,15 @@ name: Github Pages Main
 on:
   workflow_dispatch:
   push:
+    paths-ignore:
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/cd.yml'
+      - '.github/workflows/ci.yml'
+      - '.gitattributes'
+      - '.gitignore'
+      - '**.md'
+      - 'LICENSE'
+      - 'media/*'
     branches:
       - main
 
@@ -33,7 +42,7 @@ jobs:
         # call the sub-folder master, since that makes more sense for outside users
         run: cd gui && ../trunk build --release --public-url "${GITHUB_REPOSITORY#*/}/master"
       - name: Prepare dist folder
-        run: cd gui/dist && mkdir master && mv ./* master && git clone -b gh-pages "${{ github.server_url }}/${{ github.repository }}" .
+        run: cd gui && mv ./dist ./master && git clone -b gh-pages "${{ github.server_url }}/${{ github.repository }}" dist && mv ./master ./dist
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:

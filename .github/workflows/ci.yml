@@ -4,8 +4,9 @@ on:
   push:
     branches-ignore: "gh-pages"
     paths-ignore:
-      - '.github/*'
       - '.github/workflows/pages.yml'
+      - '.github/workflows/pages-main.yml'
+      - '.github/workflows/cd.yml'
       - '.gitattributes'
       - '.gitignore'
       - '**.md'
