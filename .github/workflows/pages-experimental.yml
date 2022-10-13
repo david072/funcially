@@ -29,13 +29,26 @@ jobs:
           toolchain: stable
           target: wasm32-unknown-unknown
           override: true
+      - uses: actions-ecosystem/action-get-latest-tag@v1.6.0
+        id: get-latest-tag
+        with:
+          semver_only: true
+      - uses: actions-ecosystem/action-bump-semver@v1
+        id: bump-semver
+        with:
+          current_version: ${{ steps.get-latest-tag.outputs.tag }}
+          level: patch
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
       - name: Download and install Trunk binary
         run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Prepare Build
         run: |
-          cd gui/assets && 
+          cargo install cargo-edit -f --no-default-features -F "set-version" &&
+          cd gui &&
+          cargo set-version "$(echo "${{ steps.bump-semver.outputs.new_version }}" | cut -c2-)-$(git rev-parse --short HEAD)" &&
+          cd assets && 
+          rm sw.js && rm manifest.json &&
           mv sw_experimental.js sw.js &&
           mv manifest_experimental.json manifest.json
       - name: Build # build
