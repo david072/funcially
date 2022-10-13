@@ -10,8 +10,8 @@ An advanced scientific calculator working with text inputs.
 
 - Desktop Versions with installers available in the [Releases tab](https://github.com/david072/axioma/releases)
 - Web:
-    - [Release version](https://david072.github.io/axioma)
-    - [Main branch version](https://david072.github.io/axioma/master) (might be buggy / unstable)
+    - [Stable version](https://david072.github.io/axioma)
+    - [Experimental version](https://david072.github.io/axioma/experimental) (might be buggy / unstable)
 
 ## Building
 
