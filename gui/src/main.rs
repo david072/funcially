@@ -931,4 +931,18 @@ fn build_help(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>) {
     help_window_row(ui, color_segments, "255 in hex", "0xFF", 28);
     help_window_row(ui, color_segments, "0x6 in binary", "0b110", 29);
     help_window_row(ui, color_segments, "255km in hex", "0xFF Kilometers", 30);
+
+    ui.separator();
+    ui.heading("Solving equations");
+    ui.label("The calculator can solve linear equations if you put a question mark in them.");
+    help_window_row(ui, color_segments, "3 + ? = 30", "27", 31);
+    help_window_row(ui, color_segments, "(3 + ?) * 2 = 30", "12", 32);
+    ui.label("The question mark has the following position restrictions:");
+    ui.label("- It or its enclosing groups cannot be surrounded by a power sign");
+    ui.label("- It can only be an argument of custom functions that are themselves linear");
+
+    ui.add_space(5.0);
+    ui.label("If you prefix the question mark with a variable name, its value will be assigned to that variable:");
+    help_window_row(ui, color_segments, "(3 + x?) * 2 = 30", "12", 33);
+    help_window_row(ui, color_segments, "x", "12", 34);
 }
