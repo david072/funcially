@@ -685,7 +685,7 @@ impl<'a> Parser<'a> {
                         if nesting_level == 0 {
                             finished = true;
                             if argument_start == self.index - 1 { break; }
-                        } else if nesting_level == 1 {
+                        } else if nesting_level != 0 {
                             // Ignore brackets if they're not on the base level
                             continue;
                         }
