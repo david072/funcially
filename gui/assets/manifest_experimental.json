@@ -20,7 +20,7 @@
     }
   ],
   "lang": "en-US",
-  "id": "/index.html",
+  "id": "/experimental/index.html",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "black",
