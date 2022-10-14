@@ -121,9 +121,7 @@ struct App<'a> {
     #[serde(skip)]
     input_text_paragraph: usize,
     #[serde(skip)]
-    default_bottom_text: String,
-    #[serde(skip)]
-    bottom_text: Option<String>,
+    bottom_text: String,
     #[serde(skip)]
     cached_help_window_color_segments: Vec<Vec<ColorSegment>>,
 }
@@ -145,8 +143,7 @@ impl Default for App<'_> {
             is_debug_info_open: false,
             debug_information: None,
             input_text_paragraph: 0,
-            default_bottom_text: format!("v{}", VERSION),
-            bottom_text: None,
+            bottom_text: format!("v{}", VERSION),
             cached_help_window_color_segments: Vec::new(),
         }
     }
@@ -520,7 +517,6 @@ impl App<'_> {
 
 impl eframe::App for App<'_> {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        self.bottom_text = None;
         if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
             self.cached_help_window_color_segments.clear();
         }
@@ -634,7 +630,7 @@ impl eframe::App for App<'_> {
                                     }
                                 }
 
-                                output_text(ui, FONT_ID, text, &mut self.bottom_text);
+                                output_text(ui, text);
                             } else {
                                 ui.add_space(FONT_SIZE);
                             }
@@ -643,8 +639,7 @@ impl eframe::App for App<'_> {
                 });
             });
 
-            let text = if let Some(text) = &self.bottom_text { text } else { &self.default_bottom_text };
-            ui.label(RichText::new(text).font(FontId::proportional(FOOTER_FONT_SIZE)));
+            ui.label(RichText::new(&self.bottom_text).font(FontId::proportional(FOOTER_FONT_SIZE)));
         });
     }
 
@@ -653,91 +648,78 @@ impl eframe::App for App<'_> {
     }
 }
 
-fn output_text(ui: &mut Ui, font_id: FontId, str: &str, bottom_text: &mut Option<String>) -> Response {
+fn output_text(ui: &mut Ui, str: &str) -> Response {
     let text: WidgetText = str.into();
     let valign = ui.layout().vertical_align();
 
-    let font_width = (&*ui.fonts()).glyph_width(&font_id, '0');
     let mut text_job = text.into_text_job(
-        ui.style(), FontSelection::FontId(font_id), valign,
+        ui.style(), FontSelection::FontId(FONT_ID), valign,
     );
     text_job.job.wrap.max_width = f32::INFINITY;
     text_job.job.halign = Align::RIGHT;
     let galley = text_job.into_galley(&*ui.fonts());
 
-    let width = f32::max(ui.available_width(), galley.size().x);
-    let height = galley.size().y;
-
-    // rect spanning the entire available width
-    let (length_rect, length_rect_response) = ui.allocate_exact_size(
-        vec2(ui.available_width(), 0.0), Sense::hover(),
-    );
-
     let (rect, response) = ui.allocate_exact_size(
-        vec2(width, height), Sense::click(),
-    );
+        vec2(ui.available_width(), galley.size().y), Sense::click());
 
-    let max = pos2(length_rect.right_top().x, rect.right_bottom().y);
-    let min = pos2(
-        f32::max(max.x - galley.size().x, length_rect.left_top().x),
-        max.y - galley.size().y,
-    );
-    let bg_rect = Rect::from_min_max(min, max).expand(2.0);
-
-    let mut is_right = ui.ctx().data()
-        .get_persisted(length_rect_response.id)
-        .unwrap_or(true);
-    let mut show_copied_text = false;
+    let bg_rect = Rect::from_min_max(
+        pos2(rect.right_top().x - galley.size().x, rect.right_top().y),
+        rect.right_bottom(),
+    ).expand(1.5);
 
     if ui.is_rect_visible(rect) {
         let mut text_color = Color32::GREEN;
         if let Some(hover_pos) = response.hover_pos() {
             if bg_rect.contains(hover_pos) {
                 text_color = Color32::BLACK;
-                ui.painter().rect(
-                    bg_rect,
-                    0.5 * rect.height(),
-                    Color32::GREEN,
-                    Stroke::none(),
-                );
-                *bottom_text = Some("Click to copy".into());
+                ui.painter()
+                    .with_clip_rect(Rect::from_min_max(
+                        pos2(
+                            f32::max(bg_rect.left_top().x, rect.left_top().x),
+                            bg_rect.left_top().y,
+                        ),
+                        bg_rect.right_bottom(),
+                    ))
+                    .rect(
+                        bg_rect,
+                        0.5 * rect.height(),
+                        Color32::GREEN,
+                        Stroke::none(),
+                    );
             }
         }
 
-        let pos = if galley.size().x <= ui.available_width() {
-            rect.right_top()
-        } else {
-            let time = (galley.galley.text().len() as f32 - (ui.available_width() / font_width)) * 2.0;
-            let how_right = ui.ctx().animate_bool_with_time(
-                length_rect_response.id, is_right, time,
-            );
-            if how_right == 1.0 || how_right == 0.0 {
-                is_right = !is_right;
-            }
+        let galley_length = galley.size().x;
+        ui.painter()
+            .with_clip_rect(rect)
+            .galley_with_color(rect.right_top(), galley.galley, text_color);
 
-            pos2(
-                lerp(length_rect.right_top().x - 5.0..=rect.right_top().x + 5.0, how_right),
-                rect.right_top().y,
-            )
-        };
+        let mut show_copied_text = false;
 
-        ui.painter().with_clip_rect(bg_rect).galley_with_color(pos, galley.galley, text_color);
+        #[cfg(not(target_arch = "wasm32"))]
+        if response.clicked() && rect.contains(response.hover_pos().unwrap()) {
+            ui.output().copied_text = str.to_owned();
+            show_copied_text = true;
+        }
 
-        if response.clicked() {
-            let hover_pos = response.hover_pos().unwrap();
-            if bg_rect.contains(hover_pos) {
-                ui.output().copied_text = str.to_owned();
-                show_copied_text = true;
-            }
+        if galley_length >= rect.width() && response.hovered() {
+            show_tooltip_at(
+                ui.ctx(),
+                response.id.with("__out_tooltip"),
+                Some(rect.right_bottom()),
+                |ui| {
+                    ui.label(str);
+                    if ui.ctx().animate_bool_with_time(
+                        response.id.with("__copied_text_anim"),
+                        show_copied_text,
+                        2.0,
+                    ) != 0.0 {
+                        ui.label("Copied!");
+                    }
+                });
         }
     }
 
-    if ui.ctx()
-        .animate_bool_with_time(response.id, show_copied_text, 2.0) != 0.0 {
-        *bottom_text = Some("Copied!".into());
-    }
-
-    ui.ctx().data().insert_persisted(length_rect_response.id, is_right);
     response
 }
 
