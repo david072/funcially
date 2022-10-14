@@ -16,6 +16,7 @@ use std::sync::Arc;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
 const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
+const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
 
@@ -104,6 +105,7 @@ struct App<'a> {
     #[serde(skip)]
     source_old: String,
     lines: Vec<Line>,
+    line_numbers_text: String,
 
     is_plot_open: bool,
     is_help_open: bool,
@@ -133,6 +135,7 @@ impl Default for App<'_> {
             source_old: String::new(),
             source: String::new(),
             lines: Vec::new(),
+            line_numbers_text: "1".to_string(),
             first_frame: true,
             is_plot_open: false,
             is_help_open: false,
@@ -234,19 +237,39 @@ impl App<'_> {
             })
             .collect::<Vec<_>>();
         self.lines.clear();
+        self.line_numbers_text.clear();
 
-        if galley.rows.is_empty() { return; }
+        if galley.rows.is_empty() {
+            self.line_numbers_text = "1".to_string();
+            return;
+        }
 
         let mut line = String::new();
+        let mut line_index = 1usize;
+        let mut did_add_line_index = false;
         for (i, row) in galley.rows.iter().enumerate() {
             line += row.glyphs.iter().map(|g| g.chr).collect::<String>().as_str();
 
             if !row.ends_with_newline {
+                if !did_add_line_index {
+                    self.line_numbers_text += &line_index.to_string();
+                    self.line_numbers_text.push('\n');
+                    did_add_line_index = true;
+                    line_index += 1;
+                }
+
                 if i != galley.rows.len() - 1 {
                     self.lines.push(Line::Empty);
                 }
                 continue;
             } else {
+                if !did_add_line_index {
+                    self.line_numbers_text += &line_index.to_string();
+                    line_index += 1;
+                }
+                self.line_numbers_text.push('\n');
+                did_add_line_index = false;
+
                 if !line.starts_with('#') {
                     let actual_line = if let Some(index) = line.find('#') {
                         &line[0..index]
@@ -279,6 +302,10 @@ impl App<'_> {
                 }
             }
             self.lines.push(res);
+        }
+
+        if self.line_numbers_text.is_empty() {
+            self.line_numbers_text = "1".to_string();
         }
     }
 
@@ -534,11 +561,28 @@ impl eframe::App for App<'_> {
         if self.is_debug_info_open { self.show_debug_information(ctx); }
 
         CentralPanel::default().show(ctx, |ui| {
-            let input_width = ui.available_width() * (2.0 / 3.0);
-            let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y) / FONT_SIZE) as usize;
+            let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y - FOOTER_FONT_SIZE) / FONT_SIZE) as usize;
 
             ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal(|ui| {
+                    let char_width = ui.fonts().glyph_width(&FONT_ID, '0');
+
+                    let longest_row_chars = self.line_numbers_text.lines()
+                        .map(str::len)
+                        .max()
+                        .unwrap_or_default() as f32;
+
+                    TextEdit::multiline(&mut self.line_numbers_text)
+                        .frame(false)
+                        .font(FontSelection::from(FONT_ID))
+                        .interactive(false)
+                        .desired_width(longest_row_chars * char_width)
+                        .desired_rows(rows)
+                        .margin(vec2(0.0, 2.0))
+                        .show(ui);
+
+                    let input_width = ui.available_width() * (2.0 / 3.0);
+
                     let lines = &mut self.lines;
                     let output = TextEdit::multiline(&mut self.source)
                         .lock_focus(true)
@@ -600,7 +644,7 @@ impl eframe::App for App<'_> {
             });
 
             let text = if let Some(text) = &self.bottom_text { text } else { &self.default_bottom_text };
-            ui.label(RichText::new(text).font(FontId::proportional(14.0)));
+            ui.label(RichText::new(text).font(FontId::proportional(FOOTER_FONT_SIZE)));
         });
     }
 
