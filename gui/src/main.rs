@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// FIXME: Figure out why copying does not work on web
+
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::{CreationContext, egui, Frame, Storage};
@@ -610,7 +612,7 @@ impl eframe::App for App<'_> {
                         ui.add_space(2.0);
                         ui.spacing_mut().item_spacing.y = 0.0;
 
-                        for line in &mut self.lines {
+                        for (i, line) in self.lines.iter_mut().enumerate() {
                             if let Line::Line {
                                 output_text: text,
                                 function,
@@ -630,7 +632,7 @@ impl eframe::App for App<'_> {
                                     }
                                 }
 
-                                output_text(ui, text);
+                                output_text(ui, text, i + 1);
                             } else {
                                 ui.add_space(FONT_SIZE);
                             }
@@ -648,7 +650,7 @@ impl eframe::App for App<'_> {
     }
 }
 
-fn output_text(ui: &mut Ui, str: &str) -> Response {
+fn output_text(ui: &mut Ui, str: &str, index: usize) -> Response {
     let text: WidgetText = str.into();
     let valign = ui.layout().vertical_align();
 
@@ -659,15 +661,37 @@ fn output_text(ui: &mut Ui, str: &str) -> Response {
     text_job.job.halign = Align::RIGHT;
     let galley = text_job.into_galley(&*ui.fonts());
 
-    let (rect, response) = ui.allocate_exact_size(
-        vec2(ui.available_width(), galley.size().y), Sense::click());
+    let glyph_width = ui.fonts().glyph_width(&FONT_ID, '0');
+    let index = index.to_string();
+    let index_str_width = index.len() as f32 * glyph_width;
+
+    let (full_rect, response) = ui.allocate_exact_size(
+        vec2(ui.available_width() - index_str_width, galley.size().y), Sense::click());
+
+    let index_rect = Rect::from_min_max(
+        full_rect.left_top(),
+        pos2(full_rect.left_bottom().x + index_str_width, full_rect.left_bottom().y),
+    ).expand2(vec2(3.0, 0.0));
+
+    let text_max_rect = Rect::from_min_max(
+        index_rect.right_top(),
+        full_rect.right_bottom(),
+    );
 
     let bg_rect = Rect::from_min_max(
-        pos2(rect.right_top().x - galley.size().x, rect.right_top().y),
-        rect.right_bottom(),
+        pos2(text_max_rect.right_top().x - galley.size().x, text_max_rect.right_top().y),
+        text_max_rect.right_bottom(),
     ).expand(1.5);
 
-    if ui.is_rect_visible(rect) {
+    if ui.is_rect_visible(full_rect) {
+        ui.painter().text(
+            index_rect.left_top(),
+            Align2::LEFT_TOP,
+            index,
+            FONT_ID,
+            Color32::GRAY,
+        );
+
         let mut text_color = Color32::GREEN;
         if let Some(hover_pos) = response.hover_pos() {
             if bg_rect.contains(hover_pos) {
@@ -675,14 +699,14 @@ fn output_text(ui: &mut Ui, str: &str) -> Response {
                 ui.painter()
                     .with_clip_rect(Rect::from_min_max(
                         pos2(
-                            f32::max(bg_rect.left_top().x, rect.left_top().x),
+                            f32::max(bg_rect.left_top().x, text_max_rect.left_top().x),
                             bg_rect.left_top().y,
                         ),
                         bg_rect.right_bottom(),
                     ))
                     .rect(
                         bg_rect,
-                        0.5 * rect.height(),
+                        0.5 * full_rect.height(),
                         Color32::GREEN,
                         Stroke::none(),
                     );
@@ -691,22 +715,25 @@ fn output_text(ui: &mut Ui, str: &str) -> Response {
 
         let galley_length = galley.size().x;
         ui.painter()
-            .with_clip_rect(rect)
-            .galley_with_color(rect.right_top(), galley.galley, text_color);
-
-        let mut show_copied_text = false;
+            .with_clip_rect(text_max_rect)
+            .galley_with_color(text_max_rect.right_top(), galley.galley, text_color);
 
         #[cfg(not(target_arch = "wasm32"))]
-        if response.clicked() && rect.contains(response.hover_pos().unwrap()) {
+            let mut show_copied_text = false;
+        #[cfg(target_arch = "wasm32")]
+            let show_copied_text = false;
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if response.clicked() && bg_rect.contains(response.hover_pos().unwrap()) {
             ui.output().copied_text = str.to_owned();
             show_copied_text = true;
         }
 
-        if galley_length >= rect.width() && response.hovered() {
+        if galley_length >= text_max_rect.width() && response.hovered() {
             show_tooltip_at(
                 ui.ctx(),
                 response.id.with("__out_tooltip"),
-                Some(rect.right_bottom()),
+                Some(full_rect.right_bottom()),
                 |ui| {
                     ui.label(str);
                     if ui.ctx().animate_bool_with_time(
