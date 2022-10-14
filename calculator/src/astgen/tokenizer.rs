@@ -355,17 +355,6 @@ mod tests {
     }
 
     #[test]
-    fn signs() -> Result<()> {
-        let tokens = tokenize("-3 +3 -.3")?;
-        assert_eq!(tokens, vec![
-            Token::new(TokenType::DecimalLiteral, "-3", 0..2),
-            Token::new(TokenType::DecimalLiteral, "+3", 3..5),
-            Token::new(TokenType::DecimalLiteral, "-.3", 6..9),
-        ]);
-        Ok(())
-    }
-
-    #[test]
     fn groups() -> Result<()> {
         let tokens = tokenize("()")?;
         assert_eq!(tokens, vec![
