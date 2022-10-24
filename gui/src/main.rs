@@ -118,6 +118,8 @@ struct App<'a> {
     is_debug_info_open: bool,
     debug_information: Option<String>,
 
+    use_thousands_separator: bool,
+
     #[serde(skip)]
     first_frame: bool,
     #[serde(skip)]
@@ -144,6 +146,7 @@ impl Default for App<'_> {
             is_settings_open: false,
             is_debug_info_open: false,
             debug_information: None,
+            use_thousands_separator: false,
             input_text_paragraph: 0,
             bottom_text: format!("v{}", VERSION),
             cached_help_window_color_segments: Vec::new(),
@@ -176,7 +179,7 @@ impl App<'_> {
                 color_segments = res.color_segments;
                 match res.data {
                     ResultData::Number { result, unit, format } => {
-                        format!("{}{}", format.format(result), unit.unwrap_or_default())
+                        format!("{}{}", format.format(result, self.use_thousands_separator), unit.unwrap_or_default())
                     }
                     ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
                     ResultData::Function { name, arg_count, function: f } => {
@@ -388,6 +391,10 @@ impl App<'_> {
             .open(&mut self.is_settings_open)
             .vscroll(true)
             .show(ctx, |ui| {
+                if ui.checkbox(&mut self.use_thousands_separator, "Use thousands separator").clicked() {
+                    // Make update_lines() refresh on the next frame, since now source and source_old are not the same
+                    self.source_old.clear();
+                }
                 CollapsingHeader::new("Debug").default_open(true).show(ui, |ui| {
                     let mut debug_on_hover = ui.ctx().debug_on_hover();
                     ui.checkbox(&mut debug_on_hover, "Debug On Hover");

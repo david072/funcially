@@ -27,11 +27,22 @@ fn main() {
             .action(ArgAction::Set)
             .default_value("none")
             .takes_value(true))
+        .arg(Arg::new("thousands_separator")
+            .short('s')
+            .long("thousands_separator")
+            .help("Whether to use a '_' as the thousands separator in the results")
+            .action(ArgAction::SetTrue)
+            .takes_value(true))
         .get_matches();
 
     let verbosity = match matches.get_one::<String>("verbosity") {
         Some(verbosity) => verbosity.parse::<Verbosity>().unwrap(),
         None => Verbosity::None,
+    };
+
+    let use_thousands_separator = match matches.get_one::<bool>("thousands_separator") {
+        Some(b) => *b,
+        None => false,
     };
 
     let mut calculator = Calculator::new(verbosity);
@@ -51,7 +62,7 @@ fn main() {
                 match calculator.calculate(&input) {
                     Ok(res) => match res.data {
                         ResultData::Number { result: n, unit, format } => {
-                            println!("= {}{}", format.format(n).green(), unit.unwrap_or_default());
+                            println!("= {}{}", format.format(n, use_thousands_separator).green(), unit.unwrap_or_default());
                         }
                         ResultData::Boolean(b) => {
                             println!("=> {}", if b { "True".green() } else { "False".red() });

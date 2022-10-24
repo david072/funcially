@@ -19,12 +19,47 @@ use crate::{
 pub enum Format { Decimal, Hex, Binary, Scientific }
 
 impl Format {
-    pub fn format(&self, n: f64) -> String {
-        match self {
+    pub fn format(&self, n: f64, use_thousands_separator: bool) -> String {
+        let mut res = match self {
             Format::Decimal => round_dp(n, 10),
             Format::Hex => format!("{:#X}", n as i64),
             Format::Binary => format!("{:#b}", n as i64),
             Format::Scientific => format!("{:#e}", n),
+        };
+        if *self != Format::Scientific && use_thousands_separator {
+            if *self == Format::Decimal {
+                Self::add_thousands_separator(&mut res, 3);
+            } else {
+                let mut temp = res[2..].to_string();
+                Self::add_thousands_separator(
+                    &mut temp,
+                    4,
+                );
+                res.replace_range(2.., &temp);
+            }
+        }
+        res
+    }
+
+    fn add_thousands_separator(str: &mut String, packet_size: usize) {
+        let mut char_counter = 0usize;
+        let str_len = str.len();
+        let mut str_i = str.len() - 1;
+        let decimal_point_index = str.find('.');
+        for i in 0..str.len() {
+            if let Some(dp_i) = decimal_point_index {
+                if i < str_len - dp_i {
+                    str_i = str_i.saturating_sub(1);
+                    continue;
+                }
+            }
+
+            char_counter += 1;
+            if char_counter == packet_size && i != str_len - 1 {
+                str.insert(str_i, '_');
+                char_counter = 0;
+            }
+            str_i = str_i.saturating_sub(1);
         }
     }
 }

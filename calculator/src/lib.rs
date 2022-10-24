@@ -223,7 +223,6 @@ impl<'a> Calculator<'a> {
 
         let color_segments = ColorSegment::all(&tokens);
 
-        // let environment = self.env_mut();
         match parse(&tokens, self.env_mut())? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
