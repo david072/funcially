@@ -58,18 +58,12 @@ jobs:
         # relatively as eframe_template/favicon.ico. if we skip public-url option, the href paths will instead request username.github.io/favicon.ico which
         # will obviously return error 404 not found.
         run: cd gui && ../trunk build --release --public-url "${GITHUB_REPOSITORY#*/}/experimental"
-      - name: Prepare dist folder
-        run: |
-          cd gui &&
-          mv ./dist ./experimental &&
-          git clone -b gh-pages "${{ github.server_url }}/${{ github.repository }}" dist &&
-          rm -rf ./dist/experimental &&
-          mv ./experimental ./dist
       - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4
+        uses: JamesIves/github-pages-deploy-action@v4.4.1
         with:
           folder: gui/dist
           branch: gh-pages
+          target-folder: experimental
           # this option will not maintain any history of your previous pages deployment
           # set to false if you want all page build to be committed to your gh-pages branch history
           single-commit: true
