@@ -546,7 +546,7 @@ impl<'a> Parser<'a> {
                     self.extra_allowed_variables.map_or(false, |vars| vars.contains(&identifier.text)) {
                     self.infer_multiplication(multiplication_range);
                     self.push_new_node(
-                        AstNodeData::VariableReference(identifier.text.to_lowercase()),
+                        AstNodeData::VariableReference(identifier.text.clone()),
                         identifier.range.clone(),
                     );
                     Ok(())
@@ -732,7 +732,7 @@ impl<'a> Parser<'a> {
         }
 
         let range = identifier.range.start..self.tokens[self.index - 1].range.end;
-        let name = identifier.text.to_lowercase();
+        let name = identifier.text.clone();
 
         let function_args_count = self.env.function_argument_count(&name).unwrap();
         if arguments.len() != function_args_count {
