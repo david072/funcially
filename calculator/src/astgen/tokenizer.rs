@@ -103,10 +103,10 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
     Ok(result)
 }
 
-const NUMBERS: &str = "0123456789";
+const NUMBERS: &str = "0123456789_";
 const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const HEXADECIMAL_CHARS: &str = "0123456789abcdefABCDEF";
-const BINARY_DIGITS: &str = "01";
+const HEXADECIMAL_CHARS: &str = "0123456789abcdefABCDEF_";
+const BINARY_DIGITS: &str = "01_";
 const WHITESPACE: &str = " \t\r\n";
 
 fn any_of(chars: &str) -> impl Fn(u8) -> bool + '_ {

@@ -39,10 +39,10 @@ macro_rules! remove_elems {
 }
 
 macro_rules! parse_f64_radix {
-    ($token:expr, $radix:expr) => {
-        (match i64::from_str_radix(&$token.text[2..], $radix) {
+    ($text:expr, $range:expr, $radix:expr) => {
+        (match i64::from_str_radix(&$text[2..], $radix) {
             Ok(number) => number,
-            Err(_) => return Err(ErrorType::InvalidNumber.with($token.range.clone())),
+            Err(_) => return Err(ErrorType::InvalidNumber.with($range.clone())),
         }) as f64
     }
 }
@@ -445,15 +445,21 @@ impl<'a> Parser<'a> {
         self.last_token_ty = Some(token.ty);
 
         let data = match token.ty {
-            TokenType::DecimalLiteral => {
-                let number = match token.text.parse() {
-                    Ok(number) => number,
-                    Err(_) => error!(InvalidNumber(token.range)),
-                };
-                Ok(AstNodeData::Literal(number))
+            TokenType::DecimalLiteral | TokenType::BinaryLiteral | TokenType::HexLiteral => {
+                let text = token.text.chars().filter(|c| *c != '_').collect::<String>();
+                match token.ty {
+                    TokenType::DecimalLiteral => {
+                        let number = match text.parse() {
+                            Ok(number) => number,
+                            Err(_) => error!(InvalidNumber(token.range)),
+                        };
+                        Ok(AstNodeData::Literal(number))
+                    }
+                    TokenType::HexLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(text, token.range, 16))),
+                    TokenType::BinaryLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(text, token.range, 2))),
+                    _ => unreachable!(),
+                }
             }
-            TokenType::HexLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(token, 16))),
-            TokenType::BinaryLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(token, 2))),
             TokenType::Plus => ok_operator!(Plus),
             TokenType::Minus => ok_operator!(Minus),
             TokenType::Multiply => ok_operator!(Multiply),
