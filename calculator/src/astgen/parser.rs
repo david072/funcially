@@ -103,7 +103,9 @@ pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
                     return Ok(ParserResult::VariableDefinition(name, None));
                 }
 
-                let variable_ast = match Parser::new(rhs, 1, env).parse()? {
+                let mut parser = Parser::new(rhs, 1, env);
+                parser.identifier_being_defined = Some(name.clone());
+                let variable_ast = match parser.parse()? {
                     ParserResult::Calculation(ast) => ast,
                     res =>
                         error_args!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end) res.to_string()),
@@ -122,6 +124,7 @@ pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
 
                 let mut parser = Parser::new(rhs, 1, env);
                 parser.extra_allowed_variables = Some(&args);
+                parser.identifier_being_defined = Some(name.clone());
                 let function_ast = match parser.parse()? {
                     ParserResult::Calculation(ast) => ast,
                     res =>
@@ -216,6 +219,7 @@ fn parse_definition_identifier(tokens: &[Token], env: &Environment) -> Result<De
 struct Parser<'a> {
     env: &'a Environment,
     extra_allowed_variables: Option<&'a [String]>,
+    identifier_being_defined: Option<String>,
 
     tokens: &'a [Token],
     nesting_level: usize,
@@ -239,6 +243,7 @@ impl<'a> Parser<'a> {
         Parser {
             env,
             extra_allowed_variables: None,
+            identifier_being_defined: None,
             tokens,
             nesting_level,
             equals_sign_index: None,
@@ -257,6 +262,7 @@ impl<'a> Parser<'a> {
     pub fn from(other: &Parser<'a>, tokens: &'a [Token], allow_question_mark: bool) -> Parser<'a> {
         Parser {
             extra_allowed_variables: other.extra_allowed_variables,
+            identifier_being_defined: other.identifier_being_defined.clone(),
             question_mark_found: other.question_mark_found,
             question_mark_variable: other.question_mark_variable.clone(),
             allow_question_mark,
@@ -378,6 +384,12 @@ impl<'a> Parser<'a> {
                             self.last_token_ty = Some(TokenType::Exponentiation);
                             return Ok(true);
                         }
+                    }
+                }
+
+                if let Some(ident) = &self.identifier_being_defined {
+                    if token.text == *ident {
+                        error!(CantUseIdentifierInDefinition(token.range));
                     }
                 }
 

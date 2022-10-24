@@ -83,6 +83,8 @@ pub enum ErrorType {
     UnexpectedQuestionMark,
     #[error("A question mark is not allowed here")]
     QuestionMarkNotAllowed,
+    #[error("Can't use what's being defined")]
+    CantUseIdentifierInDefinition,
 
     // engine
     #[error("Cannot divide by zero")]
