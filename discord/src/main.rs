@@ -3,9 +3,10 @@
 //! Requires a `.env` file containing DISCORD_TOKEN
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 use std::time::Duration;
+
 use serenity::{async_trait, Client};
 use serenity::builder::CreateEmbed;
 use serenity::client::{Context, EventHandler};
@@ -15,7 +16,8 @@ use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::prelude::command::Command;
 use serenity::prelude::GatewayIntents;
 use serenity::utils::Colour;
-use calculator::{Calculator, Environment, data_dir};
+
+use calculator::{Calculator, data_dir, Environment};
 
 const SESSIONS_DIRECTORY: &str = "dc_sessions";
 
@@ -233,14 +235,16 @@ fn success_embed<F: FnOnce(&mut CreateEmbed) -> &mut CreateEmbed>(f: F) -> Creat
 
 mod commands {
     use serenity::builder::CreateApplicationCommand;
-    use serenity::model::application::interaction::application_command::CommandDataOption;
     use serenity::builder::CreateEmbed;
-    use serenity::utils::Colour;
     use serenity::client::Context;
+    use serenity::model::application::interaction::application_command::CommandDataOption;
+    use serenity::utils::Colour;
+
     use crate::create_embed;
 
     pub mod ping {
         use serenity::builder::CreateEmbed;
+
         use super::*;
 
         pub fn run() -> CreateEmbed {
@@ -255,12 +259,17 @@ mod commands {
     pub mod calc {
         use serenity::model::prelude::command::CommandOptionType;
         use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
+
         use calculator::{Calculator, ResultData, Verbosity};
+
         use crate::{DataKey, save_sessions};
+
         use super::*;
 
         pub async fn run(ctx: &Context, command: &ApplicationCommandInteraction, options: &[CommandDataOption]) -> CreateEmbed {
             let mut embed = CreateEmbed::default();
+
+            println!("{options:?}");
 
             if let Some(
                 CommandDataOption {
@@ -268,6 +277,18 @@ mod commands {
                     ..
                 }
             ) = options.get(0) {
+                let raw_option = options.iter()
+                    .find(|opt| {
+                        opt.kind == CommandOptionType::Boolean && opt.name == "raw"
+                    });
+                let use_thousands_separator = match raw_option {
+                    Some(CommandDataOption {
+                             resolved: Some(CommandDataOptionValue::Boolean(b)),
+                             ..
+                         }) => !*b,
+                    _ => true,
+                };
+
                 let mut data = ctx.data.write().await;
                 let data = data.get_mut::<DataKey>().unwrap();
 
@@ -292,7 +313,7 @@ mod commands {
                                 embed
                                     .color(Colour::GOLD)
                                     .title(format!("{}{}",
-                                                   format.format(result),
+                                                   format.format(result, use_thousands_separator),
                                                    unit.unwrap_or_default()
                                     ));
                             }
@@ -345,19 +366,26 @@ mod commands {
                 .description("Calculates the input")
                 .create_option(|opt| {
                     opt.name("input").description("What to calculate").required(true).kind(CommandOptionType::String)
-                })
+                }).create_option(|opt| {
+                opt.name("raw")
+                    .description("Don't use separators for thousands")
+                    .kind(CommandOptionType::Boolean)
+            })
         }
     }
 
     pub mod session {
         use chrono::Local;
-        use serenity::model::prelude::command::CommandOptionType;
         use serenity::http::Http;
         use serenity::model::prelude::ChannelType;
+        use serenity::model::prelude::command::CommandOptionType;
         use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
         use serenity::Result;
+
         use calculator::Environment;
+
         use crate::{DataKey, error_embed, save_sessions, Sessions, success_embed};
+
         use super::*;
 
         pub async fn run(ctx: &Context, command: &ApplicationCommandInteraction) -> Result<Option<CreateEmbed>> {
