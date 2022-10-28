@@ -20,10 +20,10 @@
     }
   ],
   "lang": "en-US",
-  "id": "/experimental/index.html",
-  "start_url": "./index.html",
+  "id": "axioma/experimental/index.html",
+  "start_url": "axioma/experimental/index.html",
   "display": "standalone",
   "background_color": "black",
   "theme_color": "black",
-  "scope": "/experimental/"
+  "scope": "/axioma/experimental/"
 }
