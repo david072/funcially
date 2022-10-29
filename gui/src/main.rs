@@ -351,6 +351,7 @@ impl App<'_> {
         Window::new("Help")
             .open(is_help_open)
             .vscroll(true)
+            .hscroll(true)
             .show(ctx, |ui| {
                 build_help(ui, color_segments);
             });
@@ -405,6 +406,7 @@ impl App<'_> {
                     ui.checkbox(&mut tesselation_options.debug_paint_text_rects, "Paint text bounds");
                     *ui.ctx().tessellation_options() = tesselation_options;
                 });
+                ui.hyperlink_to("Source code", "https://github.com/david072/axioma");
             });
     }
 
@@ -908,6 +910,13 @@ fn layout_segments(
 }
 
 fn build_help(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        ui.label("This is a brief overview of the features. A more detailed documentation can be found ");
+        ui.hyperlink_to("here", "https://github.com/david072/axioma/wiki");
+        ui.label(".");
+    });
+
     ui.heading("Numbers");
     ui.label("You can type in numbers in different formats:");
     help_window_row(ui, color_segments, "123", "123", 0);
