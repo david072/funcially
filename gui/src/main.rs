@@ -8,12 +8,14 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use std::ops::Range;
+use std::sync::Arc;
+
 use eframe::{CreationContext, egui, Frame, Storage};
 use egui::*;
 use egui::text_edit::CursorRange;
-use calculator::{Calculator, ResultData, ColorSegment, colorize_text, Verbosity, Function as CalcFn, Color};
-use std::ops::Range;
-use std::sync::Arc;
+
+use calculator::{Calculator, Color, colorize_text, ColorSegment, Function as CalcFn, ResultData, Verbosity};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
@@ -571,7 +573,7 @@ impl eframe::App for App<'_> {
             let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y - FOOTER_FONT_SIZE) / FONT_SIZE) as usize;
 
             ScrollArea::vertical().show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
                     let char_width = ui.fonts().glyph_width(&FONT_ID, '0') + 2.0;
 
                     let longest_row_chars = self.line_numbers_text.lines()
@@ -620,6 +622,10 @@ impl eframe::App for App<'_> {
                     ui.vertical(|ui| {
                         ui.add_space(2.0);
                         ui.spacing_mut().item_spacing.y = 0.0;
+
+                        // Spacer to put scroll wheel at the right side of the window
+                        ui.allocate_exact_size(
+                            vec2(ui.available_width(), 0.0), Sense::hover());
 
                         for (i, line) in self.lines.iter_mut().enumerate() {
                             if let Line::Line {
