@@ -699,13 +699,15 @@ fn output_text(ui: &mut Ui, str: &str, index: usize) -> Response {
     ).expand(1.5);
 
     if ui.is_rect_visible(full_rect) {
-        ui.painter().text(
-            index_rect.left_top(),
-            Align2::LEFT_TOP,
-            index,
-            FONT_ID,
-            Color32::GRAY,
-        );
+        if !str.is_empty() {
+            ui.painter().text(
+                index_rect.left_top(),
+                Align2::LEFT_TOP,
+                index,
+                FONT_ID,
+                Color32::GRAY,
+            );
+        }
 
         let mut text_color = Color32::GREEN;
         if let Some(hover_pos) = response.hover_pos() {
