@@ -572,7 +572,7 @@ impl eframe::App for App<'_> {
 
             ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    let char_width = ui.fonts().glyph_width(&FONT_ID, '0');
+                    let char_width = ui.fonts().glyph_width(&FONT_ID, '0') + 2.0;
 
                     let longest_row_chars = self.line_numbers_text.lines()
                         .map(str::len)
