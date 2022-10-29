@@ -958,7 +958,7 @@ fn build_help(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>) {
     ui.label("Builtin variables include 'pi', 'e' and 'tau':");
     help_window_row(ui, color_segments, "pi", "3.1415926536", 14);
 
-    ui.label("You can also define you own custom variables:");
+    ui.label("You can also define your own custom variables:");
     help_window_row(ui, color_segments, "x := 3 * 4", "", 15);
 
     ui.label("To remove a custom variable, simply leave out the right side of ':='.");
@@ -979,7 +979,7 @@ fn build_help(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>) {
     ui.separator();
     ui.heading("Equality checks");
     ui.label("The '='-Sign can be used to make a line an equality check:");
-    help_window_row(ui, color_segments, "3 * 4 = 7", "True", 21);
+    help_window_row(ui, color_segments, "3 + 4 = 7", "True", 21);
     help_window_row(ui, color_segments, "log(2, 8) = 5", "False", 22);
 
     ui.separator();
