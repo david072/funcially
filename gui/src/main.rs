@@ -519,6 +519,25 @@ impl App<'_> {
                             // do it after the loop.
                         }
                     }
+                    Key::L if modifiers.command && modifiers.alt => {
+                        let mut new_source = String::new();
+
+                        let line_count = self.source.lines().count();
+                        for (i, line) in self.source.lines().enumerate() {
+                            if !line.is_empty() {
+                                match self.calculator.format(line) {
+                                    Ok(fmt) => new_source += &fmt,
+                                    Err(_) => new_source += line,
+                                }
+                            }
+
+                            if i != line_count - 1 {
+                                new_source.push('\n');
+                            }
+                        }
+
+                        self.source = new_source;
+                    }
                     _ => {}
                 }
             }

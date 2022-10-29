@@ -4,27 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::fmt::Write;
+
+use rust_decimal::prelude::*;
+
+use astgen::{
+    parser::{parse, ParserResult},
+    tokenizer::{tokenize, TokenType},
+};
+pub use color::{Color, ColorSegment};
+pub use common::data_dir;
+use common::Result;
+use engine::Engine;
+use environment::{
+    currencies::Currencies,
+    units::format as format_unit,
+    Variable,
+};
+pub use environment::{Environment, Function};
+
+use crate::engine::Format;
+
 mod astgen;
 mod common;
 mod engine;
 mod environment;
 mod color;
-
-use std::fmt::Write;
-use common::Result;
-use astgen::{tokenizer::tokenize, parser::{parse, ParserResult}};
-use engine::Engine;
-use rust_decimal::prelude::*;
-use environment::{
-    units::format as format_unit,
-    currencies::Currencies,
-    Variable,
-};
-use crate::engine::Format;
-
-pub use color::{ColorSegment, Color};
-pub use environment::{Environment, Function};
-pub use common::data_dir;
 
 const CRASH_REPORTS_DIR: &str = "crash_reports";
 
@@ -318,6 +323,53 @@ impl<'a> Calculator<'a> {
                 Ok(CalculatorResult::number(result.result, result.unit.map(|u| u.to_string()), result.format, color_segments))
             }
         }
+    }
+
+    pub fn format(&self, line: &str) -> Result<String> {
+        let tokens = tokenize(line)?;
+
+        let mut new_line = String::new();
+        for (i, token) in tokens.iter().enumerate() {
+            let text = &token.text;
+            if i == 0 {
+                new_line += text;
+                continue;
+            }
+
+            if token.ty.is_number() ||
+                matches!(token.ty, TokenType::ExclamationMark | TokenType::PercentSign) {
+                new_line += text;
+            } else if token.ty.is_operator() || token.ty.is_format() ||
+                token.ty == TokenType::DefinitionSign {
+                if token.ty == TokenType::Plus || token.ty == TokenType::Minus {
+                    if i == 0 {
+                        new_line += text;
+                        continue;
+                    }
+                    else if tokens[i - 1].ty.is_operator() { // Check if we're a sign
+                        if let Some(next) = tokens.get(i + 1) {
+                            if next.ty.is_number() {
+                                new_line += text;
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                new_line.push(' ');
+                new_line += text;
+                if i != tokens.len() - 1 {
+                    new_line.push(' ');
+                }
+            } else if token.ty == TokenType::Comma {
+                new_line += text;
+                if i != tokens.len() - 1 {
+                    new_line.push(' ');
+                }
+            }
+        }
+
+        Ok(new_line.to_string())
     }
 
     pub fn get_debug_info(&self, input: &str, verbosity: Verbosity) -> Result<String> {
