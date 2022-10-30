@@ -12,6 +12,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use eframe::{CreationContext, egui, Frame, Storage};
+use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 use egui::text_edit::CursorRange;
 
@@ -125,7 +126,7 @@ struct App<'a> {
     #[serde(skip)]
     first_frame: bool,
     #[serde(skip)]
-    input_text_paragraph: usize,
+    input_text_cursor_range: CursorRange,
     #[serde(skip)]
     bottom_text: String,
     #[serde(skip)]
@@ -149,7 +150,7 @@ impl Default for App<'_> {
             is_debug_info_open: false,
             debug_information: None,
             use_thousands_separator: false,
-            input_text_paragraph: 0,
+            input_text_cursor_range: CursorRange::one(Cursor::default()),
             bottom_text: format!("v{}", VERSION),
             cached_help_window_color_segments: Vec::new(),
         }
@@ -208,8 +209,9 @@ impl App<'_> {
     }
 
     fn get_debug_info_for_current_line(&mut self) {
+        let input_text_paragraph = self.input_text_cursor_range.primary.pcursor.paragraph;
         for (i, line) in self.source.lines().enumerate() {
-            if i != self.input_text_paragraph { continue; }
+            if i != input_text_paragraph { continue; }
 
             self.debug_information = match self.calculator.get_debug_info(line, Verbosity::Ast) {
                 Ok(info) => Some(info),
@@ -437,113 +439,125 @@ impl App<'_> {
             if let Event::Key { key, pressed, modifiers } = event {
                 if !*pressed { continue; }
                 match key {
-                    Key::Num0 if modifiers.command && modifiers.shift => {
-                        let start_line = cursor_range.primary.pcursor.paragraph;
-                        let end_line = cursor_range.secondary.pcursor.paragraph;
-
-                        let has_uncommented_line = self.source.lines()
-                            .skip(start_line)
-                            .take(if end_line == 0 { 1 } else { end_line })
-                            .any(|l| !l.trim_start().starts_with('#'));
-
-                        // If there is an uncommented line, we even the lines out by commenting
-                        // uncommented lines too.
-                        // Otherwise, we uncomment, since all lines are commented.
-
-                        let mut new_source = String::new();
-                        for (i, line) in self.source.lines().enumerate() {
-                            if i < start_line || i > end_line {
-                                new_source += line;
-                                new_source.push('\n');
-                                continue;
-                            }
-
-                            let trimmed = line.trim_start();
-                            let offset = line.len() - trimmed.len();
-
-                            if has_uncommented_line {
-                                if !line.trim_start().starts_with('#') {
-                                    for _ in 0..offset { new_source.push(' '); }
-                                    new_source.push('#');
-                                    new_source += &line[offset..];
-                                    new_source.push('\n');
-                                } else {
-                                    new_source += line;
-                                    new_source.push('\n');
-                                }
-                            } else {
-                                for _ in 0..offset { new_source.push(' '); }
-                                new_source += line.chars()
-                                    .skip(offset + 1)
-                                    .collect::<String>().as_str();
-                                new_source.push('\n');
-                            }
-                        }
-
-                        self.source = new_source;
-                    }
-                    Key::B if modifiers.command => {
-                        // Check that we have a range spanning only one line
-                        let primary = &cursor_range.primary.pcursor;
-                        let secondary = &cursor_range.secondary.pcursor;
-
-                        if (*primary == *secondary) || (primary.paragraph != secondary.paragraph) {
-                            continue;
-                        }
-
-                        let mut new_source = String::new();
-                        for (i, line) in self.source.lines().enumerate() {
-                            if i != primary.paragraph {
-                                new_source += line;
-                                new_source.push('\n');
-                                continue;
-                            }
-
-                            let start = std::cmp::min(primary.offset, secondary.offset);
-                            let end = std::cmp::max(primary.offset, secondary.offset);
-
-                            let mut line = line.to_string();
-                            line.insert(start, '(');
-                            line.insert(end + 1, ')');
-                            new_source += line.as_str();
-                            new_source.push('\n');
-                        }
-
-                        self.source = new_source;
-                    }
-                    Key::C if modifiers.command && modifiers.shift => {
-                        let line = cursor_range.primary.rcursor.row;
-                        if let Some(Line::Line { output_text, .. }) = self.lines.get(line) {
-                            copied_text = output_text.to_owned();
-                            // Taking the ui.output() lock here leads to a deadlock, so we have to
-                            // do it after the loop.
-                        }
-                    }
-                    Key::L if modifiers.command && modifiers.alt => {
-                        let mut new_source = String::new();
-
-                        let line_count = self.source.lines().count();
-                        for (i, line) in self.source.lines().enumerate() {
-                            if !line.is_empty() {
-                                match self.calculator.format(line) {
-                                    Ok(fmt) => new_source += &fmt,
-                                    Err(_) => new_source += line,
-                                }
-                            }
-
-                            if i != line_count - 1 {
-                                new_source.push('\n');
-                            }
-                        }
-
-                        self.source = new_source;
-                    }
+                    Key::N if modifiers.command && modifiers.alt => self.toggle_commentation(cursor_range),
+                    Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
+                    Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
+                    Key::L if modifiers.command && modifiers.alt => self.format_source(),
                     _ => {}
                 }
             }
         }
 
         ui.output().copied_text = copied_text;
+    }
+
+    fn toggle_commentation(&mut self, cursor_range: CursorRange) {
+        let start_line = cursor_range.primary.pcursor.paragraph;
+        let end_line = cursor_range.secondary.pcursor.paragraph;
+
+        let has_uncommented_line = self.source.lines()
+            .skip(start_line)
+            .take(if end_line == 0 { 1 } else { end_line })
+            .any(|l| !l.trim_start().starts_with('#'));
+
+        // If there is an uncommented line, we even the lines out by commenting
+        // uncommented lines too.
+        // Otherwise, we uncomment, since all lines are commented.
+
+        let mut new_source = String::new();
+        let line_count = self.source.lines().count();
+        for (i, line) in self.source.lines().enumerate() {
+            if i < start_line || i > end_line {
+                new_source += line;
+                if i != line_count - 1 { new_source.push('\n'); }
+                continue;
+            }
+
+            let trimmed = line.trim_start();
+            let offset = line.len() - trimmed.len();
+
+            if has_uncommented_line {
+                if !line.trim_start().starts_with('#') {
+                    for _ in 0..offset { new_source.push(' '); }
+                    new_source.push('#');
+                    new_source += &line[offset..];
+                    if i != line_count - 1 { new_source.push('\n'); }
+                } else {
+                    new_source += line;
+                    if i != line_count - 1 { new_source.push('\n'); }
+                }
+            } else {
+                for _ in 0..offset { new_source.push(' '); }
+                new_source += line.chars()
+                    .skip(offset + 1)
+                    .collect::<String>().as_str();
+                if i != line_count - 1 { new_source.push('\n'); }
+            }
+        }
+
+        self.source = new_source;
+    }
+
+    fn surround_selection_with_brackets(&mut self, cursor_range: CursorRange) {
+        // Check that we have a range spanning only one line
+        let primary = &cursor_range.primary.pcursor;
+        let secondary = &cursor_range.secondary.pcursor;
+
+        if (*primary == *secondary) || (primary.paragraph != secondary.paragraph) {
+            return;
+        }
+
+        let mut new_source = String::new();
+        let line_count = self.source.lines().count();
+        for (i, line) in self.source.lines().enumerate() {
+            if i != primary.paragraph {
+                new_source += line;
+                new_source.push('\n');
+                continue;
+            }
+
+            let start = std::cmp::min(primary.offset, secondary.offset);
+            let end = std::cmp::max(primary.offset, secondary.offset);
+
+            let mut line = line.to_string();
+            line.insert(start, '(');
+            line.insert(end + 1, ')');
+            new_source += line.as_str();
+            if i != line_count - 1 {
+                new_source.push('\n');
+            }
+        }
+
+        self.source = new_source;
+    }
+
+    fn copy_result(&mut self, cursor_range: CursorRange, copied_text: &mut String) {
+        let line = cursor_range.primary.rcursor.row;
+        if let Some(Line::Line { output_text, .. }) = self.lines.get(line) {
+            *copied_text = output_text.to_owned();
+            // Taking the ui.output() lock here leads to a deadlock (if called from
+            // handle_shortcuts()), so we have to write it to the variable passed in.
+        }
+    }
+
+    fn format_source(&mut self) {
+        let mut new_source = String::new();
+
+        let line_count = self.source.lines().count();
+        for (i, line) in self.source.lines().enumerate() {
+            if !line.is_empty() {
+                match self.calculator.format(line) {
+                    Ok(fmt) => new_source += &fmt,
+                    Err(_) => new_source += line,
+                }
+            }
+
+            if i != line_count - 1 {
+                new_source.push('\n');
+            }
+        }
+
+        self.source = new_source;
     }
 }
 
@@ -556,6 +570,28 @@ impl eframe::App for App<'_> {
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             menu::bar(ui, |ui| {
+                ui.menu_button("Edit", |ui| {
+                    if ui.button("(Un)Comment selected lines").clicked() {
+                        self.toggle_commentation(self.input_text_cursor_range);
+                        ui.close_menu();
+                    }
+                    if ui.button("Surround selection with brackets").clicked() {
+                        self.surround_selection_with_brackets(self.input_text_cursor_range);
+                        ui.close_menu();
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Copy result").clicked() {
+                        let mut copied_text = String::new();
+                        self.copy_result(self.input_text_cursor_range, &mut copied_text);
+                        ui.output().copied_text = copied_text;
+                        ui.close_menu();
+                    }
+                    if ui.button("Format input").clicked() {
+                        self.format_source();
+                        ui.close_menu();
+                    }
+                });
+
                 if ui.button(if self.is_plot_open { "Close Plot" } else { "Open Plot" }).clicked() {
                     self.is_plot_open = !self.is_plot_open;
                 }
@@ -622,7 +658,7 @@ impl eframe::App for App<'_> {
                         .layouter(&mut input_layouter(lines))
                         .show(ui);
                     if let Some(range) = output.cursor_range {
-                        self.input_text_paragraph = range.primary.pcursor.paragraph;
+                        self.input_text_cursor_range = range;
                     }
 
                     if self.first_frame {

@@ -295,8 +295,9 @@ If there are multiple re-declarations of a function, each re-declaration can be 
 
 "Cmd" is `ctrl` on Windows and Linux and `⌘` on macOS.
 
-| Description                         | Shortcut |
-|-------------------------------------|----------|
-| Comment/Uncomment selected lines    | Cmd+⇧+0  |
-| Surround selection with parentheses | Cmd+B    |
-| Copy result of current line         | Cmd+⇧+C  |
+| Description                         | Shortcut  |
+|-------------------------------------|-----------|
+| Comment/Uncomment selected lines    | Cmd+Alt+N |
+| Surround selection with parentheses | Cmd+B     |
+| Copy result of current line         | Cmd+⇧+C   |
+| Format input text                   | Cmd+Alt+L |
