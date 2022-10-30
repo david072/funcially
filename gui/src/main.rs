@@ -457,6 +457,7 @@ impl App<'_> {
 
         let has_uncommented_line = self.source.lines()
             .skip(start_line)
+            .filter(|l| !l.is_empty())
             .take(if end_line == 0 { 1 } else { end_line })
             .any(|l| !l.trim_start().starts_with('#'));
 
@@ -469,6 +470,10 @@ impl App<'_> {
         for (i, line) in self.source.lines().enumerate() {
             if i < start_line || i > end_line {
                 new_source += line;
+                if i != line_count - 1 { new_source.push('\n'); }
+                continue;
+            }
+            else if line.is_empty() {
                 if i != line_count - 1 { new_source.push('\n'); }
                 continue;
             }
