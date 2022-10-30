@@ -25,6 +25,15 @@ const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
 
+fn app_key() -> String {
+    // FIXME: Find a better way of detecting experimental build
+    if VERSION.contains('-') {
+        eframe::APP_KEY.to_string() + "-experimental"
+    } else {
+        eframe::APP_KEY.to_string()
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     let icon = if cfg!(windows) {
@@ -162,7 +171,7 @@ impl App<'_> {
         cc.egui_ctx.set_visuals(Visuals::dark());
 
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            return eframe::get_value(storage, &app_key()).unwrap_or_default();
         }
 
         App::default()
@@ -472,8 +481,7 @@ impl App<'_> {
                 new_source += line;
                 if i != line_count - 1 { new_source.push('\n'); }
                 continue;
-            }
-            else if line.is_empty() {
+            } else if line.is_empty() {
                 if i != line_count - 1 { new_source.push('\n'); }
                 continue;
             }
@@ -721,7 +729,7 @@ impl eframe::App for App<'_> {
     }
 
     fn save(&mut self, storage: &mut dyn Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        eframe::set_value(storage, &app_key(), self);
     }
 }
 
