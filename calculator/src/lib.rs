@@ -331,28 +331,49 @@ impl<'a> Calculator<'a> {
         let mut new_line = String::new();
         for (i, token) in tokens.iter().enumerate() {
             let text = &token.text;
-            if i == 0 {
-                new_line += text;
-                continue;
-            }
 
             if token.ty.is_number() ||
                 matches!(token.ty, TokenType::ExclamationMark | TokenType::PercentSign) {
-                new_line += text;
+                let mut text = text.to_owned();
+                if token.ty == TokenType::DecimalLiteral {
+                    text = text.trim_matches('0').to_owned();
+                    if text.len() == 1 && text == "." {
+                        text = "0.0".to_owned();
+                    } else if text.ends_with('.') {
+                        text.remove(text.len() - 1);
+                    }
+                } else if token.ty == TokenType::HexLiteral || token.ty == TokenType::BinaryLiteral {
+                    text = text[2..].trim_start_matches('0').to_owned();
+                    text.insert(0, if token.ty == TokenType::HexLiteral { 'x' } else { 'b' });
+                    text.insert(0, '0');
+                    if text.len() == 2 { text.push('0'); }
+                }
+
+                new_line += &text;
             } else if token.ty.is_operator() || token.ty.is_format() ||
                 token.ty == TokenType::DefinitionSign {
                 if token.ty == TokenType::Plus || token.ty == TokenType::Minus {
                     if i == 0 {
                         new_line += text;
                         continue;
-                    }
-                    else if tokens[i - 1].ty.is_operator() { // Check if we're a sign
+                    } else if tokens[i - 1].ty.is_operator() { // Check if we're a sign
                         if let Some(next) = tokens.get(i + 1) {
                             if next.ty.is_number() {
                                 new_line += text;
                                 continue;
                             }
                         }
+                    }
+                } else if token.ty == TokenType::Divide {
+                    let is_prev_ident = tokens.get(i - 1)
+                        .map(|t| t.ty == TokenType::Identifier)
+                        .unwrap_or(false);
+                    let is_next_ident = tokens.get(i + 1)
+                        .map(|t| t.ty == TokenType::Identifier)
+                        .unwrap_or(false);
+                    if is_prev_ident && is_next_ident {
+                        new_line += text;
+                        continue;
                     }
                 }
 
