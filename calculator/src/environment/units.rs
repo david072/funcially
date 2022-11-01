@@ -6,9 +6,10 @@
 
 use std::f64::consts::PI;
 use std::ops::Range;
+
 use crate::{
-    common::{Result, ErrorType},
-    environment::currencies::{is_currency, Currencies},
+    common::{ErrorType, Result},
+    environment::currencies::{Currencies, is_currency},
 };
 
 /// A struct representing a unit, holding a numerator and an optional denominator unit.
@@ -18,6 +19,10 @@ use crate::{
 /// - denominator (1): `"h"`
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Unit(pub String, pub Option<String>);
+
+impl From<&str> for Unit {
+    fn from(s: &str) -> Self { Unit(s.to_owned(), None) }
+}
 
 impl std::fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

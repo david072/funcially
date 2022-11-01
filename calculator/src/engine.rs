@@ -5,14 +5,15 @@
  */
 
 use std::fmt::{Display, Formatter};
-use std::mem::{take, replace};
+use std::mem::{replace, take};
+
 use crate::{
-    astgen::ast::{Operator, AstNode, AstNodeData},
+    astgen::ast::{AstNode, AstNodeData, Operator},
     astgen::tokenizer::TokenType,
-    match_ast_node,
-    environment::{Environment, Variable, units::{Unit, convert as convert_units}},
     common::*,
     Currencies,
+    environment::{Environment, units::{convert as convert_units, Unit}, Variable},
+    match_ast_node,
 };
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
@@ -374,12 +375,15 @@ impl<'a> Engine<'a> {
 
             let mut args = Vec::new();
             for ast in arg_asts {
-                args.push(Self::evaluate(ast.clone(), self.env, self.currencies)?.result);
+                args.push(Self::evaluate(ast.clone(), self.env, self.currencies)?);
             }
             let (result, unit) = match self.env.resolve_function(func_name, &args) {
-                Ok(res) => (res, None),
+                Ok(res) => (res.0, res.1),
                 Err(ty) => {
                     if matches!(ty, ErrorType::UnknownFunction(_)) {
+                        let args = args.iter()
+                            .map(|r| r.result)
+                            .collect::<Vec<_>>();
                         match self.env.resolve_custom_function(func_name, &args, self.currencies) {
                             Ok(res) => res,
                             Err(ty) => return Err(ty.with(node.range.clone())),
@@ -461,10 +465,11 @@ impl<'a> Engine<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::{parse, ParserResult, tokenize};
     use crate::common::Result;
-    use crate::{parse, tokenize, ParserResult};
     use crate::environment::units::format as format_unit;
+
+    use super::*;
 
     macro_rules! eval {
         ($str:expr) => {

@@ -4,19 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::f64::consts::{E, PI, TAU};
+
+use crate::{
+    astgen::ast::AstNode,
+    common::ErrorType,
+    Currencies,
+    Engine,
+};
+use crate::engine::CalculationResult;
+
+use self::units::Unit;
+
 pub mod units;
 // This file will generated in build.rs at build time
 mod default_currencies;
 pub mod currencies;
-
-use std::f64::consts::{PI, E, TAU};
-use crate::{
-    common::ErrorType,
-    Currencies,
-    Engine,
-    astgen::ast::AstNode,
-};
-use self::units::Unit;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Variable(pub f64, pub Option<Unit>);
@@ -170,52 +173,66 @@ impl Environment {
         None
     }
 
-    pub(crate) fn resolve_function(&self, f: &str, args: &[f64]) -> Result<f64, ErrorType> {
+    pub(crate) fn resolve_function(
+        &self,
+        f: &str,
+        arg_results: &[CalculationResult],
+    ) -> Result<(f64, Option<Unit>), ErrorType> {
+        let args = arg_results.iter().map(|r| r.result).collect::<Vec<_>>();
+        let as_radians = |i: usize| {
+            if let Some(unit) = &arg_results[i].unit {
+                if unit.0 == "°" {
+                    return args[i].to_radians();
+                }
+            }
+            args[i]
+        };
+
         match f {
-            "sin" => Ok(args[0].to_radians().sin()),
+            "sin" => Ok((as_radians(0).sin(), None)),
             "asin" => {
                 if args[0] < -1.0 || args[0] > 1.0 {
                     return Err(ErrorType::NotANumber);
                 }
-                Ok(args[0].asin().to_degrees())
+                Ok((args[0].asin(), Some(Unit::from("rad"))))
             }
-            "cos" => Ok(args[0].to_radians().cos()),
+            "cos" => Ok((as_radians(0).cos(), None)),
             "acos" => {
                 if args[0] < -1.0 || args[0] > 1.0 {
                     return Err(ErrorType::NotANumber);
                 }
-                Ok(args[0].acos().to_degrees())
+                Ok((args[0].acos(), Some(Unit::from("rad"))))
             }
-            "tan" => Ok(args[0].to_radians().tan()),
-            "atan" => Ok(args[0].atan().to_degrees()),
-            "ln" => Ok(args[0].ln()),
-            "log" => Ok(if args[0] == 2.0 {
+            "tan" => Ok((as_radians(0).tan(), None)),
+            "atan" => Ok((args[0].atan(), Some(Unit::from("rad")))),
+            "ln" => Ok((args[0].ln(), None)),
+            "log" => Ok((if args[0] == 2.0 {
                 args[1].log2()
             } else if args[0] == 10.0 {
                 args[1].log10()
             } else {
                 args[1].log(args[0])
-            }),
-            "sqrt" => Ok(args[0].sqrt()),
-            "cbrt" => Ok(args[0].cbrt()),
-            "root" => Ok(args[1].powf(1.0 / args[0])),
-            "abs" => Ok(args[0].abs()),
-            "floor" => Ok(args[0].floor()),
-            "ceil" => Ok(args[0].ceil()),
+            }, None)),
+            "sqrt" => Ok((args[0].sqrt(), None)),
+            "cbrt" => Ok((args[0].cbrt(), None)),
+            "root" => Ok((args[1].powf(1.0 / args[0]), None)),
+            "abs" => Ok((args[0].abs(), None)),
+            "floor" => Ok((args[0].floor(), None)),
+            "ceil" => Ok((args[0].ceil(), None)),
             "clamp" => {
                 if args[1] > args[2] {
                     return Err(ErrorType::Arg1GreaterThanArg2);
                 }
-                Ok(args[0].clamp(args[1], args[2]))
+                Ok((args[0].clamp(args[1], args[2]), None))
             }
             "map" => {
                 let a1 = args[1];
                 let b1 = args[2];
                 let a2 = args[3];
                 let b2 = args[4];
-                Ok((args[0] - a1) * (b2 - a2) / (b1 - a1) + a2)
+                Ok(((args[0] - a1) * (b2 - a2) / (b1 - a1) + a2, None))
             }
-            "round" => Ok(args[0].round()),
+            "round" => Ok((args[0].round(), None)),
             _ => Err(ErrorType::UnknownFunction(f.to_owned())),
         }
     }

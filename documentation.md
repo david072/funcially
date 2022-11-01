@@ -93,15 +93,15 @@ The multiplication sign can be left out in the following scenarios:
 
 ### Standard Functions
 
-By default, trigonometric functions use parameters in degrees.
+By default, trigonometric functions use parameters in radians and their inverse functions also return values in radians.
 
 | Description                   | Function                           | Example                  |
 |-------------------------------|------------------------------------|--------------------------|
-| Sine                          | sin                                | `sin(30)`                |
+| Sine                          | sin                                | `sin(1)`                 |
 | Arcsine                       | asin                               | `asin(.5)`               |
-| Cosine                        | cos                                | `cos(60)`                |
+| Cosine                        | cos                                | `cos(1)`                 |
 | Arccosine                     | acos                               | `acos(.5)`               |
-| Tangent                       | tan                                | `tan(30)`                |
+| Tangent                       | tan                                | `tan(1)`                 |
 | Arctangent                    | atan                               | `atan(.5)`               |
 | Natural logarithm             | ln                                 | `ln(3)`                  |
 | Logarithm                     | log(base, n)                       | `log(2, 8)`              |
