@@ -138,6 +138,7 @@ pub fn round_dp(n: f64, dp: u32) -> String {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn cache_dir() -> PathBuf { dirs::cache_dir().unwrap().join(CRATE_NAME) }
 
 pub fn data_dir() -> PathBuf { dirs::data_local_dir().unwrap().join(CRATE_NAME) }

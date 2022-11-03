@@ -376,6 +376,7 @@ impl App<'_> {
         Window::new("Download")
             .open(&mut self.is_download_open)
             .collapsible(false)
+            .resizable(false)
             .show(ctx, |ui| {
                 ui.heading("Desktop App");
                 ui.horizontal(|ui| {
@@ -405,6 +406,7 @@ impl App<'_> {
         Window::new("Settings")
             .open(&mut self.is_settings_open)
             .vscroll(true)
+            .resizable(false)
             .show(ctx, |ui| {
                 if ui.checkbox(&mut self.use_thousands_separator, "Use thousands separator").clicked() {
                     // Make update_lines() refresh on the next frame, since now source and source_old are not the same
@@ -629,6 +631,12 @@ impl eframe::App for App<'_> {
             })
         });
 
+        TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
+            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                ui.label(RichText::new(&self.bottom_text).font(FontId::proportional(FOOTER_FONT_SIZE)));
+            });
+        });
+
         // We wait for the second frame to have the lines updated if they've been loaded on startup
         if !self.first_frame && self.is_plot_open { self.plot_panel(ctx); }
 
@@ -725,7 +733,6 @@ impl eframe::App for App<'_> {
                 });
             });
 
-            ui.label(RichText::new(&self.bottom_text).font(FontId::proportional(FOOTER_FONT_SIZE)));
         });
     }
 
