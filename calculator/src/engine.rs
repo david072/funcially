@@ -439,14 +439,7 @@ impl<'a> Engine<'a> {
     fn eval_operators(&mut self, operators: &[Operator]) -> Result<()> {
         let mut i = 0usize;
         while i < self.ast.len() - 1 {
-            // there has got to be a better way to do this...
-            let (lhs, operator, rhs) =
-                if let [lhs, operator, rhs] = &mut self.ast[i..=i + 2] {
-                    (lhs, operator, rhs)
-                } else {
-                    return Err(ErrorType::InvalidAst.with(0..0));
-                };
-
+            let [lhs, operator, rhs] = &mut self.ast[i..=i + 2] else { unreachable!() };
             let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
 
             if operators.contains(&op) {
@@ -550,8 +543,8 @@ mod tests {
 
     #[test]
     fn functions() -> Result<()> {
-        expect!("sin(30)", 30.0f64.to_radians().sin());
-        expect!("sin(15 * 2)", 30.0f64.to_radians().sin());
+        expect!("sin(30°)", 30.0f64.to_radians().sin());
+        expect!("sin(15 * 2)", 30.0f64.sin());
         Ok(())
     }
 

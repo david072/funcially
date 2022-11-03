@@ -15,7 +15,8 @@ An advanced scientific calculator working with text inputs.
 
 ## Building
 
-Building this project requires that [Rust](https://www.rust-lang.org/) is installed.
+Building this project requires that [Rust](https://www.rust-lang.org/) version 1.65.0 or above is installed.
+To update, run `rustup update stable`.
 
 1. Clone the project with `git clone https://github.com/david072/axioma`
 2. `cd axioma`

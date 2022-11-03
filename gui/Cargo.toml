@@ -4,6 +4,7 @@ authors = ["david072"]
 version = "1.0.0"
 edition = "2021"
 exclude = ["installers/macos/*"]
+rust-version = "1.65.0"
 
 [features]
 experimental = []

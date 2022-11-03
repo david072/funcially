@@ -25,14 +25,12 @@ fn main() {
             .long("verbosity")
             .help("How much debug info should be printed per calculation. One of 'none', 'tokens', 'ast'")
             .action(ArgAction::Set)
-            .default_value("none")
-            .takes_value(true))
+            .default_value("none"))
         .arg(Arg::new("thousands_separator")
             .short('s')
             .long("thousands_separator")
             .help("Whether to use a '_' as the thousands separator in the results")
-            .action(ArgAction::SetTrue)
-            .takes_value(true))
+            .action(ArgAction::SetTrue))
         .get_matches();
 
     let verbosity = match matches.get_one::<String>("verbosity") {

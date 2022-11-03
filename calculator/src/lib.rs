@@ -177,13 +177,13 @@ impl<'a> Calculator<'a> {
     fn set_panic_hook() {
         // Write stack trace + PanicInfo to a file
         std::panic::set_hook(Box::new(|info| {
-            let backtrace = backtrace::Backtrace::new();
+            let backtrace = std::backtrace::Backtrace::capture();
             let current_millis = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
 
-            let contents = format!("{}\n\n{:?}", info, backtrace);
+            let contents = format!("{}\n\n{}", info, backtrace);
 
             eprintln!("{contents}");
 
