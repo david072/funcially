@@ -382,7 +382,9 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
-                new_line.push(' ');
+                if !(token.ty.is_format() && tokens.get(i.saturating_sub(1)).map_or(false, |t| t.ty == TokenType::In)) {
+                    new_line.push(' ');
+                }
                 new_line += text;
                 if i != tokens.len() - 1 {
                     new_line.push(' ');
