@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use std::ops::Range;
 use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::Mutex;
+
 use crate::{
-    common::{Result, ErrorType},
+    common::{ErrorType, Result},
     environment::default_currencies,
 };
 
@@ -87,54 +88,88 @@ impl Currencies {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 mod updating {
-    use super::Currencies;
     use std::collections::HashMap;
-    use crate::common::cache_dir;
-
-    const CURRENCIES_FILE_NAME: &str = "currencies.txt";
-    const CURRENCY_API_URL: &str = "https://api.exchangerate.host/latest?base=EUR";
 
     #[cfg(not(target_arch = "wasm32"))]
+    use crate::common::cache_dir;
+
+    use super::Currencies;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    const CURRENCIES_FILE_NAME: &str = "currencies.txt";
+    #[cfg(target_arch = "wasm32")]
+    const LOCAL_STORAGE_KEY: &str = "currencies";
+    const CURRENCY_API_URL: &str = "https://api.exchangerate.host/latest?base=EUR";
+
     #[derive(serde::Deserialize, Debug)]
     struct ApiResponse {
         base: String,
         rates: HashMap<String, f64>,
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn cache_file_path() -> std::path::PathBuf { cache_dir().join(CURRENCIES_FILE_NAME) }
 
     /// Update currency file, and optionally update `Currencies` struct
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn update_currencies(currencies: Option<std::sync::Arc<Currencies>>) {
         std::thread::spawn(move || {
-            let ApiResponse { base, rates } =
-                reqwest::blocking::get(CURRENCY_API_URL).unwrap().json().unwrap();
-
-            let mut file_content = String::new();
-            file_content += &base;
-
-            for (name, num) in &rates {
-                file_content.push('\n');
-                file_content += name;
-                file_content.push(':');
-                file_content += &num.to_string();
-            }
+            let response: ApiResponse = reqwest::blocking::get(CURRENCY_API_URL).unwrap()
+                .json().unwrap();
 
             if let Some(currencies) = currencies {
-                *currencies.base.lock().unwrap() = Some(base);
-                *currencies.currencies.lock().unwrap() = Some(rates);
+                *currencies.base.lock().unwrap() = Some(response.base.to_owned());
+                *currencies.currencies.lock().unwrap() = Some(response.rates.clone());
             }
 
             if !cache_dir().try_exists().unwrap_or(false) {
                 let _ = std::fs::create_dir(cache_dir());
             }
 
+            let file_content = encode_currencies(&response);
             let file = cache_file_path();
             let _ = std::fs::write(file, file_content);
         });
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub fn update_currencies(currencies: Option<std::sync::Arc<Currencies>>) {
+        wasm_bindgen_futures::spawn_local(async {
+            async fn get() -> reqwest::Result<ApiResponse> {
+                reqwest::get(CURRENCY_API_URL).await?.json().await
+            }
+
+            let response = match get().await {
+                Ok(v) => v,
+                Err(_) => return,
+            };
+
+            if let Some(currencies) = currencies {
+                *currencies.base.lock().unwrap() = Some(response.base.to_owned());
+                *currencies.currencies.lock().unwrap() = Some(response.rates.clone());
+            }
+
+            let content = encode_currencies(&response);
+            set_local_storage_item(LOCAL_STORAGE_KEY, &content);
+        });
+    }
+
+    fn encode_currencies(response: &ApiResponse) -> String {
+        let mut result = String::new();
+        result += &response.base;
+
+        for (name, num) in &response.rates {
+            result.push('\n');
+            result += name;
+            result.push(':');
+            result += &num.to_string();
+        }
+
+        result
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn load_currencies() -> Option<(String, HashMap<String, f64>)> {
         let file = cache_file_path();
         if !file.try_exists().unwrap_or(false) { return None; }
@@ -145,12 +180,21 @@ mod updating {
         };
         if file_contents.is_empty() { return None; }
 
+        Some(decode_currencies(&file_contents))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn load_currencies() -> Option<(String, HashMap<String, f64>)> {
+        get_local_storage_item(LOCAL_STORAGE_KEY).map(|str| decode_currencies(&str))
+    }
+
+    fn decode_currencies(str: &str) -> (String, HashMap<String, f64>) {
         let mut result = HashMap::new();
 
-        let mut lines = file_contents.lines();
+        let mut lines = str.lines();
         let base = lines.next().unwrap().to_owned();
 
-        for line in file_contents.lines() {
+        for line in str.lines() {
             if line.is_empty() { continue; }
             let parts = line.split(':').collect::<Vec<_>>();
             if parts.len() != 2 { continue; }
@@ -164,17 +208,20 @@ mod updating {
             result.insert(name.to_string(), num);
         }
 
-        Some((base, result))
+        (base, result)
     }
-}
 
-// FIXME: Implement this for WASM
-#[cfg(target_arch = "wasm32")]
-mod updating {
-    use super::Currencies;
-    use std::collections::HashMap;
+    #[cfg(target_arch = "wasm32")]
+    fn get_local_storage_item(key: &str) -> Option<String> {
+        web_sys::window()
+            .and_then(|win| win.local_storage().ok().flatten())
+            .and_then(|storage| storage.get_item(key).ok().flatten())
+    }
 
-    pub fn update_currencies(_: std::option::Option<std::sync::Arc<Currencies>>) {}
-
-    pub fn load_currencies() -> Option<(String, HashMap<String, f64>)> { None }
+    #[cfg(target_arch = "wasm32")]
+    fn set_local_storage_item(key: &str, value: &str) {
+        web_sys::window()
+            .and_then(|win| win.local_storage().ok().flatten())
+            .and_then(|storage| storage.set_item(key, value).ok());
+    }
 }
