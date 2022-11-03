@@ -336,7 +336,12 @@ impl<'a> Calculator<'a> {
                 matches!(token.ty, TokenType::ExclamationMark | TokenType::PercentSign) {
                 let mut text = text.to_owned();
                 if token.ty == TokenType::DecimalLiteral {
-                    text = text.trim_matches('0').to_owned();
+                    text = if text.contains('.') {
+                        text.trim_matches('0').to_owned()
+                    } else {
+                        text.trim_start_matches('0').to_owned()
+                    };
+
                     if text.len() == 1 && text == "." {
                         text = "0.0".to_owned();
                     } else if text.ends_with('.') {
