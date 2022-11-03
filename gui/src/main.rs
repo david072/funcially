@@ -25,13 +25,14 @@ const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
 
+#[cfg(feature = "experimental")]
 fn app_key() -> String {
-    // FIXME: Find a better way of detecting experimental build
-    if VERSION.contains('-') {
-        eframe::APP_KEY.to_string() + "-experimental"
-    } else {
-        eframe::APP_KEY.to_string()
-    }
+    eframe::APP_KEY.to_string() + "-experimental"
+}
+
+#[cfg(not(feature = "experimental"))]
+fn app_key() -> String {
+    eframe::APP_KEY.to_string()
 }
 
 #[cfg(not(target_arch = "wasm32"))]
