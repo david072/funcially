@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// FIXME: Figure out why copying does not work on web
-
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use std::ops::Range;
@@ -446,7 +444,7 @@ impl App<'_> {
     }
 
     fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
-        let mut copied_text = String::new();
+        let mut copied_text = None;
         for event in &ui.input().events {
             if let Event::Key { key, pressed, modifiers } = event {
                 if !*pressed { continue; }
@@ -460,7 +458,9 @@ impl App<'_> {
             }
         }
 
-        ui.output().copied_text = copied_text;
+        if let Some(copied) = copied_text {
+            ui.output().copied_text = copied;
+        }
     }
 
     fn toggle_commentation(&mut self, cursor_range: CursorRange) {
@@ -547,10 +547,10 @@ impl App<'_> {
         self.source = new_source;
     }
 
-    fn copy_result(&mut self, cursor_range: CursorRange, copied_text: &mut String) {
+    fn copy_result(&mut self, cursor_range: CursorRange, copied_text: &mut Option<String>) {
         let line = cursor_range.primary.rcursor.row;
         if let Some(Line::Line { output_text, .. }) = self.lines.get(line) {
-            *copied_text = output_text.to_owned();
+            *copied_text = Some(output_text.to_owned());
             // Taking the ui.output() lock here leads to a deadlock (if called from
             // handle_shortcuts()), so we have to write it to the variable passed in.
         }
@@ -597,9 +597,11 @@ impl eframe::App for App<'_> {
                     }
                     #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("Copy result").clicked() {
-                        let mut copied_text = String::new();
+                        let mut copied_text = None;
                         self.copy_result(self.input_text_cursor_range, &mut copied_text);
-                        ui.output().copied_text = copied_text;
+                        if let Some(copied) = copied_text {
+                            ui.output().copied_text = copied;
+                        }
                         ui.close_menu();
                     }
                     if ui.button("Format input").clicked() {
@@ -732,7 +734,6 @@ impl eframe::App for App<'_> {
                     });
                 });
             });
-
         });
     }
 
@@ -811,12 +812,7 @@ fn output_text(ui: &mut Ui, str: &str, index: usize) -> Response {
             .with_clip_rect(text_max_rect)
             .galley_with_color(text_max_rect.right_top(), galley.galley, text_color);
 
-        #[cfg(not(target_arch = "wasm32"))]
-            let mut show_copied_text = false;
-        #[cfg(target_arch = "wasm32")]
-            let show_copied_text = false;
-
-        #[cfg(not(target_arch = "wasm32"))]
+        let mut show_copied_text = false;
         if response.clicked() && bg_rect.contains(response.hover_pos().unwrap()) {
             ui.output().copied_text = str.to_owned();
             show_copied_text = true;
