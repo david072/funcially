@@ -5,4 +5,3 @@ members = [
     "gui",
     "discord",
 ]
-rust-version = "1.65.0"
