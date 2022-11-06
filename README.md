@@ -1,5 +1,9 @@
 # axioma
 
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/david072/axioma/CI?label=CI&style=for-the-badge)](https://github.com/david072/axioma/actions/workflows/ci.yml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/david072/axioma?label=latest%20release&style=for-the-badge)](https://github.com/david072/axioma/releases/latest)
+[![GitHub](https://img.shields.io/github/license/david072/axioma?style=for-the-badge)](https://github.com/david072/axioma/blob/main/LICENSE)
+
 An advanced scientific calculator working with text inputs.
 
 [Documentation](https://github.com/david072/axioma/wiki)
