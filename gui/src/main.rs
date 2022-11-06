@@ -595,7 +595,6 @@ impl eframe::App for App<'_> {
                         self.surround_selection_with_brackets(self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("Copy result").clicked() {
                         let mut copied_text = None;
                         self.copy_result(self.input_text_cursor_range, &mut copied_text);

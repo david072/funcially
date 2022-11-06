@@ -4,18 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use strum::IntoEnumIterator;
 use std::mem;
 use std::ops::Range;
+
+use strum::IntoEnumIterator;
+
 use crate::{
-    Format,
-    astgen::ast::{AstNode, Operator, AstNodeData, AstNodeModifier},
+    astgen::ast::{AstNode, AstNodeData, AstNodeModifier, Operator},
     astgen::tokenizer::{Token, TokenType},
     common::*,
     environment::{
         Environment,
         units::{get_prefix_power, is_prefix, is_unit, Unit},
     },
+    Format,
 };
 
 macro_rules! error {
@@ -387,44 +389,20 @@ impl<'a> Parser<'a> {
                     }
                 }
 
+                if let Some(Token { ty, .. }) = self.tokens.get(self.index) {
+                    if *ty == TokenType::QuestionMark {
+                        self.question_mark_variable = Some((token.text.clone(), token.range.clone()));
+                        return Ok(true);
+                    }
+                }
+
                 if let Some(ident) = &self.identifier_being_defined {
                     if token.text == *ident {
                         error!(CantUseIdentifierInDefinition(token.range));
                     }
                 }
 
-                if let Err(e) = self.next_identifier(token) {
-                    return match e.error {
-                        ErrorType::UnknownIdentifier(_) => {
-                            if let Some(Token { ty, .. }) = self.tokens.get(self.index) {
-                                if *ty == TokenType::QuestionMark {
-                                    self.question_mark_variable =
-                                        Some((token.text.clone(), token.range.clone()));
-                                    return Ok(true); // Don't set last_token, since we ignore the identifier token
-                                }
-                            }
-                            Err(e)
-                        }
-                        _ => Err(e),
-                    };
-                }
-
-                if let Some(Token { ty, .. }) = self.tokens.get(self.index) {
-                    if *ty == TokenType::QuestionMark {
-                        if let Some(
-                            AstNode {
-                                data: AstNodeData::VariableReference(var_name),
-                                range,
-                                ..
-                            }
-                        ) = self.result.last() {
-                            self.question_mark_variable = Some((var_name.clone(), range.clone()));
-                            self.result.remove(self.result.len() - 1);
-                            return Ok(true); // Don't set last_token, since the variable_token was deleted
-                        }
-                    }
-                }
-
+                self.next_identifier(token)?;
                 self.last_token_ty = Some(token.ty);
                 return Ok(true);
             }
@@ -584,12 +562,9 @@ impl<'a> Parser<'a> {
                             let second_unit_token = &self.tokens[self.index + 1];
 
                             if second_unit_token.ty == TokenType::Identifier {
-                                match self.parse_unit(second_unit_token)? {
-                                    Some(second_unit) => {
-                                        unit.1 = Some(second_unit);
-                                        self.index += 2;
-                                    }
-                                    None => {}
+                                if let Some(second_unit) = self.parse_unit(second_unit_token)? {
+                                    unit.1 = Some(second_unit);
+                                    self.index += 2;
                                 }
                             }
                         }
@@ -843,6 +818,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::astgen::tokenizer::tokenize;
     use crate::common::ErrorType::*;
+
     use super::*;
 
     macro_rules! parse {
