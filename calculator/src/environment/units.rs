@@ -73,13 +73,10 @@ pub fn get_prefix_power(c: char) -> Option<i32> {
 
 fn unit_prefix(unit: &str) -> Option<(char, i32)> {
     if unit.len() < 2 { return None; }
-    if UNITS.contains(&unit) { return None; }
+    if is_unit(unit) { return None; }
 
     let char = unit.chars().next().unwrap();
-    for prefix in PREFIXES {
-        if prefix.0 == char { return Some(prefix); }
-    }
-    None
+    PREFIXES.into_iter().find(|&prefix| prefix.0 == char)
 }
 
 pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
