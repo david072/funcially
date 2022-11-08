@@ -655,8 +655,8 @@ impl eframe::App for App<'_> {
                     let char_width = ui.fonts().glyph_width(&FONT_ID, '0') + 2.0;
 
                     let longest_row_chars = self.line_numbers_text.lines()
+                        .last()
                         .map(str::len)
-                        .max()
                         .unwrap_or_default() as f32;
 
                     TextEdit::multiline(&mut self.line_numbers_text)
@@ -750,7 +750,7 @@ fn output_text(ui: &mut Ui, str: &str, index: usize) -> Response {
     );
     text_job.job.wrap.max_width = f32::INFINITY;
     text_job.job.halign = Align::RIGHT;
-    let galley = text_job.into_galley(&*ui.fonts());
+    let galley = text_job.into_galley(&ui.fonts());
 
     let glyph_width = ui.fonts().glyph_width(&FONT_ID, '0');
     let index = index.to_string();
