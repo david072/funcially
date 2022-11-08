@@ -1,0 +1,117 @@
+# this is a test
+
+# syntax:
+#   comment: "#..."
+#   one way conversion: src (Long name [/ Plural Long name]) -> dst (Long name [/ Plural Long name]): x <*|/> <number> [| [n][p]]
+#   two way conversion: src (Long name [/ Plural Long name]) -> dst (Long name [/ Plural Long name]): <src->dst conversion expression> ; <dst->src conversion expression> [| p]
+
+# legend:
+#    n: normal => format: x <*|/|+|-> <number>. Inverse conversion with inverse operator (* <-> /, + <-> -)
+#    p: powers => format: x <*|/|+|-> <number>. Unit can have powers. In that case, <number> is raised
+#                                               to that power before conversion.
+
+# length
+m (Meter) -> mi (Mile): x / 1609.344    | np
+
+# --------------------------------------------
+# result after expansion
+m -> mi: x / 1609.344
+m^2 -> mi^2: x / 1609.344^2
+m^3 -> mi^3: x / 1609.344^3
+mi -> m: x * 1609.344
+mi^2 -> m^2: x * 1609.344^2
+mi^3 -> m^3: x * 1609.344^3
+# --------------------------------------------
+
+m-> ft (Foot / Feet): x * 3.281         | np
+m -> in (Inch / Inches): x * 39.37      | np
+m -> yd (Yard): x * 1.094               | np
+
+ft->mi: x / 5280    | np
+ft->in: x * 12      | np
+ft->yd: x / 3       | np
+
+mi->in: x * 63360   | np
+mi->yd: x * 1760    | np
+
+in->yd: x / 36      | np
+
+# volume
+l (Liter) -> tsp (Teaspoon): x * 202.9  | n
+l -> tbsp (Tablespoon): x * 67.628      | n
+l -> floz (Fluid Ounce): x * 33.814     | n
+l -> cup (Cup): x * 4.227               | n
+l -> m^3: x / 1000                      | n
+l -> mi^3: x / 4_168_000_000_000        | n
+l -> ft^3: x / 28.317                   | n
+l -> in^3: x * 61.024                   | n
+l -> yd^3: n / 764.6                    | n
+
+tsp -> tbsp: x / 3                      | n
+tsp -> floz: x / 6                      | n
+tsp -> cup: x / 48                      | n
+tsp -> m^3: x / 202_900                 | n
+tsp -> mi^3: x / 845_700_000_000_000    | n
+tsp -> ft^3: x / 5745                   | n
+tsp -> in^3: x / 3.325                  | n
+tsp -> yd^3: x / 155_100                | n
+
+tbsp -> floz: x / 2                     | n
+tbsp -> cup: x / 16                     | n
+tbsp -> m^3: x / 67_630                 | n
+tbsp -> mi^3: x / 281_900_000_000_000   | n
+tbsp -> ft^3: x / 1915                  | n
+tbsp -> in^3: x / 1.108                 | n
+tbsp -> yd^3: x / 51_710                | n
+
+floz -> cup: x / 8                      | n
+floz -> m^3: x / 284_130                | n
+floz -> mi^3: x / 146_700_000_000_000   | n
+floz -> ft^3: x / 996.6                 | n
+floz -> in^3: x / 1.1734                | n
+floz -> yd^3: x / 25_850                | n
+
+cup -> m^3: x / 4227                | n
+cup -> mi^3: x / 17_620_000_000_000 | n
+cup -> ft^3: x / 119.7              | n
+cup -> in^3: x * 14.438             | n
+cup -> yd^3: x / 3232               | n
+
+# angle
+° (Degree) -> rad (Radian): x * PI / 180 ; x * 180 / PI
+
+# time
+s (Second) -> min (Minute): x / 60  | n
+s -> h (Hour): x / 3600             | n
+s -> d (Day): x / 86_400            | n
+s -> mo (Month): x / 2_628_000      | n
+s -> y (Year): x / 31_540_000       | n
+
+min -> h: x / 60        | n
+min -> d: x / 1440      | n
+min -> mo: x / 43_800   | n
+min -> y: x / 525_600   | n
+
+h -> d: x / 24      | n
+h -> mo: x / 730    | n
+h -> y: x / 8760    | n
+
+d -> mo: x / 30.417 | n
+d -> y: x / 365     | n
+
+mo -> y: x / 12 | n
+
+# mass
+g (Gram) -> lb (Pound): x / 453.59237   | n
+g -> t (Tonne): x / 1_000_000           | n
+lb -> t: x / 2205                       | n
+
+# pressure
+Pa (Pascal / Pascal) -> bar (Bar): x / 100_000                          | n
+Pa -> psi (Pound per square inch / Pounds per square inch): x / 6895    | n
+bar -> psi: x / 14.504                                                  | n
+
+# temperature
+°C (Degree Celsius / Degrees Celsius) -> °F (Degree Fahrenheit / Degrees Fahrenheit): (x * 9 / 5) + 32 ; (x - 32) * 5 / 9
+°C -> K (Kelvin / Kelvin): n + 273.15   | n
+°F -> K: (x - 32) * 5 / 9 - 273.15 ; (x - 273.15) * 9 / 5 + 32
