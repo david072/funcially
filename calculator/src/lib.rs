@@ -205,14 +205,14 @@ impl<'a> Calculator<'a> {
     fn env(&self) -> &Environment {
         match &self.environment {
             Env::Owned(env) => env,
-            Env::Ref(env) => *env,
+            Env::Ref(env) => env,
         }
     }
 
     fn env_mut(&mut self) -> &mut Environment {
         match &mut self.environment {
             Env::Owned(env) => env,
-            Env::Ref(env) => *env,
+            Env::Ref(env) => env,
         }
     }
 
@@ -382,11 +382,13 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
-                if !(token.ty.is_format() && tokens.get(i.saturating_sub(1)).map_or(false, |t| t.ty == TokenType::In)) {
+                if !(token.ty.is_format() && tokens.get(i.saturating_sub(1))
+                    .map_or(false, |t| t.ty == TokenType::In)) &&
+                    token.ty != TokenType::Exponentiation {
                     new_line.push(' ');
                 }
                 new_line += text;
-                if i != tokens.len() - 1 {
+                if i != tokens.len() - 1 && token.ty != TokenType::Exponentiation {
                     new_line.push(' ');
                 }
             } else if token.ty == TokenType::Comma {
