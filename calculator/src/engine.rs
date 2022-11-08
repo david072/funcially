@@ -43,10 +43,15 @@ impl Format {
     }
 
     fn add_thousands_separator(str: &mut String, packet_size: usize) {
+        if str.is_empty() { return; }
+
         let mut char_counter = 0usize;
         let str_len = str.len();
         let mut str_i = str.len() - 1;
         let decimal_point_index = str.find('.');
+
+        let has_sign = matches!(str.chars().next().unwrap(), '+' | '-');
+
         for i in 0..str.len() {
             if let Some(dp_i) = decimal_point_index {
                 if i < str_len - dp_i {
@@ -56,7 +61,7 @@ impl Format {
             }
 
             char_counter += 1;
-            if char_counter == packet_size && i != str_len - 1 {
+            if char_counter == packet_size && i != str_len - 1 && (!has_sign || i != str_len - 2) {
                 str.insert(str_i, '_');
                 char_counter = 0;
             }
