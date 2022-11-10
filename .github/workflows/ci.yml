@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches-ignore: "gh-pages"
+    tags-ignore: '**'
     paths-ignore:
       - '.github/workflows/pages.yml'
       - '.github/workflows/pages-main.yml'
@@ -16,6 +17,9 @@ on:
   workflow_dispatch:
 
 jobs:
+  code-analysis:
+    uses: ./.github/workflows/code-analysis.yml
+
   build-linux:
     name: Linux Build
     runs-on: ubuntu-latest
@@ -31,8 +35,6 @@ jobs:
           profile: minimal
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-      - name: Run Tests
-        run: cargo test
       - name: Build
         run: cargo build --bin cli && cargo build --bin gui && cargo build --bin discord
       - name: Upload CLI
@@ -63,8 +65,6 @@ jobs:
           profile: minimal
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-      - name: Run Tests
-        run: cargo test
       - name: Build
         run: cargo build --bin cli && cargo build --bin gui && cargo build --bin discord
       - name: Upload CLI
@@ -95,8 +95,6 @@ jobs:
           profile: minimal
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-      - name: Run Tests
-        run: cargo test
       - name: Build
         run: cargo build --bin cli && cargo build --bin gui && cargo build --bin discord
       - name: Upload CLI

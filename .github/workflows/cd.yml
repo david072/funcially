@@ -5,6 +5,9 @@ on:
     tags: "*"
 
 jobs:
+  code-analysis:
+    uses: ./.github/workflows/code-analysis.yml
+
   build-linux:
     name: Linux Build
     runs-on: ubuntu-latest
@@ -20,8 +23,6 @@ jobs:
           profile: minimal
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-      - name: Run Tests
-        run: cargo test
       - name: Build
         run: cargo build --bin cli --release && cargo build --bin gui --release && cargo build --bin discord --release
       - name: Rename
@@ -60,8 +61,6 @@ jobs:
           profile: minimal
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-      - name: Run Tests
-        run: cargo test
       - name: Build CLI
         run: cargo build --bin cli --release
       - name: Build GUI (installer)
@@ -102,8 +101,6 @@ jobs:
           profile: minimal
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-      - name: Run Tests
-        run: cargo test
       - name: Build CLI
         run: cargo build --bin cli --release
       - name: Build GUI (installer)
@@ -130,8 +127,9 @@ jobs:
   release:
     name: Release
     if: github.repository == 'david072/axioma'
-    needs: [ build-linux, build-windows, build-macos ]
+    needs: [ code-analysis, build-linux, build-windows, build-macos ]
     runs-on: ubuntu-latest
+    
     steps:
       - name: Get Release Version
         id: get_release

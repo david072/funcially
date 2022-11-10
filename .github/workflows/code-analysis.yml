@@ -1,0 +1,25 @@
+name: Code Analysis Workflow
+
+on:
+  workflow_call
+
+jobs:
+  code-analysis:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+      - name: Rust Cache # cache the rust build artefacts
+        uses: Swatinem/rust-cache@v1
+      - name: Clippy
+        run: cargo clippy
+      - name: Test
+        run: cargo test
