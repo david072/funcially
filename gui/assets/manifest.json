@@ -20,8 +20,8 @@
     }
   ],
   "lang": "en-US",
-  "id": "funcially/index.html",
-  "start_url": "/funcially/index.html",
+  "id": "app/index.html",
+  "start_url": "/app/index.html",
   "display": "standalone",
   "background_color": "black",
   "theme_color": "black"
