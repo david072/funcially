@@ -24,6 +24,5 @@
   "start_url": "/funcially/index.html",
   "display": "standalone",
   "background_color": "black",
-  "theme_color": "black",
-  "scope": "/funcially/"
+  "theme_color": "black"
 }
