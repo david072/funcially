@@ -31,12 +31,13 @@ jobs:
         # this is necessary for GitHub pages where the site is deployed to username.github.io/repo_name and all files must be requested
         # relatively as eframe_template/favicon.ico. if we skip public-url option, the href paths will instead request username.github.io/favicon.ico which
         # will obviously return error 404 not found.
-        run: cd gui && RUSTFLAGS=--cfg=web_sys_unstable_apis ../trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
+        run: cd gui && RUSTFLAGS=--cfg=web_sys_unstable_apis ../trunk build --release
       - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4
+        uses: SamKirkland/FTP-Deploy-Action@4.3.2
         with:
-          folder: gui/dist
-          branch: gh-pages
-          # this option will not maintain any history of your previous pages deployment
-          # set to false if you want all page build to be committed to your gh-pages branch history
-          single-commit: true
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./gui/dist/
+          server-dir: /app/
+        
