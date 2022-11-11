@@ -1,6 +1,6 @@
 {
-  "name": "axioma",
-  "short_name": "axioma",
+  "name": "funcially",
+  "short_name": "funcially",
   "icons": [
     {
       "src": "./icon-256.png",
@@ -20,10 +20,10 @@
     }
   ],
   "lang": "en-US",
-  "id": "axioma/index.html",
-  "start_url": "/axioma/index.html",
+  "id": "funcially/index.html",
+  "start_url": "/funcially/index.html",
   "display": "standalone",
   "background_color": "black",
   "theme_color": "black",
-  "scope": "/axioma/"
+  "scope": "/funcially/"
 }

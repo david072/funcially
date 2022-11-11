@@ -10,7 +10,7 @@ use rust_decimal::Decimal;
 use thiserror::Error;
 use crate::FromPrimitive;
 
-const CRATE_NAME: &str = "axioma";
+const CRATE_NAME: &str = "funcially";
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ErrorType {

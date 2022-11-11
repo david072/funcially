@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+    <Product Name="funcially" Id="*" UpgradeCode="1A7517BB-8819-4C2C-8AC9-34BF1644C18E" Language="1033" Codepage="1252" Version="0.4.1" Manufacturer="david072">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
+        <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
+        <Icon Id="funciallyIco" SourceFile=".\gui\assets\app_icon_256.ico"/>
+        <WixVariable Id="WixUILicenseRtf" Value=".\gui\installers\wix\license.rtf"/>
+        <Property Id="ARPPRODUCTICON" Value="funciallyIco"/>
+        <MediaTemplate EmbedCab="yes"/>
+        <UIRef Id="WixUI_Minimal"/>
+
+        <Feature Id="ProductFeature" Title="GUIApp" Level="1">
+            <ComponentRef Id="funciallyExe"/>
+            <ComponentRef Id="funciallyShortcut"/>
+            <ComponentRef Id="ModifyPathEnv"/>
+            <ComponentRef Id="funciallyAppDataCrashReportsFolder"/>
+            <ComponentRef Id="funciallyAppDataDcSessionsFolder"/>
+            <ComponentRef Id="funciallyAppDataFolder"/>
+        </Feature>
+
+        <!-- Create directories -->
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="funciallyProgramFiles" Name="funcially"/>
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="funciallyProgramMenu" Name="funcially"/>
+            </Directory>
+
+            <!-- Delete AppData/Local directory -->
+            <Directory Id="LocalAppDataFolder" Name="LocalAppDataFolder">
+                <Directory Id="funciallyAppDataFolder" Name="funcially">
+                    <Component Id="funciallyAppDataCrashReportsFolder" Guid="9442a72e-e7b7-41e7-add6-1a441b8b8b81">
+                        <RegistryValue Root='HKCU' Key='Software\Microsoft\funcially' Name="AppDataCrashReportsFolder" Value="1" Type="integer" KeyPath="yes" />
+                        <CreateFolder />
+                        <RemoveFile Id="PurgeCrashReportsFolder" Name="*.*" On="uninstall" />
+                        <RemoveFolder Id="funciallyAppDataCrashReportsFolder" On="uninstall" />
+                    </Component>
+                    <Component Id="funciallyAppDataDcSessionsFolder" Guid="7fcc417d-0395-4453-8dc2-c670a170220f">
+                        <RegistryValue Root='HKCU' Key='Software\Microsoft\funcially' Name="AppDataDcSessionsFolder" Value="1" Type="integer" KeyPath="yes" />
+                        <RemoveFile Id="PurgeDcSessionsFolder" Name="*.*" On="uninstall" />
+                        <RemoveFolder Id="funciallyAppDataDcSessionsFolder" On="uninstall" />
+                    </Component>
+                    <Component Id="funciallyAppDataFolder" Guid="45a43d82-3043-4626-9ce8-0e8ffd891741">
+                        <RegistryValue Root='HKCU' Key='Software\Microsoft\funcially' Name="AppDataFolder" Value="1" Type="integer" KeyPath="yes" />
+                        <CreateFolder />
+                        <RemoveFile Id="PurgeAppFolder" Name="*.*" On="uninstall" />
+                        <RemoveFolder Id="funciallyAppDataFolder" On="uninstall" />
+                    </Component>
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <!-- Application binaries -->
+        <DirectoryRef Id="funciallyProgramFiles">
+            <Component Id="funciallyExe" Guid="3d34e853-08cc-4123-8bb9-763de5252db6">
+                <File Id="funciallyExeFile" Source=".\target\release\gui.exe" Name="funcially.exe" KeyPath="yes"/>
+                <File Id="funciallyIconFile" Source=".\gui\assets\app_icon_256.ico" Name="app_icon_256.ico"/>
+            </Component>
+        </DirectoryRef>
+
+        <!-- Application shortcut -->
+        <DirectoryRef Id="funciallyProgramMenu">
+            <Component Id="funciallyShortcut" Guid="9247c66c-6b65-4016-99b4-ca4d35506920">
+                <Shortcut Id="funciallyShortcutFile" Name="funcially" Description="A scientific text calculator" Target="[funciallyProgramFiles]funcially.exe"/>
+                <RemoveFolder Id="funciallyProgramMenu" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\Microsoft\funcially" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+
+        <!-- Add to PATH -->
+        <DirectoryRef Id="funciallyProgramFiles">
+            <Component Id="ModifyPathEnv" Guid="e070b107-d1d4-44b3-aeeb-3e7e3a39ec93" KeyPath="yes">
+                <Environment Id="PathEnv" Value="[funciallyProgramFiles]" Name="PATH" Permanent="no" Part="first" Action="set" System="yes"/>
+            </Component>
+        </DirectoryRef>
+    </Product>
+</Wix>

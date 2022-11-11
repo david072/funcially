@@ -66,7 +66,7 @@ fn main() {
         ..Default::default()
     };
     eframe::run_native(
-        "Axioma",
+        "Funcially",
         options,
         Box::new(|cc| Box::new(App::new(cc))),
     );
@@ -380,7 +380,7 @@ impl App<'_> {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     ui.label("If you're on desktop, you can download the ");
-                    ui.hyperlink_to("desktop app", "https://github.com/david072/axioma/releases");
+                    ui.hyperlink_to("desktop app", "https://github.com/david072/funcially/releases");
                     ui.label(".");
                 });
                 ui.separator();
@@ -420,7 +420,7 @@ impl App<'_> {
                     ui.checkbox(&mut tesselation_options.debug_paint_text_rects, "Paint text bounds");
                     *ui.ctx().tessellation_options() = tesselation_options;
                 });
-                ui.hyperlink_to("Source code", "https://github.com/david072/axioma");
+                ui.hyperlink_to("Source code", "https://github.com/david072/funcially");
             });
     }
 
@@ -992,7 +992,7 @@ fn build_help(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         ui.label("This is a brief overview of the features. A more detailed documentation can be found ");
-        ui.hyperlink_to("here", "https://github.com/david072/axioma/wiki");
+        ui.hyperlink_to("here", "https://github.com/david072/funcially/wiki");
         ui.label(".");
     });
 

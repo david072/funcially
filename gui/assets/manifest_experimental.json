@@ -1,6 +1,6 @@
 {
-  "name": "axioma-experimental",
-  "short_name": "axioma-experimental",
+  "name": "funcially-experimental",
+  "short_name": "funcially-experimental",
   "icons": [
     {
       "src": "./icon-256.png",
@@ -20,10 +20,10 @@
     }
   ],
   "lang": "en-US",
-  "id": "axioma/experimental/index.html",
-  "start_url": "axioma/experimental/index.html",
+  "id": "funcially/experimental/index.html",
+  "start_url": "funcially/experimental/index.html",
   "display": "standalone",
   "background_color": "black",
   "theme_color": "black",
-  "scope": "/axioma/experimental/"
+  "scope": "/funcially/experimental/"
 }

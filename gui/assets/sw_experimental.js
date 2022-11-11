@@ -1,6 +1,6 @@
 // service worker for the experimental version (changes cacheName)
 
-var cacheName = 'axioma-pwa-experimental';
+var cacheName = 'funcially-pwa-experimental';
 var filesToCache = [
   './',
   './index.html',

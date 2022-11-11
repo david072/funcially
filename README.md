@@ -1,29 +1,29 @@
-# axioma
+# funcially
 
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/david072/axioma/CI?label=CI&style=for-the-badge)](https://github.com/david072/axioma/actions/workflows/ci.yml)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/david072/axioma?label=latest%20release&style=for-the-badge)](https://github.com/david072/axioma/releases/latest)
-[![GitHub](https://img.shields.io/github/license/david072/axioma?style=for-the-badge)](https://github.com/david072/axioma/blob/main/LICENSE)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/david072/funcially/CI?label=CI&style=for-the-badge)](https://github.com/david072/funcially/actions/workflows/ci.yml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/david072/funcially?label=latest%20release&style=for-the-badge)](https://github.com/david072/funcially/releases/latest)
+[![GitHub](https://img.shields.io/github/license/david072/funcially?style=for-the-badge)](https://github.com/david072/funcially/blob/main/LICENSE)
 
 An advanced scientific calculator working with text inputs.
 
-[Documentation](https://github.com/david072/axioma/wiki)
+[Documentation](https://github.com/david072/funcially/wiki)
 
 ![Image](/media/thumbnail.png)
 
 ## Downloading
 
-- Desktop Versions with installers available in the [Releases tab](https://github.com/david072/axioma/releases)
+- Desktop Versions with installers available in the [Releases tab](https://github.com/david072/funcially/releases)
 - Web:
-    - [Stable version](https://david072.github.io/axioma)
-    - [Experimental version](https://david072.github.io/axioma/experimental) (might be buggy / unstable)
+    - [Stable version](https://david072.github.io/funcially)
+    - [Experimental version](https://david072.github.io/funcially/experimental) (might be buggy / unstable)
 
 ## Building
 
 Building this project requires that [Rust](https://www.rust-lang.org/) version 1.65.0 or above is installed.
 To update, run `rustup update stable`.
 
-1. Clone the project with `git clone https://github.com/david072/axioma`
-2. `cd axioma`
+1. Clone the project with `git clone https://github.com/david072/funcially`
+2. `cd funcially`
 3. Run the CLI version with `cargo run -p cli`, the GUI version with `cargo run -p gui`
 
 For the Discord Bot:

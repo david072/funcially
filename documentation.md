@@ -180,7 +180,7 @@ x :=
 
 ## Equality checks
 
-An equals sign ("=") marks this line as an equality check. axioma then returns `True` or `False`, depending on whether
+An equals sign ("=") marks this line as an equality check. funcially then returns `True` or `False`, depending on whether
 the two expressions evaluate to the same value (including units).
 
 The equals sign **must** be at the top level and there can only be one equals sign in a line.
@@ -192,7 +192,7 @@ The equals sign **must** be at the top level and there can only be one equals si
 
 ## Equation solving
 
-axioma can solve **linear** equations if there is a question mark (`?`) in either sides.
+funcially can solve **linear** equations if there is a question mark (`?`) in either sides.
 
 - There can only be one question mark in an equation.
 - The question mark can only be a function argument of custom functions that are themselves linear.
@@ -231,7 +231,7 @@ the abbreviated version is used.
 
 Two units can be combined using a `/` in between.
 
-axioma will automatically convert units to perform operations if needed. In that case, the right hand
+funcially will automatically convert units to perform operations if needed. In that case, the right hand
 side's is converted into the left hand side's unit.
 
 ```
@@ -243,8 +243,8 @@ side's is converted into the left hand side's unit.
 
 ### Currencies
 
-axioma supports currencies from [exchangerates.host](https://exchangerates.host), like `EUR` or `USD`.
-These can be used the same way as units. axioma updates the exchange rates on every startup and saves them
+funcially supports currencies from [exchangerates.host](https://exchangerates.host), like `EUR` or `USD`.
+These can be used the same way as units. funcially updates the exchange rates on every startup and saves them
 for when there is no internet connection available.
 
 ### Converting between representations with "in"
