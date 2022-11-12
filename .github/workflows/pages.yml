@@ -1,4 +1,4 @@
-name: Github Pages
+name: Build Web App
 
 # run on release creation
 on:
@@ -11,7 +11,7 @@ permissions:
   contents: write # for committing to gh-pages branch
 
 jobs:
-  build-github-pages:
+  build-web-app:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2 # repo checkout
@@ -32,13 +32,13 @@ jobs:
         # relatively as eframe_template/favicon.ico. if we skip public-url option, the href paths will instead request username.github.io/favicon.ico which
         # will obviously return error 404 not found.
         run: cd gui && RUSTFLAGS=--cfg=web_sys_unstable_apis ../trunk build --release
-      - run: pwd
       - name: Deploy
-        run: |
-          export SSHPASS=${{ secrets.FTP_PASSWORD }}
-          sshpass -e sftp -oBatchMode=no -b - ${{ secrets.FTP_USERNAME }}@${{ secrets.FTP_SERVER }} << !
-            cd app
-            put -r gui/dist
-            bye
-          !
-          shell: bash
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server: ${{ secrets.FTP_SERVER }}
+          ssh_private_key: '' # docs say this is required, however if you use a password, it is not used...
+          local_path: 'gui/dist/*'
+          remote_path: '/'
+          sftp_only: true
