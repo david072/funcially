@@ -1,4 +1,4 @@
-name: Github Pages
+name: Build Web App
 
 # run on release creation
 on:
@@ -11,7 +11,7 @@ permissions:
   contents: write # for committing to gh-pages branch
 
 jobs:
-  build-github-pages:
+  build-web-app:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2 # repo checkout
@@ -38,17 +38,7 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           server: ${{ secrets.FTP_SERVER }}
-          ssh_private_key: ''
-          local_path: 'gui/dist/'
+          ssh_private_key: '' # docs say this is required, however if you use a password, it is not used...
+          local_path: 'gui/dist/*'
           remote_path: '/'
           sftp_only: true
-
-#       - name: Deploy
-#         run: |
-#           export SSHPASS=${{ secrets.FTP_PASSWORD }}
-#           sshpass -e sftp -oBatchMode=no -b - ${{ secrets.FTP_USERNAME }}@${{ secrets.FTP_SERVER }} << !
-#             cd app
-#             put -r gui/dist
-#             bye
-#           !
-#           shell: bash
