@@ -465,7 +465,6 @@ impl<'a> Engine<'a> {
 mod tests {
     use crate::{parse, ParserResult, tokenize};
     use crate::common::Result;
-    use crate::environment::units::format as format_unit;
 
     use super::*;
 
@@ -565,13 +564,13 @@ mod tests {
     fn print_full_unit() -> Result<()> {
         let res = eval!("1min")?;
         assert!(res.is_long_unit);
-        assert_eq!(format_unit(&res.unit.unwrap(), false), " Minute");
+        assert_eq!(res.unit.unwrap().format(false), "Minute");
         let res = eval!("3m")?;
-        assert_eq!(format_unit(&res.unit.unwrap(), true), " Meters");
+        assert_eq!(res.unit.unwrap().format(true), "Meters");
         let res = eval!("3km")?;
-        assert_eq!(format_unit(&res.unit.unwrap(), true), " Kilometers");
+        assert_eq!(res.unit.unwrap().format(true), "Kilometers");
         let res = eval!("3km/h")?;
-        assert_eq!(format_unit(&res.unit.unwrap(), true), " Kilometers per Hour");
+        assert_eq!(res.unit.unwrap().format(true), "Kilometers per Hour");
         Ok(())
     }
 

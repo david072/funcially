@@ -28,7 +28,7 @@ impl Unit {
 
         if let Some(denom) = &self.1 {
             let denom = format_unit(denom, false);
-            result += " per";
+            result += " per ";
             result += &denom;
         }
 
