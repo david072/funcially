@@ -1,9 +1,12 @@
 .idea
 /target
 **/dist
-**/default_currencies.rs
 .env
 **.wixobj
 **.wixpdb
 **.msi
 **.dmg
+
+# generated files
+**/default_currencies.rs
+**/unit_conversion.rs
