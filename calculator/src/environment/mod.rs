@@ -17,9 +17,11 @@ use crate::engine::CalculationResult;
 use self::units::Unit;
 
 pub mod units;
-// This file will generated in build.rs at build time
-mod default_currencies;
 pub mod currencies;
+
+// These files are generated in build.rs during build time
+mod default_currencies;
+mod unit_conversion;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Variable(pub f64, pub Option<Unit>);

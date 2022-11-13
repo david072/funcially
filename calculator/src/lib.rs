@@ -18,7 +18,6 @@ use common::Result;
 use engine::Engine;
 use environment::{
     currencies::Currencies,
-    units::format as format_unit,
     Variable,
 };
 pub use environment::{Environment, Function};
@@ -241,7 +240,7 @@ impl<'a> Calculator<'a> {
 
                 let unit = result.unit.as_ref().map(|unit| {
                     if result.is_long_unit {
-                        format_unit(unit, result.result != 1.0)
+                        format!(" {}", unit.format(result.result != 1.0))
                     } else {
                         unit.to_string()
                     }
