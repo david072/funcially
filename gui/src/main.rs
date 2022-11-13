@@ -587,15 +587,18 @@ impl eframe::App for App<'_> {
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             menu::bar(ui, |ui| {
                 ui.menu_button("Edit", |ui| {
-                    if ui.button("(Un)Comment selected lines").clicked() {
+                    let cmd_string = if matches!(std::env::consts::OS, "macos" | "ios") { "⌘" } else { "Ctrl" };
+                    let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
+
+                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
                         self.toggle_commentation(self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if ui.button("Surround selection with brackets").clicked() {
+                    if shortcut_button(ui, "Surround selection with brackets", &shortcut("B")).clicked() {
                         self.surround_selection_with_brackets(self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if ui.button("Copy result").clicked() {
+                    if shortcut_button(ui, "Copy result", &shortcut("Shift+C")).clicked() {
                         let mut copied_text = None;
                         self.copy_result(self.input_text_cursor_range, &mut copied_text);
                         if let Some(copied) = copied_text {
@@ -603,7 +606,7 @@ impl eframe::App for App<'_> {
                         }
                         ui.close_menu();
                     }
-                    if ui.button("Format input").clicked() {
+                    if shortcut_button(ui, "Format input", &shortcut("Shift+L")).clicked() {
                         self.format_source();
                         ui.close_menu();
                     }
@@ -833,6 +836,50 @@ fn output_text(ui: &mut Ui, str: &str, index: usize) -> Response {
                     }
                 });
         }
+    }
+
+    response
+}
+
+fn shortcut_button(ui: &mut Ui, text: &str, shortcut: &str) -> Response {
+    let text: WidgetText = text.into();
+    let shortcut: WidgetText = shortcut.into();
+
+    let text = text.into_galley(ui, Some(false), 0.0, TextStyle::Button);
+    let shortcut = shortcut.into_galley(ui, Some(false), 0.0, TextStyle::Small);
+
+    let frame = ui.visuals().button_frame;
+    // for some reason, the y component of button_padding is 0 here...?
+    let button_padding = ui.spacing().button_padding.at_least(vec2(2.0, 2.0));
+
+    let content_size = text.size() + vec2(shortcut.size().x, 0.0) + vec2(10.0, 0.0);
+    let desired_size = content_size + 2.0 * button_padding;
+
+    let (rect, response) = ui.allocate_at_least(desired_size, Sense::click());
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, text.text()));
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact(&response);
+        let text_pos = ui.layout()
+            .align_size_within_rect(content_size, rect.shrink2(button_padding));
+
+        if frame {
+            let fill = visuals.bg_fill;
+            let stroke = visuals.bg_stroke;
+            ui.painter().rect(
+                rect.expand(visuals.expansion),
+                visuals.rounding,
+                fill,
+                stroke,
+            );
+        }
+
+        text.paint_with_visuals(ui.painter(), text_pos.min, visuals);
+        let shortcut_pos = pos2(
+            text_pos.max.x - shortcut.size().x,
+            text_pos.min.y + (text_pos.height() - shortcut.size().y) / 2.0,
+        );
+        shortcut.paint_with_visuals(ui.painter(), shortcut_pos, visuals);
     }
 
     response
