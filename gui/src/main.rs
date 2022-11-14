@@ -684,12 +684,12 @@ impl eframe::App for App<'_> {
                 let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
 
                 ui.menu_button("Edit", |ui| {
-                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
-                        self.toggle_commentation(self.input_text_cursor_range);
-                        ui.close_menu();
-                    }
                     if shortcut_button(ui, "Surround selection with brackets", &shortcut("B")).clicked() {
                         self.surround_selection_with_brackets(self.input_text_cursor_range);
+                        ui.close_menu();
+                    }
+                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
+                        self.toggle_commentation(self.input_text_cursor_range);
                         ui.close_menu();
                     }
                     if shortcut_button(ui, "Copy result", &shortcut("Shift+C")).clicked() {
@@ -963,8 +963,14 @@ fn shortcut_button(ui: &mut Ui, text: &str, shortcut: &str) -> Response {
     // for some reason, the y component of button_padding is 0 here...?
     let button_padding = ui.spacing().button_padding.at_least(vec2(2.0, 2.0));
 
-    let content_size = text.size() + vec2(shortcut.size().x, 0.0) + vec2(10.0, 0.0);
-    let desired_size = content_size + 2.0 * button_padding;
+    let mut content_size = text.size() + vec2(shortcut.size().x, 0.0) + vec2(10.0, 0.0);
+    let mut desired_size = content_size + 2.0 * button_padding;
+
+    // expand sizes if we have space left
+    if ui.available_width() > desired_size.x {
+        desired_size.x = ui.available_width();
+        content_size.x = desired_size.x - 2.0 * button_padding.x;
+    }
 
     let (rect, response) = ui.allocate_at_least(desired_size, Sense::click());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, text.text()));
