@@ -12,110 +12,177 @@
 
 # unit definitions
 
-m: Meter, mi: Mile, ft: Foot / Feet, in: Inch / Inches, yd: Yard,
-l: Liter, tsp: Teaspoon, tbsp: Tablespoon, floz: Fluid Ounce, cup: Cup,
-°: Degree, rad: Radian,
-s: Second, min: Minute, h: Hour, d: Day, mo: Month, y: Year,
-g: Gram, lb: Pound, t: Tonne,
-Pa: Pascal / Pascal, bar: Bar, psi: Pound per square inch / Pounds per square inch,
-°C: Degree Celsius / Degrees Celsius, °F: Degree Fahrenheit / Degrees Fahrenheit,
-K: Kelvin / Kelvin
-cal: Calorie,
-b: Byte
+# length / area / volume
+  m: Meter
+  mi: Mile
+  ft: Foot / Feet
+  in: Inch / Inches
+  yd: Yard7
+
+# volume
+  l: Liter
+  tsp: Teaspoon
+  tbsp: Tablespoon
+  floz: Fluid Ounce
+  cup: Cup
+
+# angle
+   °: Degree
+   rad: Radian
+
+# time
+  s: Second
+  min: Minute
+  h: Hour
+  d: Day
+  mo: Month
+  y: Year
+
+# mass
+  g: Gram
+  lb: Pound
+  t: Tonne
+  u: Atomic mass unit
+  oz: Ounce
+
+
+# pressure
+  Pa: Pascal / Pascal
+  bar: Bar
+  psi: Pound per square inch / Pounds per square inch
+
+
+# temperature
+  °C: Degree Celsius / Degrees Celsius
+  °F: Degree Fahrenheit / Degrees Fahrenheit
+  K: Kelvin / Kelvin
+
+
+# energy
+  cal: Calorie
+  J: Joule
+
+
+# data
+  b: Byte
+  B: Bit
+
+
+# force
+  N: Newton
+  
+# frequency
+  Hz: Hertz
 
 ----
 
-# length
-m->mi: x / 1609.344 | np
-m->ft: x * 3.281    | np
-m->in: x * 39.37    | np
-m->yd: x * 1.094    | np
+# length / area
+  m->mi: x / 1609.344 | np
+  m->ft: x * 3.281    | np
+  m->in: x * 39.37    | np
+  m->yd: x * 1.094    | np
 
-ft->mi: x / 5280.0  | np
-ft->in: x * 12.0    | np
-ft->yd: x / 3.0     | np
+  ft->mi: x / 5280.0  | np
+  ft->in: x * 12.0    | np
+  ft->yd: x / 3.0     | np
 
-mi->in: x * 63360.0 | np
-mi->yd: x * 1760.0  | np
+  mi->in: x * 63360.0 | np
+  mi->yd: x * 1760.0  | np
 
-in->yd: x / 36.0    | np
+  in->yd: x / 36.0    | np
 
 # volume
-l->tsp: x * 202.9                   | n
-l->tbsp: x * 67.628                 | n
-l->floz: x * 33.814                 | n
-l->cup: x * 4.227                   | n
-l->m^3: x / 1000.0                  | n
-l->mi^3: x / 4_168_000_000_000.0    | n
-l->ft^3: x / 28.317                 | n
-l->in^3: x * 61.024                 | n
-l->yd^3: x / 764.6                  | n
+  l->tsp: x * 202.9                   | n
+  l->tbsp: x * 67.628                 | n
+  l->floz: x * 33.814                 | n
+  l->cup: x * 4.227                   | n
+  l->m^3: x / 1000.0                  | n
+  l->mi^3: x / 4_168_000_000_000.0    | n
+  l->ft^3: x / 28.317                 | n
+  l->in^3: x * 61.024                 | n
+  l->yd^3: x / 764.6                  | n
 
-tsp -> tbsp: x / 3.0                    | n
-tsp -> floz: x / 6.0                    | n
-tsp -> cup: x / 48.0                    | n
-tsp -> m^3: x / 202_900.0               | n
-tsp -> mi^3: x / 845_700_000_000_000.0  | n
-tsp -> ft^3: x / 5745.0                 | n
-tsp -> in^3: x / 3.325                  | n
-tsp -> yd^3: x / 155_100.0              | n
+  tsp -> tbsp: x / 3.0                    | n
+  tsp -> floz: x / 6.0                    | n
+  tsp -> cup: x / 48.0                    | n
+  tsp -> m^3: x / 202_900.0               | n
+  tsp -> mi^3: x / 845_700_000_000_000.0  | n
+  tsp -> ft^3: x / 5745.0                 | n
+  tsp -> in^3: x / 3.325                  | n
+  tsp -> yd^3: x / 155_100.0              | n
 
-tbsp -> floz: x / 2.0                   | n
-tbsp -> cup: x / 16.0                   | n
-tbsp -> m^3: x / 67_630.0               | n
-tbsp -> mi^3: x / 281_900_000_000_000.0 | n
-tbsp -> ft^3: x / 1915.0                | n
-tbsp -> in^3: x / 1.108                 | n
-tbsp -> yd^3: x / 51_710.0              | n
+  tbsp -> floz: x / 2.0                   | n
+  tbsp -> cup: x / 16.0                   | n
+  tbsp -> m^3: x / 67_630.0               | n
+  tbsp -> mi^3: x / 281_900_000_000_000.0 | n
+  tbsp -> ft^3: x / 1915.0                | n
+  tbsp -> in^3: x / 1.108                 | n
+  tbsp -> yd^3: x / 51_710.0              | n
 
-floz -> cup: x / 8.0                    | n
-floz -> m^3: x / 284_130.0              | n
-floz -> mi^3: x / 146_700_000_000_000.0 | n
-floz -> ft^3: x / 996.6                 | n
-floz -> in^3: x / 1.1734                | n
-floz -> yd^3: x / 25_850.0              | n
+  floz -> cup: x / 8.0                    | n
+  floz -> m^3: x / 284_130.0              | n
+  floz -> mi^3: x / 146_700_000_000_000.0 | n
+  floz -> ft^3: x / 996.6                 | n
+  floz -> in^3: x / 1.1734                | n
+  floz -> yd^3: x / 25_850.0              | n
 
-cup -> m^3: x / 4227.0                  | n
-cup -> mi^3: x / 17_620_000_000_000.0   | n
-cup -> ft^3: x / 119.7                  | n
-cup -> in^3: x * 14.438                 | n
-cup -> yd^3: x / 3232.0                 | n
+  cup -> m^3: x / 4227.0                  | n
+  cup -> mi^3: x / 17_620_000_000_000.0   | n
+  cup -> ft^3: x / 119.7                  | n
+  cup -> in^3: x * 14.438                 | n
+  cup -> yd^3: x / 3232.0                 | n
 
 # angle
-°->rad: x * PI / 180.0 ; x * 180.0 / PI
+  °->rad: x * PI / 180.0 ; x * 180.0 / PI
 
 # time
-s->min: x / 60.0        | n
-s->h: x / 3600.0        | n
-s->d: x / 86_400.0      | n
-s->mo: x / 2_628_000.0  | n
-s->y: x / 31_540_000.0  | n
+  s->min: x / 60.0        | n
+  s->h: x / 3600.0        | n
+  s->d: x / 86_400.0      | n
+  s->mo: x / 2_628_000.0  | n
+  s->y: x / 31_540_000.0  | n
 
-min->h: x / 60.0      | n
-min->d: x / 1440.0    | n
-min->mo: x / 43_800.0 | n
-min->y: x / 525_600.0 | n
+  min->h: x / 60.0      | n
+  min->d: x / 1440.0    | n
+  min->mo: x / 43_800.0 | n
+  min->y: x / 525_600.0 | n
 
-h->d: x / 24.0    | n
-h->mo: x / 730.0  | n
-h->y: x / 8760.0  | n
+  h->d: x / 24.0    | n
+  h->mo: x / 730.0  | n
+  h->y: x / 8760.0  | n
 
-d->mo: x / 30.417 | n
-d->y: x / 365.0   | n
+  d->mo: x / 30.417 | n
+  d->y: x / 365.0   | n
 
-mo->y: x / 12.0 | n
+  mo->y: x / 12.0 | n
 
 # mass
-g->lb: x / 453.59237    | n
-g->t: x / 1_000_000.0   | n
-lb->t: x / 2205.0       | n
+  g->lb: x / 453.59237                              | n
+  g->t: x / 1_000_000.0                             | n
+  g->u: x * 60_220_000_000_000_000_000_000.0        | n
+  g->oz: x / 28.35                                  | n
+
+  lb->t: x / 2205.0                                 | n
+  lb->u: x * 273_159_734_025_890_000_000_000_000.0  | n
+  lb->oz: x * 16                                    | n
+
+  t->u: x / 60_220_000_000_000_000_000_000_000_000.0 | n
+  t->oz: x * 35_270.0                                | n
+
+  oz->u:
 
 # pressure
-Pa->bar: x / 100_000.0  | n
-Pa->psi: x / 6895.0     | n
-bar->psi: x / 14.504    | n
+  Pa->bar: x / 100_000.0  | n
+  Pa->psi: x / 6895.0     | n
+  bar->psi: x / 14.504    | n
 
 # temperature
-°C->°F: (x * 9.0 / 5.0) + 32.0 ; (x - 32.0) * 5.0 / 9.0
-°C->K: x + 273.15   | n
-°F->K: (x - 32.0) * 5.0 / 9.0 - 273.15 ; (x - 273.15) * 9.0 / 5.0 + 32.0
+  °C->°F: (x * 9.0 / 5.0) + 32.0 ; (x - 32.0) * 5.0 / 9.0
+  °C->K: x + 273.15   | n
+  °F->K: (x - 32.0) * 5.0 / 9.0 - 273.15 ; (x - 273.15) * 9.0 / 5.0 + 32.0
+
+# energy
+  J->cal: x / 4.184 | n
+
+# data
+  B->b: x / 8 | n
