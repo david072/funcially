@@ -10,6 +10,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use eframe::{CreationContext, egui, Frame, Storage};
+use eframe::egui::text_edit::TextEditState;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 use egui::text_edit::CursorRange;
@@ -22,6 +23,8 @@ const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
 const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
+
+const INPUT_TEXT_EDIT_ID: &str = "input-text-edit";
 
 #[cfg(feature = "experimental")]
 fn app_key() -> String {
@@ -120,6 +123,13 @@ struct App<'a> {
     lines: Vec<Line>,
     line_numbers_text: String,
 
+    #[serde(skip)]
+    is_ui_enabled: bool,
+
+    #[serde(skip)]
+    is_line_picker_open: bool,
+    line_picker_text: String,
+
     is_plot_open: bool,
     is_help_open: bool,
     #[cfg(target_arch = "wasm32")]
@@ -133,6 +143,8 @@ struct App<'a> {
 
     #[serde(skip)]
     first_frame: bool,
+    #[serde(skip)]
+    input_should_request_focus: bool,
     #[serde(skip)]
     input_text_cursor_range: CursorRange,
     #[serde(skip)]
@@ -150,6 +162,10 @@ impl Default for App<'_> {
             lines: Vec::new(),
             line_numbers_text: "1".to_string(),
             first_frame: true,
+            input_should_request_focus: true,
+            is_ui_enabled: true,
+            is_line_picker_open: false,
+            line_picker_text: String::new(),
             is_plot_open: false,
             is_help_open: false,
             #[cfg(target_arch = "wasm32")]
@@ -324,37 +340,41 @@ impl App<'_> {
     }
 
     fn plot_panel(&mut self, ctx: &Context) {
-        SidePanel::right("plot_panel").resizable(true).show(ctx, |ui| {
-            plot::Plot::new("calculator_plot")
-                .data_aspect(1.0)
-                .coordinates_formatter(
-                    plot::Corner::LeftBottom, plot::CoordinatesFormatter::default(),
-                )
-                .legend(plot::Legend::default().position(plot::Corner::RightBottom))
-                .show(ui, |plot_ui| {
-                    for line in &self.lines {
-                        if let Line::Line { function, show_in_plot, .. } = line {
-                            if !show_in_plot { continue; }
-                            if let Some(function) = function {
-                                if function.1 != 1 { continue; }
+        SidePanel::right("plot_panel")
+            .resizable(self.is_ui_enabled)
+            .show(ctx, |ui| {
+                ui.set_enabled(self.is_ui_enabled);
 
-                                let env = self.calculator.clone_env();
-                                let f = function.2.clone();
-                                let currencies = self.calculator.currencies.clone();
+                plot::Plot::new("calculator_plot")
+                    .data_aspect(1.0)
+                    .coordinates_formatter(
+                        plot::Corner::LeftBottom, plot::CoordinatesFormatter::default(),
+                    )
+                    .legend(plot::Legend::default().position(plot::Corner::RightBottom))
+                    .show(ui, |plot_ui| {
+                        for line in &self.lines {
+                            if let Line::Line { function, show_in_plot, .. } = line {
+                                if !show_in_plot { continue; }
+                                if let Some(function) = function {
+                                    if function.1 != 1 { continue; }
 
-                                plot_ui.line(plot::Line::new(
-                                    plot::PlotPoints::from_explicit_callback(move |x| {
-                                        match env.resolve_specific_function(&f, &[x], &currencies) {
-                                            Ok(v) => v.0,
-                                            Err(_) => f64::NAN,
-                                        }
-                                    }, .., 512)
-                                ).name(&function.0));
+                                    let env = self.calculator.clone_env();
+                                    let f = function.2.clone();
+                                    let currencies = self.calculator.currencies.clone();
+
+                                    plot_ui.line(plot::Line::new(
+                                        plot::PlotPoints::from_explicit_callback(move |x| {
+                                            match env.resolve_specific_function(&f, &[x], &currencies) {
+                                                Ok(v) => v.0,
+                                                Err(_) => f64::NAN,
+                                            }
+                                        }, .., 512)
+                                    ).name(&function.0));
+                                }
                             }
                         }
-                    }
-                });
-        });
+                    });
+            });
     }
 
     fn help_window(&mut self, ctx: &Context) {
@@ -364,6 +384,7 @@ impl App<'_> {
             .open(is_help_open)
             .vscroll(true)
             .hscroll(true)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
                 build_help(ui, color_segments);
             });
@@ -375,6 +396,7 @@ impl App<'_> {
             .open(&mut self.is_download_open)
             .collapsible(false)
             .resizable(false)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
                 ui.heading("Desktop App");
                 ui.horizontal(|ui| {
@@ -405,6 +427,7 @@ impl App<'_> {
             .open(&mut self.is_settings_open)
             .vscroll(true)
             .resizable(false)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
                 if ui.checkbox(&mut self.use_thousands_separator, "Use thousands separator").clicked() {
                     // Make update_lines() refresh on the next frame, since now source and source_old are not the same
@@ -430,6 +453,7 @@ impl App<'_> {
         Window::new("Debug Information")
             .open(&mut self.is_debug_info_open)
             .vscroll(true)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
                 if let Some(debug_information) = debug_information {
                     if ui.button("📋").clicked() {
@@ -453,6 +477,10 @@ impl App<'_> {
                     Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
                     Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
                     Key::L if modifiers.command && modifiers.alt => self.format_source(),
+                    Key::G if modifiers.command => {
+                        self.is_ui_enabled = false;
+                        self.is_line_picker_open = true;
+                    }
                     _ => {}
                 }
             }
@@ -575,6 +603,69 @@ impl App<'_> {
 
         self.source = new_source;
     }
+
+    fn line_picker_window(&mut self, ctx: &Context) {
+        Window::new("Go to Line")
+            .title_bar(false)
+            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+            .resizable(false)
+            .scroll2([false, false])
+            .collapsible(false)
+            .show(ctx, |ui| {
+                let output = TextEdit::singleline(&mut self.line_picker_text)
+                    .hint_text("Go to Line")
+                    .font(FontSelection::from(FONT_ID))
+                    .layouter(&mut |ui, str, wrap_width| {
+                        let job = text::LayoutJob::simple(
+                            str.into(),
+                            FONT_ID,
+                            if str.parse::<usize>().is_ok() { Color32::GRAY } else { Color32::RED },
+                            wrap_width,
+                        );
+                        ui.fonts().layout_job(job)
+                    })
+                    .show(ui);
+                output.response.request_focus();
+
+                let events = {
+                    // avoid deadlock when loading TextEditState
+                    let res = ui.input().events.clone();
+                    res
+                };
+                for event in events {
+                    if let Event::Key { key, .. } = event {
+                        if key == Key::Escape {
+                            self.is_line_picker_open = false;
+                            self.is_ui_enabled = true;
+                            self.line_picker_text = String::new();
+                        } else if key == Key::Enter {
+                            let Ok(line_index) = self.line_picker_text.parse::<usize>() else { return; };
+
+                            let Some(mut state) = TextEditState::load(ctx, Id::new(INPUT_TEXT_EDIT_ID)) else { return; };
+                            let Some(mut cursor_range) = state.ccursor_range() else { return; };
+
+                            let mut index = 0usize;
+                            for (i, line) in self.source.lines().enumerate() {
+                                if i == line_index - 1 { break; }
+                                index += line.len() + 1;
+                            }
+
+                            if cursor_range.primary == cursor_range.secondary {
+                                cursor_range.secondary.index = index;
+                            }
+                            cursor_range.primary.index = index;
+                            state.set_ccursor_range(Some(cursor_range));
+                            state.store(ctx, Id::new(INPUT_TEXT_EDIT_ID));
+
+                            self.input_should_request_focus = true;
+                            self.is_line_picker_open = false;
+                            self.is_ui_enabled = true;
+                            self.line_picker_text = String::new();
+                        }
+                    }
+                }
+            });
+    }
 }
 
 impl eframe::App for App<'_> {
@@ -585,11 +676,14 @@ impl eframe::App for App<'_> {
         if !self.is_debug_info_open { self.debug_information = None; }
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            menu::bar(ui, |ui| {
-                ui.menu_button("Edit", |ui| {
-                    let cmd_string = if matches!(std::env::consts::OS, "macos" | "ios") { "⌘" } else { "Ctrl" };
-                    let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
+            ui.set_enabled(self.is_ui_enabled);
 
+
+            menu::bar(ui, |ui| {
+                let cmd_string = if matches!(std::env::consts::OS, "macos" | "ios") { "⌘" } else { "Ctrl" };
+                let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
+
+                ui.menu_button("Edit", |ui| {
                     if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
                         self.toggle_commentation(self.input_text_cursor_range);
                         ui.close_menu();
@@ -608,6 +702,14 @@ impl eframe::App for App<'_> {
                     }
                     if shortcut_button(ui, "Format input", &shortcut("Shift+L")).clicked() {
                         self.format_source();
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Navigate", |ui| {
+                    if shortcut_button(ui, "Go to Line", &shortcut("G")).clicked() {
+                        self.is_line_picker_open = true;
+                        self.is_ui_enabled = false;
                         ui.close_menu();
                     }
                 });
@@ -636,6 +738,8 @@ impl eframe::App for App<'_> {
         });
 
         TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
+            ui.set_enabled(self.is_ui_enabled);
+
             ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                 ui.label(RichText::new(&self.bottom_text).font(FontId::proportional(FOOTER_FONT_SIZE)));
             });
@@ -651,6 +755,8 @@ impl eframe::App for App<'_> {
         if self.is_debug_info_open { self.show_debug_information(ctx); }
 
         CentralPanel::default().show(ctx, |ui| {
+            ui.set_enabled(self.is_ui_enabled);
+
             let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y - FOOTER_FONT_SIZE) / FONT_SIZE) as usize;
 
             ScrollArea::vertical().show(ui, |ui| {
@@ -675,6 +781,7 @@ impl eframe::App for App<'_> {
 
                     let lines = &mut self.lines;
                     let output = TextEdit::multiline(&mut self.source)
+                        .id(Id::new(INPUT_TEXT_EDIT_ID))
                         .lock_focus(true)
                         .hint_text("Calculate something")
                         .frame(false)
@@ -687,8 +794,8 @@ impl eframe::App for App<'_> {
                         self.input_text_cursor_range = range;
                     }
 
-                    if self.first_frame {
-                        self.first_frame = false;
+                    if self.input_should_request_focus {
+                        self.input_should_request_focus = false;
                         ui.ctx().memory().request_focus(output.response.id);
                     }
 
@@ -737,6 +844,10 @@ impl eframe::App for App<'_> {
                 });
             });
         });
+
+        if self.is_line_picker_open { self.line_picker_window(ctx); }
+
+        self.first_frame = false;
     }
 
     fn save(&mut self, storage: &mut dyn Storage) {
