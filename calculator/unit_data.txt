@@ -17,7 +17,8 @@
   mi: Mile
   ft: Foot / Feet
   in: Inch / Inches
-  yd: Yard7
+  yd: Yard
+  a: Ar
 
 # volume
   l: Liter
@@ -90,6 +91,12 @@
   mi->yd: x * 1760.0  | np
 
   in->yd: x / 36.0    | np
+  
+  #a->m^2:
+  #a->ft^2:
+  #a->mi^2:
+  #a->in^2
+  #a->yd^2:
 
 # volume
   l->tsp: x * 202.9                   | n
@@ -169,7 +176,7 @@
   t->u: x / 60_220_000_000_000_000_000_000_000_000.0 | n
   t->oz: x * 35_270.0                                | n
 
-  oz->u:
+  #oz->u: | n
 
 # pressure
   Pa->bar: x / 100_000.0  | n
