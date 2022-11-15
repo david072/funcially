@@ -18,7 +18,7 @@
   ft: Foot / Feet
   in: Inch / Inches
   yd: Yard
-  a: Ar
+  a: Are
 
 # volume
   l: Liter
@@ -45,6 +45,7 @@
   t: Tonne
   u: Atomic mass unit
   oz: Ounce
+  ct: carat
 
 
 # pressure
@@ -92,11 +93,11 @@
 
   in->yd: x / 36.0    | np
   
-  #a->m^2:
-  #a->ft^2:
-  #a->mi^2:
-  #a->in^2
-  #a->yd^2:
+  a->m^2: x * 100      | n
+  a->ft^2: x * 1076    | n
+  a->mi^2: x / 25_900  | n
+  a->in^2: x * 155_000 | n
+  a->yd^2: x * 119.6   | n
 
 # volume
   l->tsp: x * 202.9                   | n
@@ -168,15 +169,17 @@
   g->t: x / 1_000_000.0                             | n
   g->u: x * 60_220_000_000_000_000_000_000.0        | n
   g->oz: x / 28.35                                  | n
+  g->ct: x * 4.8733763219894                        | n
 
   lb->t: x / 2205.0                                 | n
   lb->u: x * 273_159_734_025_890_000_000_000_000.0  | n
-  lb->oz: x * 16                                    | n
+  lb->oz: x * 16.0                                  | n
 
   t->u: x / 60_220_000_000_000_000_000_000_000_000.0 | n
   t->oz: x * 35_270.0                                | n
 
-  #oz->u: | n
+  #oz->u:                     | n
+  oz->ct: x * 138.15789473707 | n
 
 # pressure
   Pa->bar: x / 100_000.0  | n
