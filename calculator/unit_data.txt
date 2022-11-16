@@ -30,6 +30,7 @@
 # angle
    °: Degree
    rad: Radian
+   sr: Steradian
 
 # time
   s: Second
@@ -71,11 +72,40 @@
 
 
 # force
-  N: Newton
+  N: Newton / Newton
+  
   
 # frequency
-  Hz: Hertz
-
+  Hz: Hertz / Hertz
+  
+# power
+  W: Watt / Watt
+ 
+ 
+# electric charge
+  C: Coulomb / Coulomb
+ 
+ 
+# electric potential
+  V: Volt / Volt
+  
+ 
+# capacitance
+  F: Farad / Farad
+  
+  
+# resistance
+  Ohm: Ohm / Ohm
+  
+  
+# electrical conductance
+  S: Siemens
+  
+  
+# magnetic flux
+  Wb: Weber
+  
+  
 ----
 
 # length / area
@@ -178,8 +208,8 @@
   t->u: x / 60_220_000_000_000_000_000_000_000_000.0 | n
   t->oz: x * 35_270.0                                | n
 
-  #oz->u:                     | n
-  oz->ct: x * 138.15789473707 | n
+  oz->u: x * 17072481900000001698824192 | n
+  oz->ct: x * 138.15789473707           | n
 
 # pressure
   Pa->bar: x / 100_000.0  | n
