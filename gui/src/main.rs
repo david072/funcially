@@ -6,15 +6,18 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::ops::Range;
 use std::sync::Arc;
 
-use eframe::{CreationContext, egui, Frame, Storage};
+use eframe::{CreationContext, Frame, Storage};
+use eframe::egui::*;
+use eframe::egui::text_edit::CursorRange;
 use eframe::epaint::text::cursor::Cursor;
-use egui::*;
-use egui::text_edit::CursorRange;
 
-use calculator::{Calculator, Color, colorize_text, ColorSegment, Function as CalcFn, ResultData, Verbosity};
+use calculator::{Calculator, Color, ColorSegment, Function as CalcFn, ResultData, Verbosity};
+
+use crate::widgets::*;
+
+mod widgets;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
@@ -22,6 +25,8 @@ const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
 const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
+
+const INPUT_TEXT_EDIT_ID: &str = "input-text-edit";
 
 #[cfg(feature = "experimental")]
 fn app_key() -> String {
@@ -120,6 +125,9 @@ struct App<'a> {
     lines: Vec<Line>,
     line_numbers_text: String,
 
+    #[serde(skip)]
+    is_ui_enabled: bool,
+
     is_plot_open: bool,
     is_help_open: bool,
     #[cfg(target_arch = "wasm32")]
@@ -133,6 +141,8 @@ struct App<'a> {
 
     #[serde(skip)]
     first_frame: bool,
+    #[serde(skip)]
+    input_should_request_focus: bool,
     #[serde(skip)]
     input_text_cursor_range: CursorRange,
     #[serde(skip)]
@@ -150,6 +160,8 @@ impl Default for App<'_> {
             lines: Vec::new(),
             line_numbers_text: "1".to_string(),
             first_frame: true,
+            input_should_request_focus: true,
+            is_ui_enabled: true,
             is_plot_open: false,
             is_help_open: false,
             #[cfg(target_arch = "wasm32")]
@@ -324,37 +336,41 @@ impl App<'_> {
     }
 
     fn plot_panel(&mut self, ctx: &Context) {
-        SidePanel::right("plot_panel").resizable(true).show(ctx, |ui| {
-            plot::Plot::new("calculator_plot")
-                .data_aspect(1.0)
-                .coordinates_formatter(
-                    plot::Corner::LeftBottom, plot::CoordinatesFormatter::default(),
-                )
-                .legend(plot::Legend::default().position(plot::Corner::RightBottom))
-                .show(ui, |plot_ui| {
-                    for line in &self.lines {
-                        if let Line::Line { function, show_in_plot, .. } = line {
-                            if !show_in_plot { continue; }
-                            if let Some(function) = function {
-                                if function.1 != 1 { continue; }
+        SidePanel::right("plot_panel")
+            .resizable(self.is_ui_enabled)
+            .show(ctx, |ui| {
+                ui.set_enabled(self.is_ui_enabled);
 
-                                let env = self.calculator.clone_env();
-                                let f = function.2.clone();
-                                let currencies = self.calculator.currencies.clone();
+                plot::Plot::new("calculator_plot")
+                    .data_aspect(1.0)
+                    .coordinates_formatter(
+                        plot::Corner::LeftBottom, plot::CoordinatesFormatter::default(),
+                    )
+                    .legend(plot::Legend::default().position(plot::Corner::RightBottom))
+                    .show(ui, |plot_ui| {
+                        for line in &self.lines {
+                            if let Line::Line { function, show_in_plot, .. } = line {
+                                if !show_in_plot { continue; }
+                                if let Some(function) = function {
+                                    if function.1 != 1 { continue; }
 
-                                plot_ui.line(plot::Line::new(
-                                    plot::PlotPoints::from_explicit_callback(move |x| {
-                                        match env.resolve_specific_function(&f, &[x], &currencies) {
-                                            Ok(v) => v.0,
-                                            Err(_) => f64::NAN,
-                                        }
-                                    }, .., 512)
-                                ).name(&function.0));
+                                    let env = self.calculator.clone_env();
+                                    let f = function.2.clone();
+                                    let currencies = self.calculator.currencies.clone();
+
+                                    plot_ui.line(plot::Line::new(
+                                        plot::PlotPoints::from_explicit_callback(move |x| {
+                                            match env.resolve_specific_function(&f, &[x], &currencies) {
+                                                Ok(v) => v.0,
+                                                Err(_) => f64::NAN,
+                                            }
+                                        }, .., 512)
+                                    ).name(&function.0));
+                                }
                             }
                         }
-                    }
-                });
-        });
+                    });
+            });
     }
 
     fn help_window(&mut self, ctx: &Context) {
@@ -364,8 +380,9 @@ impl App<'_> {
             .open(is_help_open)
             .vscroll(true)
             .hscroll(true)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
-                build_help(ui, color_segments);
+                build_help(ui, FONT_ID, color_segments);
             });
     }
 
@@ -375,6 +392,7 @@ impl App<'_> {
             .open(&mut self.is_download_open)
             .collapsible(false)
             .resizable(false)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
                 ui.heading("Desktop App");
                 ui.horizontal(|ui| {
@@ -405,6 +423,7 @@ impl App<'_> {
             .open(&mut self.is_settings_open)
             .vscroll(true)
             .resizable(false)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
                 if ui.checkbox(&mut self.use_thousands_separator, "Use thousands separator").clicked() {
                     // Make update_lines() refresh on the next frame, since now source and source_old are not the same
@@ -430,6 +449,7 @@ impl App<'_> {
         Window::new("Debug Information")
             .open(&mut self.is_debug_info_open)
             .vscroll(true)
+            .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
                 if let Some(debug_information) = debug_information {
                     if ui.button("📋").clicked() {
@@ -445,6 +465,7 @@ impl App<'_> {
 
     fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
         let mut copied_text = None;
+        let mut set_line_picker_open = false;
         for event in &ui.input().events {
             if let Event::Key { key, pressed, modifiers } = event {
                 if !*pressed { continue; }
@@ -453,9 +474,17 @@ impl App<'_> {
                     Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
                     Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
                     Key::L if modifiers.command && modifiers.alt => self.format_source(),
+                    Key::G if modifiers.command => {
+                        self.is_ui_enabled = false;
+                        set_line_picker_open = true;
+                    }
                     _ => {}
                 }
             }
+        }
+
+        if set_line_picker_open {
+            LinePickerDialog::set_open(ui.ctx(), true);
         }
 
         if let Some(copied) = copied_text {
@@ -575,6 +604,21 @@ impl App<'_> {
 
         self.source = new_source;
     }
+
+    fn line_picker_dialog(&mut self, ctx: &Context) {
+        let result = LinePickerDialog::new(
+            FONT_ID,
+            Id::new(INPUT_TEXT_EDIT_ID),
+            &self.source,
+        ).show(ctx);
+
+        if let Some(picked) = result {
+            self.is_ui_enabled = true;
+            if picked {
+                self.input_should_request_focus = true;
+            }
+        }
+    }
 }
 
 impl eframe::App for App<'_> {
@@ -585,17 +629,19 @@ impl eframe::App for App<'_> {
         if !self.is_debug_info_open { self.debug_information = None; }
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            menu::bar(ui, |ui| {
-                ui.menu_button("Edit", |ui| {
-                    let cmd_string = if matches!(std::env::consts::OS, "macos" | "ios") { "⌘" } else { "Ctrl" };
-                    let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
+            ui.set_enabled(self.is_ui_enabled);
 
-                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
-                        self.toggle_commentation(self.input_text_cursor_range);
-                        ui.close_menu();
-                    }
+            menu::bar(ui, |ui| {
+                let cmd_string = if matches!(std::env::consts::OS, "macos" | "ios") { "⌘" } else { "Ctrl" };
+                let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
+
+                ui.menu_button("Edit", |ui| {
                     if shortcut_button(ui, "Surround selection with brackets", &shortcut("B")).clicked() {
                         self.surround_selection_with_brackets(self.input_text_cursor_range);
+                        ui.close_menu();
+                    }
+                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
+                        self.toggle_commentation(self.input_text_cursor_range);
                         ui.close_menu();
                     }
                     if shortcut_button(ui, "Copy result", &shortcut("Shift+C")).clicked() {
@@ -608,6 +654,14 @@ impl eframe::App for App<'_> {
                     }
                     if shortcut_button(ui, "Format input", &shortcut("Shift+L")).clicked() {
                         self.format_source();
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Navigate", |ui| {
+                    if shortcut_button(ui, "Go to Line", &shortcut("G")).clicked() {
+                        LinePickerDialog::set_open(ctx, true);
+                        self.is_ui_enabled = false;
                         ui.close_menu();
                     }
                 });
@@ -636,6 +690,8 @@ impl eframe::App for App<'_> {
         });
 
         TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
+            ui.set_enabled(self.is_ui_enabled);
+
             ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                 ui.label(RichText::new(&self.bottom_text).font(FontId::proportional(FOOTER_FONT_SIZE)));
             });
@@ -651,6 +707,8 @@ impl eframe::App for App<'_> {
         if self.is_debug_info_open { self.show_debug_information(ctx); }
 
         CentralPanel::default().show(ctx, |ui| {
+            ui.set_enabled(self.is_ui_enabled);
+
             let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y - FOOTER_FONT_SIZE) / FONT_SIZE) as usize;
 
             ScrollArea::vertical().show(ui, |ui| {
@@ -675,6 +733,7 @@ impl eframe::App for App<'_> {
 
                     let lines = &mut self.lines;
                     let output = TextEdit::multiline(&mut self.source)
+                        .id(Id::new(INPUT_TEXT_EDIT_ID))
                         .lock_focus(true)
                         .hint_text("Calculate something")
                         .frame(false)
@@ -687,8 +746,8 @@ impl eframe::App for App<'_> {
                         self.input_text_cursor_range = range;
                     }
 
-                    if self.first_frame {
-                        self.first_frame = false;
+                    if self.input_should_request_focus {
+                        self.input_should_request_focus = false;
                         ui.ctx().memory().request_focus(output.response.id);
                     }
 
@@ -728,7 +787,7 @@ impl eframe::App for App<'_> {
                                     }
                                 }
 
-                                output_text(ui, text, i + 1);
+                                output_text(ui, text, FONT_ID, i + 1);
                             } else {
                                 ui.add_space(FONT_SIZE);
                             }
@@ -737,218 +796,13 @@ impl eframe::App for App<'_> {
                 });
             });
         });
+
+        self.line_picker_dialog(ctx);
+        self.first_frame = false;
     }
 
     fn save(&mut self, storage: &mut dyn Storage) {
         eframe::set_value(storage, &app_key(), self);
-    }
-}
-
-fn output_text(ui: &mut Ui, str: &str, index: usize) -> Response {
-    let text: WidgetText = str.into();
-    let valign = ui.layout().vertical_align();
-
-    let mut text_job = text.into_text_job(
-        ui.style(), FontSelection::FontId(FONT_ID), valign,
-    );
-    text_job.job.wrap.max_width = f32::INFINITY;
-    text_job.job.halign = Align::RIGHT;
-    let galley = text_job.into_galley(&ui.fonts());
-
-    let glyph_width = ui.fonts().glyph_width(&FONT_ID, '0');
-    let index = index.to_string();
-    let index_str_width = index.len() as f32 * glyph_width;
-
-    let (full_rect, response) = ui.allocate_exact_size(
-        vec2(ui.available_width() - index_str_width, galley.size().y), Sense::click());
-
-    let index_rect = Rect::from_min_max(
-        full_rect.left_top(),
-        pos2(full_rect.left_bottom().x + index_str_width, full_rect.left_bottom().y),
-    ).expand2(vec2(3.0, 0.0));
-
-    let text_max_rect = Rect::from_min_max(
-        index_rect.right_top(),
-        full_rect.right_bottom(),
-    );
-
-    let bg_rect = Rect::from_min_max(
-        pos2(text_max_rect.right_top().x - galley.size().x, text_max_rect.right_top().y),
-        text_max_rect.right_bottom(),
-    ).expand(1.5);
-
-    if ui.is_rect_visible(full_rect) {
-        if !str.is_empty() {
-            ui.painter().text(
-                index_rect.left_top(),
-                Align2::LEFT_TOP,
-                index,
-                FONT_ID,
-                Color32::GRAY,
-            );
-        }
-
-        let mut text_color = Color32::GREEN;
-        if let Some(hover_pos) = response.hover_pos() {
-            if bg_rect.contains(hover_pos) {
-                text_color = Color32::BLACK;
-                ui.painter()
-                    .with_clip_rect(Rect::from_min_max(
-                        pos2(
-                            f32::max(bg_rect.left_top().x, text_max_rect.left_top().x),
-                            bg_rect.left_top().y,
-                        ),
-                        bg_rect.right_bottom(),
-                    ))
-                    .rect(
-                        bg_rect,
-                        0.5 * full_rect.height(),
-                        Color32::GREEN,
-                        Stroke::none(),
-                    );
-            }
-        }
-
-        let galley_length = galley.size().x;
-        ui.painter()
-            .with_clip_rect(text_max_rect)
-            .galley_with_color(text_max_rect.right_top(), galley.galley, text_color);
-
-        let mut show_copied_text = false;
-        if response.clicked() && bg_rect.contains(response.hover_pos().unwrap()) {
-            ui.output().copied_text = str.to_owned();
-            show_copied_text = true;
-        }
-
-        if galley_length >= text_max_rect.width() && response.hovered() {
-            show_tooltip_at(
-                ui.ctx(),
-                response.id.with("__out_tooltip"),
-                Some(full_rect.right_bottom()),
-                |ui| {
-                    ui.label(str);
-                    if ui.ctx().animate_bool_with_time(
-                        response.id.with("__copied_text_anim"),
-                        show_copied_text,
-                        2.0,
-                    ) != 0.0 {
-                        ui.label("Copied!");
-                    }
-                });
-        }
-    }
-
-    response
-}
-
-fn shortcut_button(ui: &mut Ui, text: &str, shortcut: &str) -> Response {
-    let text: WidgetText = text.into();
-    let shortcut: WidgetText = shortcut.into();
-
-    let text = text.into_galley(ui, Some(false), 0.0, TextStyle::Button);
-    let shortcut = shortcut.into_galley(ui, Some(false), 0.0, TextStyle::Small);
-
-    let frame = ui.visuals().button_frame;
-    // for some reason, the y component of button_padding is 0 here...?
-    let button_padding = ui.spacing().button_padding.at_least(vec2(2.0, 2.0));
-
-    let content_size = text.size() + vec2(shortcut.size().x, 0.0) + vec2(10.0, 0.0);
-    let desired_size = content_size + 2.0 * button_padding;
-
-    let (rect, response) = ui.allocate_at_least(desired_size, Sense::click());
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, text.text()));
-
-    if ui.is_rect_visible(rect) {
-        let visuals = ui.style().interact(&response);
-        let text_pos = ui.layout()
-            .align_size_within_rect(content_size, rect.shrink2(button_padding));
-
-        if frame {
-            let fill = visuals.bg_fill;
-            let stroke = visuals.bg_stroke;
-            ui.painter().rect(
-                rect.expand(visuals.expansion),
-                visuals.rounding,
-                fill,
-                stroke,
-            );
-        }
-
-        text.paint_with_visuals(ui.painter(), text_pos.min, visuals);
-        let shortcut_pos = pos2(
-            text_pos.max.x - shortcut.size().x,
-            text_pos.min.y + (text_pos.height() - shortcut.size().y) / 2.0,
-        );
-        shortcut.paint_with_visuals(ui.painter(), shortcut_pos, visuals);
-    }
-
-    response
-}
-
-fn help_window_row(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>, input: &str, output: &str, color_index: usize) {
-    if color_segments.len() == color_index {
-        if let Some(segments) = colorize_text(input) {
-            color_segments.push(segments);
-        }
-    }
-
-    let color_segments = &color_segments[color_index];
-    ui.horizontal(|ui| {
-        let mut input = input.to_string();
-        let mut output = output.to_string();
-
-        TextEdit::singleline(&mut input)
-            .interactive(false)
-            .font(FontSelection::FontId(FONT_ID))
-            .layouter(&mut |ui, string, wrap_width| {
-                let mut job = text::LayoutJob {
-                    text: string.into(),
-                    ..Default::default()
-                };
-
-                let mut end = 0usize;
-                layout_segments(color_segments, &mut job, string, &mut end, 0);
-
-                job.wrap.max_width = wrap_width;
-                ui.fonts().layout_job(job)
-            })
-            .show(ui);
-
-        TextEdit::singleline(&mut output)
-            .interactive(false)
-            .font(FontSelection::FontId(FONT_ID))
-            .text_color(Color32::GREEN)
-            .show(ui);
-    });
-}
-
-fn vertical_spacer(ui: &mut Ui) -> Response {
-    let width = 5f32;
-    let height = ui.available_height();
-
-    let (rect, response) = ui.allocate_exact_size(
-        Vec2::new(width, height),
-        Sense::hover(),
-    );
-
-    if ui.is_rect_visible(rect) {
-        let visuals = ui.style().noninteractive();
-        let rect = rect.expand(visuals.expansion);
-        ui.painter().vline(rect.left(), rect.y_range(), visuals.bg_stroke);
-    }
-
-    response
-}
-
-fn section(range: Range<usize>, color: Color32) -> text::LayoutSection {
-    text::LayoutSection {
-        leading_space: 0.0,
-        byte_range: range,
-        format: TextFormat {
-            font_id: FONT_ID,
-            color,
-            ..Default::default()
-        },
     }
 }
 
@@ -975,7 +829,7 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
                     while matches!(lines.get(i), Some(Line::Empty)) { i += 1; }
 
                     if let Some(Line::Line { color_segments, .. }) = &lines.get(i) {
-                        if !layout_segments(color_segments, &mut job, string, &mut end, offset) {
+                        if !layout_segments(FONT_ID, color_segments, &mut job, string, &mut end, offset) {
                             break;
                         }
                     }
@@ -986,158 +840,13 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
             }
 
             if end != string.len() {
-                job.sections.push(section(end..string.len(), Color32::GRAY));
+                job.sections.push(section(end..string.len(), FONT_ID, Color32::GRAY));
             }
         } else {
-            job.sections.push(section(0..string.len(), Color32::GRAY));
+            job.sections.push(section(0..string.len(), FONT_ID, Color32::GRAY));
         }
 
         job.wrap.max_width = wrap_width;
         ui.fonts().layout_job(job)
     }
-}
-
-fn layout_segments(
-    color_segments: &[ColorSegment],
-    job: &mut text::LayoutJob,
-    string: &str,
-    end: &mut usize,
-    offset: usize,
-) -> bool {
-    for segment in color_segments {
-        let range_start = segment.range.start + offset;
-        let range_end = segment.range.end + offset;
-
-        // Handle errors in the data caused by the text being edited. It will be
-        // updated imminently after this function, we just can't crash here
-        if range_end > string.len() { return false; }
-        if range_start >= range_end { return false; }
-        if !string.is_char_boundary(range_start) ||
-            !string.is_char_boundary(range_end) {
-            return false;
-        }
-        if *end > range_start { return false; }
-
-        if range_start != *end {
-            job.sections.push(section(*end..range_start, Color32::GRAY));
-        }
-
-        let color = Color32::from_rgba_premultiplied(
-            segment.color.0[0],
-            segment.color.0[1],
-            segment.color.0[2],
-            segment.color.0[3],
-        );
-        job.sections.push(section(range_start..range_end, color));
-        *end = range_end;
-    }
-
-    true
-}
-
-fn build_help(ui: &mut Ui, color_segments: &mut Vec<Vec<ColorSegment>>) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("This is a brief overview of the features. A more detailed documentation can be found ");
-        ui.hyperlink_to("here", "https://github.com/david072/funcially/wiki");
-        ui.label(".");
-    });
-
-    ui.heading("Numbers");
-    ui.label("You can type in numbers in different formats:");
-    help_window_row(ui, color_segments, "123", "123", 0);
-    help_window_row(ui, color_segments, "10.5 + .5", "12", 1);
-    help_window_row(ui, color_segments, "0xFF", "255", 2);
-    help_window_row(ui, color_segments, "0b110", "6", 3);
-
-    ui.separator();
-    ui.heading("Operators");
-    ui.label("Basic operators: +, -, *, /");
-    help_window_row(ui, color_segments, "3 + 4 * 2", "11", 4);
-    help_window_row(ui, color_segments, "8 / 2 - 2", "2", 5);
-
-    ui.label("Extended operators: ^, &, |, <number>!, !<number>");
-    help_window_row(ui, color_segments, "10 ^ 2 * 4", "400", 6);
-    help_window_row(ui, color_segments, "5!", "120", 7);
-
-    ui.label("The multiplication sign can be left out before variables, functions and groups.");
-
-    ui.separator();
-    ui.heading("Groups");
-    help_window_row(ui, color_segments, "((3 + 3) / 2) * 3", "9", 8);
-
-    ui.separator();
-    ui.heading("Functions");
-    ui.label("Builtin functions include 'sin', 'cos', 'log' or 'sqrt':");
-    help_window_row(ui, color_segments, "sin(30)", "0.5", 9);
-    help_window_row(ui, color_segments, "sqrt(20 + 5)", "5", 10);
-    help_window_row(ui, color_segments, "2log(2, 8)", "6", 11);
-
-    ui.label("You can also define your own custom functions:");
-    help_window_row(ui, color_segments, "f(x) := x * 3", "", 12);
-    help_window_row(ui, color_segments, "pow(a, b) := a ^ b", "", 13);
-
-    ui.label("To remove a custom function, simply leave out the right side of ':='.");
-
-    ui.separator();
-    ui.heading("Variables");
-    ui.label("Builtin variables include 'pi', 'e' and 'tau':");
-    help_window_row(ui, color_segments, "pi", "3.1415926536", 14);
-
-    ui.label("You can also define your own custom variables:");
-    help_window_row(ui, color_segments, "x := 3 * 4", "", 15);
-
-    ui.label("To remove a custom variable, simply leave out the right side of ':='.");
-
-    ui.label("The 'ans' variable always contains the result of the last calculation.");
-    help_window_row(ui, color_segments, "3 * 4", "12", 16);
-    help_window_row(ui, color_segments, "ans", "12", 17);
-
-    ui.separator();
-    ui.heading("Percentages");
-    ui.label("The '%'-Sign is a shorthand for 'n / 100':");
-    help_window_row(ui, color_segments, "20%", "0.2", 18);
-
-    ui.label("The 'of' operator can be used to take a percentage from a value:");
-    help_window_row(ui, color_segments, "20% of 100", "20", 19);
-    help_window_row(ui, color_segments, "(10 + 10)% of 10 ^ 2", "20", 20);
-
-    ui.separator();
-    ui.heading("Equality checks");
-    ui.label("The '='-Sign can be used to make a line an equality check:");
-    help_window_row(ui, color_segments, "3 + 4 = 7", "True", 21);
-    help_window_row(ui, color_segments, "log(2, 8) = 5", "False", 22);
-
-    ui.separator();
-    ui.heading("Units");
-    ui.label("Units are number suffixes with an optional unit prefix (e.g. 'm', 'k', etc.).");
-    ui.label("Numbers with and without units can be mixed in a single calculation.");
-    ui.label("If the line consists only of a number with a unit, the unit is written in its long form.");
-    help_window_row(ui, color_segments, "10m", "10 Meters", 23);
-    help_window_row(ui, color_segments, "(10 + 10)min", "20min", 24);
-    help_window_row(ui, color_segments, "20h + 30min", "20.5h", 25);
-
-    ui.label("The 'in' operator can be used to convert between units:");
-    help_window_row(ui, color_segments, "180min in h", "3h", 26);
-
-    ui.label("The 'in' operator can also be used to convert the result to a different representation.");
-    ui.label("However, this only has an affect when it is the last thing in a line.");
-    help_window_row(ui, color_segments, "0xFF in decimal", "255 (decimal is default)", 27);
-    help_window_row(ui, color_segments, "255 in hex", "0xFF", 28);
-    help_window_row(ui, color_segments, "0x6 in binary", "0b110", 29);
-    help_window_row(ui, color_segments, "255km in hex", "0xFF Kilometers", 30);
-
-    ui.separator();
-    ui.heading("Solving equations");
-    ui.label("The calculator can solve linear equations if you put a question mark in them.");
-    help_window_row(ui, color_segments, "3 + ? = 30", "27", 31);
-    help_window_row(ui, color_segments, "(3 + ?) * 2 = 30", "12", 32);
-    ui.label("The question mark has the following position restrictions:");
-    ui.label("- It or its enclosing groups cannot be surrounded by a power sign");
-    ui.label("- It can only be an argument of custom functions that are themselves linear");
-
-    ui.add_space(5.0);
-    ui.label("If you prefix the question mark with a variable name, its value will be assigned to that variable:");
-    help_window_row(ui, color_segments, "(3 + x?) * 2 = 30", "12", 33);
-    help_window_row(ui, color_segments, "x", "12", 34);
 }
