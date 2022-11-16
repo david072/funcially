@@ -106,6 +106,39 @@
   Wb: Weber
   
   
+# magnetic flux density
+  T: Tesla
+  
+  
+# inductance
+  H: Henry
+  
+  
+# luminous flux
+  lm: Lumen
+  
+  
+# illuminance
+  lx: Lux
+  
+  
+# activity referred to a radionuclide
+  Bq: Beqcuerel
+  
+  
+# absorbed dose (of ionising radiation)
+  Gy: Gray
+  
+  
+# equivalent dose (of ionising radiation)
+  Sv: Sievert
+  
+  
+# catalytic activity
+  kat: katal
+  
+  
+  
 ----
 
 # length / area
