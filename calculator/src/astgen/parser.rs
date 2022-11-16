@@ -376,7 +376,7 @@ impl<'a> Parser<'a> {
                 if (token.text == "e" || token.text == "E") &&
                     self.last_token_ty.map(|ty| ty.is_number()).unwrap_or(false) {
                     if let Some(exponent) = self.tokens.get(self.index) {
-                        if exponent.ty.is_number() {
+                        if exponent.ty.is_number() || matches!(exponent.ty, TokenType::Plus | TokenType::Minus) {
                             // insert (<num1>) `* 10 ^` (<num2>)
                             // (num1 already inserted; num2 will be handled in next iterations)
                             let range = token.range.clone();
