@@ -31,6 +31,9 @@
    °: Degree
    rad: Radian
    sr: Steradian
+   ': Arcminute
+   ": Arcsecond
+   gon: Gon
 
 # time
   s: Second
@@ -64,6 +67,7 @@
 # energy
   cal: Calorie
   J: Joule
+  eV: Electronvolt
 
 
 # data
@@ -205,6 +209,17 @@
 
 # angle
   °->rad: x * PI / 180.0 ; x * 180.0 / PI
+  °->': x * 60.0    | n
+  °->": x * 3600.0  | n
+  °->gon: x * 200.0 / 180.0; x * 180.0 / 200.0
+  
+  rad->': x * PI / 10_800.0; x * PI / 10_800.0
+  rad->": x * PI / 648_000.0; x * PI / 648_000.0
+  rad->gon: x * 200.0 / PI; x * PI / 200.0
+  
+  '->gon: x / 54.0 | n
+  
+  "->gon: x / 3240.0 | n
 
 # time
   s->min: x / 60.0        | n
@@ -241,7 +256,7 @@
   t->u: x / 60_220_000_000_000_000_000_000_000_000.0 | n
   t->oz: x * 35_270.0                                | n
 
-  oz->u: x * 17072481900000001698824192 | n
+  oz->u: x * 17_072_481_900_000_001_698_824_192.0 | n
   oz->ct: x * 138.15789473707           | n
 
 # pressure
@@ -255,7 +270,8 @@
   °F->K: (x - 32.0) * 5.0 / 9.0 - 273.15 ; (x - 273.15) * 9.0 / 5.0 + 32.0
 
 # energy
-  J->cal: x / 4.184 | n
+  J->cal: x / 4.184                       | n
+  J->eV: x * 6_242_000_000_000_000_000.0  | n
 
 # data
   B->b: x / 8.0 | n
