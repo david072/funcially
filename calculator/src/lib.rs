@@ -360,7 +360,11 @@ impl<'a> Calculator<'a> {
                     if i == 0 {
                         new_line += text;
                         continue;
-                    } else if tokens[i - 1].ty.is_operator() { // Check if we're a sign
+                    } else if tokens[i - 1].ty.is_operator() || matches!(tokens[i - 1].ty,
+                        TokenType::OpenBracket
+                        | TokenType::CloseBracket
+                        | TokenType::Comma
+                    ) { // Check if we're a sign
                         if let Some(next) = tokens.get(i + 1) {
                             if next.ty.is_number() {
                                 new_line += text;

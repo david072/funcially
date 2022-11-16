@@ -249,7 +249,7 @@ impl App<'_> {
         // we need to start with a fresh environment
         self.calculator.reset();
 
-        let functions = self.lines.iter()
+        let mut functions = self.lines.iter()
             .filter(|l| {
                 match l {
                     Line::Line { show_in_plot, .. } => *show_in_plot,
@@ -257,8 +257,8 @@ impl App<'_> {
                 }
             })
             .map(|l| {
-                if let Line::Line { function: Some(Function(name, ..)), .. } = l {
-                    name.clone()
+                if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = l {
+                    (name.clone(), *show_in_plot)
                 } else { unreachable!() }
             })
             .collect::<Vec<_>>();
@@ -303,8 +303,9 @@ impl App<'_> {
 
                     let mut res = self.calculate(actual_line);
                     if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
-                        if functions.contains(name) {
-                            *show_in_plot = true;
+                        if let Some(i) = functions.iter().position(|(n, _)| n == name) {
+                            *show_in_plot = functions[i].1;
+                            functions.remove(i);
                         }
                     }
                     self.lines.push(res);
@@ -323,8 +324,9 @@ impl App<'_> {
 
             let mut res = self.calculate(actual_line);
             if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
-                if functions.contains(name) {
-                    *show_in_plot = true;
+                if let Some(i) = functions.iter().position(|(n, _)| n == name) {
+                    *show_in_plot = functions[i].1;
+                    functions.remove(i);
                 }
             }
             self.lines.push(res);
