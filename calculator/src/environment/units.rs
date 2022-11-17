@@ -51,8 +51,8 @@ impl std::fmt::Display for Unit {
 }
 
 // Stores prefix with its power (e.g. k => * 10^3)
-pub const PREFIXES: [(char, i32); 20] = [
-    ('y', -23), ('z', -21), ('a', -18), ('f', -15), ('p', -12), ('n', -9), ('μ' -6), ('m', -3), ('c', -2), ('d', -1),
+pub const PREFIXES: [(char, i32); 19] = [
+    ('y', -23), ('z', -21), ('a', -18), ('f', -15), ('p', -12), ('n', -9), ('m', -3), ('c', -2), ('d', -1),
     ('\0', 0),
     ('h', 2), ('k', 3), ('M', 6), ('G', 9), ('T', 12), ('P', 15), ('E', 18), ('Z', 21), ('Y', 24),
 ];
@@ -65,7 +65,6 @@ pub fn prefix_to_string(prefix: char) -> Option<&'static str> {
         'f' => Some("Femto"),
         'p' => Some("Pico"),
         'n' => Some("Nano"),
-        'μ' => Some("Micro"),
         'm' => Some("Milli"),
         'c' => Some("Centi"),
         'd' => Some("Deci"),
