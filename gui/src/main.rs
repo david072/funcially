@@ -9,9 +9,10 @@
 use std::sync::Arc;
 
 use eframe::{CreationContext, Frame, Storage};
-use eframe::egui::*;
+use eframe::egui;
 use eframe::egui::text_edit::CursorRange;
 use eframe::epaint::text::cursor::Cursor;
+use egui::*;
 
 use calculator::{Calculator, Color, ColorSegment, Function as CalcFn, ResultData, Verbosity};
 
@@ -93,10 +94,10 @@ fn main() {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct Function(String, usize, #[serde(skip)] CalcFn);
+pub struct Function(String, usize, #[serde(skip)] CalcFn);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-enum Line {
+pub enum Line {
     Empty,
     Line {
         #[serde(skip)]
@@ -338,40 +339,24 @@ impl App<'_> {
     }
 
     fn plot_panel(&mut self, ctx: &Context) {
+        if FullScreenPlot::is_fullscreen(ctx) { return; }
+
         SidePanel::right("plot_panel")
             .resizable(self.is_ui_enabled)
             .show(ctx, |ui| {
                 ui.set_enabled(self.is_ui_enabled);
 
-                plot::Plot::new("calculator_plot")
-                    .data_aspect(1.0)
-                    .coordinates_formatter(
-                        plot::Corner::LeftBottom, plot::CoordinatesFormatter::default(),
-                    )
-                    .legend(plot::Legend::default().position(plot::Corner::RightBottom))
-                    .show(ui, |plot_ui| {
-                        for line in &self.lines {
-                            if let Line::Line { function, show_in_plot, .. } = line {
-                                if !show_in_plot { continue; }
-                                if let Some(function) = function {
-                                    if function.1 != 1 { continue; }
-
-                                    let env = self.calculator.clone_env();
-                                    let f = function.2.clone();
-                                    let currencies = self.calculator.currencies.clone();
-
-                                    plot_ui.line(plot::Line::new(
-                                        plot::PlotPoints::from_explicit_callback(move |x| {
-                                            match env.resolve_specific_function(&f, &[x], &currencies) {
-                                                Ok(v) => v.0,
-                                                Err(_) => f64::NAN,
-                                            }
-                                        }, .., 512)
-                                    ).name(&function.0));
-                                }
+                let response = plot(ui, &self.lines, &self.calculator);
+                ui.allocate_ui_at_rect(
+                    response.response.rect.shrink(10.0),
+                    |ui| {
+                        ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                            if ui.small_button("Fullscreen").clicked() {
+                                FullScreenPlot::set_fullscreen(ui.ctx(), true);
                             }
-                        }
-                    });
+                        });
+                    },
+                );
             });
     }
 
@@ -624,11 +609,17 @@ impl App<'_> {
 }
 
 impl eframe::App for App<'_> {
-    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
             self.cached_help_window_color_segments.clear();
         }
         if !self.is_debug_info_open { self.debug_information = None; }
+
+        FullScreenPlot::new(
+            frame.info().window_info.size,
+            &self.lines,
+            &self.calculator,
+        ).maybe_show(ctx);
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.set_enabled(self.is_ui_enabled);
