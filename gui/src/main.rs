@@ -609,14 +609,14 @@ impl App<'_> {
 }
 
 impl eframe::App for App<'_> {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
             self.cached_help_window_color_segments.clear();
         }
         if !self.is_debug_info_open { self.debug_information = None; }
 
         FullScreenPlot::new(
-            frame.info().window_info.size,
+            ctx.available_rect().size(),
             &self.lines,
             &self.calculator,
         ).maybe_show(ctx);
