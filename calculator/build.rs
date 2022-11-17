@@ -135,9 +135,9 @@ mod unit_data {
         fn generate_lines(&self) -> Vec<String> {
             let mut result = Vec::new();
 
-            result.push(format!("\t\t(\"{}\", \"{}\") => Ok({}),", self.src, self.dst, self.src_to_dst_expr));
+            result.push(format!("\t\t(r#\"{}\"#, r#\"{}\"#) => Ok({}),", self.src, self.dst, self.src_to_dst_expr));
             if let Some(dts_expr) = &self.dst_to_src_expr {
-                result.push(format!("\t\t(\"{}\", \"{}\") => Ok({}),", self.dst, self.src, dts_expr));
+                result.push(format!("\t\t(r#\"{}\"#, r#\"{}\"#) => Ok({}),", self.dst, self.src, dts_expr));
             }
 
             fn invert_operator(op: char) -> char {
@@ -160,7 +160,7 @@ mod unit_data {
                         let new_operator = invert_operator(parts.next().unwrap().chars().next().unwrap());
                         dts_expr += &format!(" {} ", new_operator);
                         dts_expr += &parts.collect::<Vec<_>>().join(" ");
-                        result.push(format!("\t\t(\"{}\", \"{}\") => Ok({}),", self.dst, self.src, dts_expr));
+                        result.push(format!("\t\t(r#\"{}\"#, r#\"{}\"#) => Ok({}),", self.dst, self.src, dts_expr));
                     }
                     MODIFIER_POWER => {
                         let mut parts = self.src_to_dst_expr.split(' ');
@@ -175,14 +175,14 @@ mod unit_data {
                             if number_powered.fract() == 0.0 { powered += ".0"; }
 
                             result.push(format!(
-                                "\t\t(\"{}^{exponent}\", \"{}^{exponent}\") => Ok({start} {operator} {powered}),",
+                                "\t\t(r#\"{}^{exponent}\"#, r#\"{}^{exponent}\"#) => Ok({start} {operator} {powered}),",
                                 self.src,
                                 self.dst,
                             ));
 
                             if self.modifiers.contains(&MODIFIER_NORMAL) {
                                 result.push(format!(
-                                    "\t\t(\"{}^{exponent}\", \"{}^{exponent}\") => Ok({start} {} {powered}),",
+                                    "\t\t(r#\"{}^{exponent}\"#, r#\"{}^{exponent}\"#) => Ok({start} {} {powered}),",
                                     self.dst,
                                     self.src,
                                     invert_operator(operator),
@@ -292,14 +292,14 @@ use crate::{
                         .map(|conv| conv.modifiers.contains(&'p'))
                         .unwrap_or(false) {
                         let mut result = Vec::new();
-                        result.push(format!("\"{}\"", u.abbreviation));
+                        result.push(format!("r#\"{}\"#", u.abbreviation));
 
                         for exponent in 2..=3 {
-                            result.push(format!("\"{}^{}\"", u.abbreviation, exponent));
+                            result.push(format!("r#\"{}^{}\"#", u.abbreviation, exponent));
                         }
                         result
                     } else {
-                        vec![format!("\"{}\"", u.abbreviation)]
+                        vec![format!("r#\"{}\"#", u.abbreviation)]
                     }
                 })
                 .collect::<Vec<_>>();
@@ -415,12 +415,12 @@ pub fn format_unit(unit: &str, plural: bool) -> String {
                         .map(|conv| conv.modifiers.contains(&'p'))
                         .unwrap_or(false) {
                         vec![
-                            format!("\t\t\t\"{}\" => \"{}\",", unit.abbreviation, name),
-                            format!("\t\t\t\"{}^2\" => \"{} squared\",", unit.abbreviation, name),
-                            format!("\t\t\t\"{}^3\" => \"{} cubed\",", unit.abbreviation, name),
+                            format!("\t\t\tr#\"{}\"# => r#\"{}\"#,", unit.abbreviation, name),
+                            format!("\t\t\tr#\"{}^2\"# => r#\"{} squared\"#,", unit.abbreviation, name),
+                            format!("\t\t\tr#\"{}^3\"# => r#\"{} cubed\"#,", unit.abbreviation, name),
                         ]
                     } else {
-                        vec![format!("\t\t\t\"{}\" => \"{}\",", unit.abbreviation, name)]
+                        vec![format!("\t\t\tr#\"{}\"# => r#\"{}\"#,", unit.abbreviation, name)]
                     }
                 })
                 .collect::<Vec<_>>()
@@ -429,8 +429,8 @@ pub fn format_unit(unit: &str, plural: bool) -> String {
 
         fn parse_conversion_head(&self, s: &str) -> Result<(String, String)> {
             let mut parts = s.split("->");
-            let src = next_or_err!(parts, self.index);
-            let dst = next_or_err!(parts, self.index);
+            let src = next_or_err!(parts, self.index).trim();
+            let dst = next_or_err!(parts, self.index).trim();
 
             Ok((src.into(), dst.into()))
         }

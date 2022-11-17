@@ -5,14 +5,19 @@
  */
 
 use eframe::egui::*;
+use eframe::egui::style::Margin;
 use eframe::egui::text_edit::TextEditState;
+use eframe::epaint::Shadow;
 
-use calculator::{colorize_text, ColorSegment};
+use calculator::{Calculator, colorize_text, ColorSegment};
 pub use helpers::*;
+
+use crate::Line;
 
 pub mod helpers;
 
 const LINE_PICKER_ID: &str = "line-picker-dialog";
+const FULL_SCREEN_PLOT_ID: &str = "full-screen-plot";
 
 #[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LinePickerDialogState {
@@ -125,6 +130,124 @@ impl<'a> LinePickerDialog<'a> {
         Self::store_state(ctx, state);
         result
     }
+}
+
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+struct FullScreenPlotState {
+    is_full_screen: bool,
+}
+
+pub struct FullScreenPlot<'a> {
+    full_size: Vec2,
+    lines: &'a Vec<Line>,
+    calculator: &'a Calculator<'a>,
+}
+
+impl<'a> FullScreenPlot<'a> {
+    fn load_state(ctx: &Context) -> FullScreenPlotState {
+        ctx.data()
+            .get_temp(Id::new(FULL_SCREEN_PLOT_ID))
+            .unwrap_or_default()
+    }
+
+    fn store_state(ctx: &Context, state: FullScreenPlotState) {
+        ctx.data().insert_temp(Id::new(FULL_SCREEN_PLOT_ID), state);
+    }
+
+    pub fn set_fullscreen(ctx: &Context, fullscreen: bool) {
+        let mut state = Self::load_state(ctx);
+        state.is_full_screen = fullscreen;
+        Self::store_state(ctx, state);
+    }
+
+    pub fn is_fullscreen(ctx: &Context) -> bool {
+        Self::load_state(ctx).is_full_screen
+    }
+
+    pub fn new(
+        full_size: Vec2,
+        lines: &'a Vec<Line>,
+        calculator: &'a Calculator<'a>,
+    ) -> Self {
+        Self {
+            full_size,
+            lines,
+            calculator,
+        }
+    }
+
+    pub fn maybe_show(&self, ctx: &Context) {
+        let mut state = Self::load_state(ctx);
+
+        // if we're not in full, stop showing
+        if !state.is_full_screen {
+            Self::store_state(ctx, state);
+            return;
+        }
+
+        Window::new("__full_screen_plot_window")
+            .title_bar(false)
+            .frame(Frame {
+                stroke: Stroke::none(),
+                shadow: Shadow::default(),
+                rounding: Rounding::none(),
+                inner_margin: Margin::same(0.0),
+                ..Frame::window(&ctx.style())
+            })
+            .anchor(Align2::RIGHT_TOP, Vec2::ZERO)
+            .min_height(100.0)
+            .resizable(false)
+            .fixed_size(self.full_size)
+            .show(ctx, |ui| {
+                let response = plot(ui, self.lines, self.calculator);
+
+                // only show this is we're in fullscreen and the animation has finished
+                ui.allocate_ui_at_rect(
+                    response.response.rect.shrink(10.0),
+                    |ui| {
+                        ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                            if ui.small_button("✖ Close").clicked() {
+                                state.is_full_screen = false;
+                            }
+                        });
+                    },
+                );
+            });
+
+        Self::store_state(ctx, state);
+    }
+}
+
+pub fn plot(ui: &mut Ui, lines: &Vec<Line>, calculator: &Calculator) -> InnerResponse<()> {
+    plot::Plot::new("calculator_plot")
+        .data_aspect(1.0)
+        .coordinates_formatter(
+            plot::Corner::LeftBottom, plot::CoordinatesFormatter::default(),
+        )
+        .legend(plot::Legend::default().position(plot::Corner::RightBottom))
+        .show(ui, |plot_ui| {
+            for line in lines {
+                if let Line::Line { function, show_in_plot, .. } = line {
+                    if !show_in_plot { continue; }
+                    if let Some(function) = function {
+                        if function.1 != 1 { continue; }
+
+                        let env = calculator.clone_env();
+                        let f = function.2.clone();
+                        let currencies = calculator.currencies.clone();
+
+                        plot_ui.line(plot::Line::new(
+                            plot::PlotPoints::from_explicit_callback(move |x| {
+                                match env.resolve_specific_function(&f, &[x], &currencies) {
+                                    Ok(v) => v.0,
+                                    Err(_) => f64::NAN,
+                                }
+                            }, .., 512)
+                        ).name(&function.0));
+                    }
+                }
+            }
+        })
 }
 
 pub fn vertical_spacer(ui: &mut Ui) -> Response {
