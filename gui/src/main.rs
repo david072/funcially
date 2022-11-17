@@ -772,7 +772,7 @@ impl eframe::App for App<'_> {
                                     if let Some(Function(_, arg_count, _)) = function {
                                         if *arg_count == 1 {
                                             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                                                ui.checkbox(show_in_plot, "Show in Plot");
+                                                ui.checkbox(show_in_plot, "Plot");
                                                 ui.add_space(-2.0);
                                             });
                                             continue;
