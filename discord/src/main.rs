@@ -5,15 +5,18 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use serenity::{async_trait, Client};
 use serenity::builder::CreateEmbed;
 use serenity::client::{Context, EventHandler};
+use serenity::http::Http;
 use serenity::model::application::interaction::{Interaction, InteractionResponseType};
 use serenity::model::gateway::{Activity, Ready};
 use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::prelude::command::Command;
+use serenity::model::prelude::Guild;
 use serenity::prelude::GatewayIntents;
 use serenity::utils::Colour;
 
@@ -61,7 +64,7 @@ async fn main() {
 
     {
         let mut data = client.data.write().await;
-        let new_data = load_sessions();
+        let new_data = load_sessions(client.cache_and_http.http.clone()).await;
         println!("Loaded session data for {} guilds", new_data.sessions.len());
         data.insert::<DataKey>(new_data);
     }
@@ -71,26 +74,16 @@ async fn main() {
     }
 }
 
-macro_rules! ignore_error {
-    ($e:expr) => {
-        match $e {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("An error occurred: {:?}", e);
-                continue;
-            },
-        }
-    }
-}
-
 fn sessions_directory() -> PathBuf {
     data_dir().join(SESSIONS_DIRECTORY)
 }
 
-fn load_sessions() -> Data {
+async fn load_sessions(http: Arc<Http>) -> Data {
     let mut data = Data::default();
 
     if !sessions_directory().try_exists().unwrap_or(false) { return data; }
+
+    let mut needs_to_resave = false;
 
     let paths = match fs::read_dir(sessions_directory()) {
         Ok(p) => p,
@@ -104,17 +97,42 @@ fn load_sessions() -> Data {
         println!("path: {:?}", path);
         match path {
             Ok(entry) => {
-                // TODO: Check whether this data is valid (guilds exist, threads exist, etc.)
-                let id = ignore_error!(ignore_error!(
-                    entry.file_name().into_string().map(|str| str.parse::<u64>())
-                ));
+                let Some(id) = entry.file_name()
+                    .into_string()
+                    .ok()
+                    .and_then(|str| str.parse::<u64>().ok()) else { continue; };
                 let guild_id = GuildId(id);
+                let Ok(guild) = Guild::get(http.clone(), guild_id).await else {
+                    needs_to_resave = true;
+                    continue;
+                };
 
-                let contents = ignore_error!(fs::read_to_string(entry.path()));
-                let sessions = ignore_error!(ron::from_str::<Sessions>(&contents));
+                let Some(contents) = fs::read_to_string(entry.path()).ok() else { continue; };
+                let Some(src_sessions) = ron::from_str::<Sessions>(&contents).ok() else { continue; };
+
+                // Custom HashMap::retain, since we need async
+                let mut sessions = Sessions::new();
+                for (id, value) in src_sessions {
+                    if !guild.channels(http.clone())
+                        .await
+                        .ok()
+                        .map(|map| map.contains_key(&id))
+                        .unwrap_or(false) {
+                        needs_to_resave = true;
+                        continue;
+                    }
+                    sessions.insert(id, value);
+                }
+
                 data.sessions.insert(guild_id, sessions);
             }
             Err(_) => continue,
+        }
+    }
+
+    if needs_to_resave {
+        for (guild_id, sessions) in &data.sessions {
+            save_sessions(sessions.clone(), *guild_id);
         }
     }
 
