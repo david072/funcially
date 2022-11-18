@@ -461,7 +461,7 @@ impl App<'_> {
                     Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
                     Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
                     Key::L if modifiers.command && modifiers.alt => self.format_source(),
-                    Key::G if modifiers.command => {
+                    Key::G if modifiers.alt => {
                         self.is_ui_enabled = false;
                         set_line_picker_open = true;
                     }
@@ -652,7 +652,7 @@ impl eframe::App for App<'_> {
                 });
 
                 ui.menu_button("Navigate", |ui| {
-                    if shortcut_button(ui, "Go to Line", &shortcut("G")).clicked() {
+                    if shortcut_button(ui, "Go to Line", "Alt+G").clicked() {
                         LinePickerDialog::set_open(ctx, true);
                         self.is_ui_enabled = false;
                         ui.close_menu();
