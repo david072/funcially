@@ -22,13 +22,10 @@ jobs:
   build-github-pages:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2 # repo checkout
-      - uses: actions-rs/toolchain@v1 # get rust toolchain for wasm
+      - uses: actions/checkout@v3 # repo checkout
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
+          targets: wasm32-unknown-unknown
       - uses: actions-ecosystem/action-get-latest-tag@v1.6.0
         id: get-latest-tag
         with:
@@ -38,8 +35,15 @@ jobs:
         with:
           current_version: ${{ steps.get-latest-tag.outputs.tag }}
           level: patch
-      - name: Rust Cache # cache the rust build artefacts
-        uses: Swatinem/rust-cache@v1
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Download and install Trunk binary
         run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Prepare Build
@@ -69,5 +73,5 @@ jobs:
           mv ./gui/dist/* .
           git clean -f -d
           git add --all .
-          git commit -m "Deployment from @ ${{ github.repository }}@${{ github.sha }}"
+          git commit -m "Deployment from ${{ github.repository }}@${{ github.sha }}"
           git push --force
