@@ -66,65 +66,59 @@ impl<'a> LinePickerDialog<'a> {
 
         let mut result: Option<bool> = None;
         if state.is_open {
-            Window::new("Go to Line")
-                .title_bar(false)
-                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-                .resizable(false)
-                .scroll2([false, false])
-                .collapsible(false)
-                .show(ctx, |ui| {
-                    let output = TextEdit::singleline(&mut state.text)
-                        .hint_text("Go to Line")
-                        .font(FontSelection::from(self.font_id.clone()))
-                        .layouter(&mut |ui, str, wrap_width| {
-                            let job = text::LayoutJob::simple(
-                                str.into(),
-                                self.font_id.clone(),
-                                if str.parse::<usize>().is_ok() { Color32::GRAY } else { Color32::RED },
-                                wrap_width,
-                            );
-                            ui.fonts().layout_job(job)
-                        })
-                        .show(ui);
-                    output.response.request_focus();
+            dialog(ctx, |ui| {
+                let output = TextEdit::singleline(&mut state.text)
+                    .hint_text("Go to Line")
+                    .font(FontSelection::from(self.font_id.clone()))
+                    .layouter(&mut |ui, str, wrap_width| {
+                        let job = text::LayoutJob::simple(
+                            str.into(),
+                            self.font_id.clone(),
+                            if str.parse::<usize>().is_ok() { Color32::GRAY } else { Color32::RED },
+                            wrap_width,
+                        );
+                        ui.fonts().layout_job(job)
+                    })
+                    .show(ui);
+                output.response.request_focus();
 
-                    let events = {
-                        // avoid deadlock when loading TextEditState
-                        let res = ui.input().events.clone();
-                        res
-                    };
-                    for event in events {
-                        if let Event::Key { key, .. } = event {
-                            if key == Key::Escape {
-                                state.text = String::new();
-                                state.is_open = false;
-                                result = Some(false);
-                            } else if key == Key::Enter {
-                                let Ok(line_index) = state.text.parse::<usize>() else { return; };
+                let events = {
+                    // avoid deadlock when loading TextEditState
+                    let res = ui.input().events.clone();
+                    res
+                };
+                for event in events {
+                    if let Event::Key { key, .. } = event {
+                        if key == Key::Escape {
+                            state.text = String::new();
+                            state.is_open = false;
+                            result = Some(false);
+                        } else if key == Key::Enter {
+                            let Ok(line_index) = state.text.parse::<usize>() else { return; };
 
-                                let Some(mut text_edit_state) = TextEditState::load(ctx, self.target_text_edit_id) else { return; };
-                                let Some(mut cursor_range) = text_edit_state.ccursor_range() else { return; };
+                            let Some(mut text_edit_state) = TextEditState::load(ctx, self.target_text_edit_id) else { return; };
+                            let Some(mut cursor_range) = text_edit_state.ccursor_range() else { return; };
 
-                                let mut index = 0usize;
-                                for (i, line) in self.target_text_edit_text.lines().enumerate() {
-                                    if i == line_index - 1 { break; }
-                                    index += line.len() + 1;
-                                }
-
-                                if cursor_range.primary == cursor_range.secondary {
-                                    cursor_range.secondary.index = index;
-                                }
-                                cursor_range.primary.index = index;
-                                text_edit_state.set_ccursor_range(Some(cursor_range));
-                                text_edit_state.store(ctx, self.target_text_edit_id);
-
-                                state.text = String::new();
-                                state.is_open = false;
-                                result = Some(true);
+                            let mut index = 0usize;
+                            for (i, line) in self.target_text_edit_text.lines().enumerate() {
+                                if i == line_index - 1 { break; }
+                                index += line.len() + 1;
                             }
+
+                            if cursor_range.primary == cursor_range.secondary {
+                                cursor_range.secondary.index = index;
+                            }
+                            cursor_range.primary.index = index;
+                            text_edit_state.set_ccursor_range(Some(cursor_range));
+                            text_edit_state.store(ctx, self.target_text_edit_id);
+
+                            state.text = String::new();
+                            state.is_open = false;
+                            result = Some(true);
                         }
                     }
-                });
+                }
+            });
         }
 
         Self::store_state(ctx, state);
