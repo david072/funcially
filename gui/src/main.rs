@@ -873,7 +873,15 @@ impl eframe::App for App<'_> {
                                     if let Some(Function(_, arg_count, _)) = function {
                                         if *arg_count == 1 {
                                             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                                                ui.checkbox(show_in_plot, "Plot");
+                                                let mut show_ui = |ui: &mut Ui| {
+                                                    ui.checkbox(show_in_plot, "Plot");
+                                                };
+
+                                                if ui.available_width() < 30.0 {
+                                                    ui.menu_button("☰", show_ui);
+                                                } else {
+                                                    show_ui(ui);
+                                                }
                                                 ui.add_space(-2.0);
                                             });
                                             continue;
