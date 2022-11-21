@@ -290,7 +290,7 @@ pub fn output_text(ui: &mut Ui, str: &str, font_id: FontId, index: usize) -> Res
     let index_str_width = index.len() as f32 * glyph_width;
 
     let (full_rect, response) = ui.allocate_exact_size(
-        vec2(ui.available_width() - index_str_width, galley.size().y), Sense::click());
+        vec2(ui.available_width(), galley.size().y), Sense::click());
 
     let index_rect = Rect::from_min_max(
         full_rect.left_top(),
