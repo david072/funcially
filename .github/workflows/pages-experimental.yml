@@ -72,6 +72,8 @@ jobs:
           git checkout gh-pages
           mv ./gui/dist/* .
           git clean -f -d
+          sudo chgrp -R $(id -g -n $(whoami)) ./.git/objects
+          sudo chmod -R g+rws ./.git/objects
           git add --all .
           git commit -m "Deployment from ${{ github.repository }}@${{ github.sha }}"
           git push --force
