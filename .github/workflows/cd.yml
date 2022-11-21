@@ -149,13 +149,18 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body: |
-            # Changes
-            ## Fixed
-            - TODO
-            ## Changed
-            - TODO
-            ## Added
-            - TODO
+            <details>
+              <summary><h2>Changelog</h2></summary>
+            
+              ## Fixed
+              - TODO
+              ## Changed
+              - TODO
+              ## Added
+              - TODO
+            </details>
+            
+            **You can find the Web Version at https://funcially.com/app.**
           files: |
             gui-linux/gui-linux
             gui-windows/funcially-*-installer.msi
