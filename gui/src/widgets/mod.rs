@@ -10,7 +10,7 @@ use eframe::egui::text_edit::TextEditState;
 use eframe::epaint::Shadow;
 
 use calculator::{Calculator, colorize_text, ColorSegment};
-pub use helpers::*;
+use helpers::*;
 
 use crate::Line;
 
@@ -49,9 +49,9 @@ pub struct LinePickerDialog<'a> {
     target_text_edit_text: &'a str,
 }
 
-fn dialog<R>(ctx: &Context, add_contents: impl FnOnce(&mut Ui) -> R) -> R {
-    let response = Window::new("Go to Line")
-        .title_bar(false)
+pub fn dialog<R>(ctx: &Context, title: Option<&str>, add_contents: impl FnOnce(&mut Ui) -> R) -> R {
+    let response = Window::new(title.unwrap_or(""))
+        .title_bar(title.is_some())
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
         .resizable(false)
         .scroll2([false, false])
@@ -86,7 +86,7 @@ impl<'a> LinePickerDialog<'a> {
 
         let mut result: Option<bool> = None;
         if state.is_open {
-            dialog(ctx, |ui| {
+            dialog(ctx, None, |ui| {
                 let output = TextEdit::singleline(&mut state.text)
                     .hint_text("Go to Line")
                     .font(FontSelection::from(self.font_id.clone()))

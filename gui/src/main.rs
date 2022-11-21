@@ -6,7 +6,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use eframe::{CreationContext, Frame, Storage};
 use eframe::egui;
@@ -19,6 +19,9 @@ use calculator::{Calculator, Color, ColorSegment, Function as CalcFn, ResultData
 use crate::widgets::*;
 
 mod widgets;
+
+#[cfg(not(target_arch = "wasm32"))]
+const GITHUB_TAGS_URL: &str = "https://api.github.com/repos/david072/funcially/tags";
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
@@ -93,6 +96,12 @@ fn main() {
     ).expect("Failed to start eframe");
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[cfg(not(target_arch = "wasm32"))]
+struct GitHubApiResponseItem {
+    name: String,
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Function(String, usize, #[serde(skip)] CalcFn);
 
@@ -141,6 +150,8 @@ struct App<'a> {
     use_thousands_separator: bool,
 
     #[serde(skip)]
+    show_new_version_dialog: Arc<Mutex<bool>>,
+    #[serde(skip)]
     first_frame: bool,
     #[serde(skip)]
     input_should_request_focus: bool,
@@ -167,6 +178,7 @@ impl Default for App<'_> {
             is_help_open: false,
             #[cfg(target_arch = "wasm32")]
             is_download_open: false,
+            show_new_version_dialog: Arc::new(Mutex::new(false)),
             is_settings_open: false,
             is_debug_info_open: false,
             debug_information: None,
@@ -187,6 +199,45 @@ impl App<'_> {
         }
 
         App::default()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn check_for_update(&self) {
+        let show_new_version_dialog = self.show_new_version_dialog.clone();
+
+        smol::spawn(async move {
+            fn get() -> reqwest::Result<Vec<GitHubApiResponseItem>> {
+                reqwest::blocking::Client::new()
+                    .get(GITHUB_TAGS_URL)
+                    .header("User-Agent", format!("funcially/{VERSION} desktop app")) // the API requires a user agent
+                    .send()?.json()
+            }
+
+            let Ok(mut response) = get() else { return; };
+            response.sort_by(|first, second| {
+                match version_compare::compare(&first.name, &second.name) {
+                    Ok(cmp) => match cmp {
+                        version_compare::Cmp::Lt => std::cmp::Ordering::Less,
+                        version_compare::Cmp::Eq => std::cmp::Ordering::Equal,
+                        version_compare::Cmp::Gt => std::cmp::Ordering::Greater,
+                        _ => unreachable!(),
+                    }
+                    Err(_) => {
+                        eprintln!("Failed to compare versions {} and {}", first.name, second.name);
+                        std::cmp::Ordering::Equal
+                    }
+                }
+            });
+
+            let GitHubApiResponseItem { name: newest } =
+                response.remove(response.len() - 1);
+
+            let result = version_compare::compare(newest, VERSION);
+            if let Ok(version_compare::Cmp::Gt) = result {
+                let Ok(mut show_dialog) = show_new_version_dialog.lock() else { return; };
+                *show_dialog = true;
+            }
+        }).detach();
     }
 
     fn calculate(&mut self, str: &str) -> Line {
@@ -606,10 +657,60 @@ impl App<'_> {
             }
         }
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn new_version_dialog(&mut self, ctx: &Context) {
+        if let Ok(mut show_new_version_dialog) = self.show_new_version_dialog.lock() {
+            if *show_new_version_dialog {
+                self.is_ui_enabled = false;
+                dialog(ctx, Some("New Version"), |ui| {
+                    ui.vertical(|ui| {
+                        ui.label("There is a new version available!");
+
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            ui.label("Download the latest version from ");
+                            ui.hyperlink_to("the Website", "https://funcially.com/download");
+                            ui.label(".");
+                        });
+
+                        ui.add_space(15.0);
+                        ui.vertical_centered(|ui| {
+                            if ui.button("Ok").clicked() {
+                                *show_new_version_dialog = false;
+                                self.is_ui_enabled = true;
+                            }
+                        });
+                    });
+
+                    if ctx.input().events.iter().any(|event| {
+                        if let Event::Key { key, .. } = event {
+                            if *key == Key::Escape {
+                                return true;
+                            }
+                        }
+                        false
+                    }) {
+                        *show_new_version_dialog = false;
+                        self.is_ui_enabled = true;
+                    }
+                });
+            }
+        }
+    }
 }
 
 impl eframe::App for App<'_> {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.first_frame {
+                self.check_for_update();
+            }
+
+            self.new_version_dialog(ctx);
+        }
+
         if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
             self.cached_help_window_color_segments.clear();
         }
@@ -822,7 +923,7 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
                     while matches!(lines.get(i), Some(Line::Empty)) { i += 1; }
 
                     if let Some(Line::Line { color_segments, .. }) = &lines.get(i) {
-                        if !layout_segments(FONT_ID, color_segments, &mut job, string, &mut end, offset) {
+                        if !helpers::layout_segments(FONT_ID, color_segments, &mut job, string, &mut end, offset) {
                             break;
                         }
                     }
@@ -833,10 +934,10 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
             }
 
             if end != string.len() {
-                job.sections.push(section(end..string.len(), FONT_ID, Color32::GRAY));
+                job.sections.push(helpers::section(end..string.len(), FONT_ID, Color32::GRAY));
             }
         } else {
-            job.sections.push(section(0..string.len(), FONT_ID, Color32::GRAY));
+            job.sections.push(helpers::section(0..string.len(), FONT_ID, Color32::GRAY));
         }
 
         job.wrap.max_width = wrap_width;

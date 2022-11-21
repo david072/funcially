@@ -5,7 +5,9 @@
  */
 
 use std::ops::Range;
+
 use eframe::egui::{Color32, FontId, text, TextFormat};
+
 use calculator::ColorSegment;
 
 pub fn section(range: Range<usize>, font_id: FontId, color: Color32) -> text::LayoutSection {
