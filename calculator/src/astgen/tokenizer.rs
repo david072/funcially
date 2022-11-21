@@ -288,6 +288,7 @@ impl<'a> Tokenizer<'a> {
 
             while self.accept(any_of(LETTERS)) ||
                 self.accept(any_of(NUMBERS)) {}
+            self.accept(any_of("'"));
             Some(TokenType::Identifier)
         } else {
             None
