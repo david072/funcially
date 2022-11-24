@@ -278,6 +278,7 @@ use std::f64::consts::PI;
 use std::ops::Range;
 use crate::{
     common::Result,
+    common::ErrorType,
     environment::currencies::{Currencies, is_currency},
     environment::units::{PREFIXES, prefix_to_string, is_unit},
 };
@@ -344,7 +345,18 @@ pub fn convert_units(src_unit: &str, dst_unit: &str, x: f64, currencies: &Curren
                 .join("\n");
 
             file_content += r#"
-        _ => currencies.convert(src_unit, dst_unit, x, range),
+        _ => {
+            // if either isn't a currency, this is an error
+            // -> you can't convert from a currency to a normal unit, and if both aren't a
+            //    currency, then we would have handled it in this match statement
+            if !is_currency(src_unit) || !is_currency(dst_unit) {
+                Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string())
+                    .with(range.clone()))
+            }
+            else {
+                currencies.convert(src_unit, dst_unit, x, range)
+           }
+        }
     }
 }
 
