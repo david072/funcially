@@ -501,9 +501,9 @@ impl App<'_> {
             });
     }
 
-    fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
+    /// Handles shortcuts that modify what's inside the textedit => needs a cursor range
+    fn handle_text_edit_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
         let mut copied_text = None;
-        let mut set_line_picker_open = false;
         for event in &ui.input().events {
             if let Event::Key { key, pressed, modifiers } = event {
                 if !*pressed { continue; }
@@ -511,6 +511,23 @@ impl App<'_> {
                     Key::N if modifiers.command && modifiers.alt => self.toggle_commentation(cursor_range),
                     Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
                     Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some(copied) = copied_text {
+            ui.output().copied_text = copied;
+        }
+    }
+
+    /// Handles shortcuts that are global => don't need a cursor range
+    fn handle_shortcuts(&mut self, ui: &Ui) {
+        let mut set_line_picker_open = false;
+        for event in &ui.input().events {
+            if let Event::Key { key, pressed, modifiers } = event {
+                if !*pressed { continue; }
+                match key {
                     Key::L if modifiers.command && modifiers.alt => self.format_source(),
                     Key::G if modifiers.alt => {
                         self.is_ui_enabled = false;
@@ -523,10 +540,6 @@ impl App<'_> {
 
         if set_line_picker_open {
             LinePickerDialog::set_open(ui.ctx(), true);
-        }
-
-        if let Some(copied) = copied_text {
-            ui.output().copied_text = copied;
         }
     }
 
@@ -720,6 +733,8 @@ impl eframe::App for App<'_> {
             &self.calculator,
         ).maybe_show(ctx);
 
+        self.line_picker_dialog(ctx);
+
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.set_enabled(self.is_ui_enabled);
 
@@ -846,8 +861,9 @@ impl eframe::App for App<'_> {
                     self.update_lines(output.galley);
 
                     if let Some(range) = output.cursor_range {
-                        self.handle_shortcuts(ui, range);
+                        self.handle_text_edit_shortcuts(ui, range);
                     }
+                    self.handle_shortcuts(ui);
 
                     vertical_spacer(ui);
 
@@ -897,7 +913,6 @@ impl eframe::App for App<'_> {
             });
         });
 
-        self.line_picker_dialog(ctx);
         self.first_frame = false;
     }
 
