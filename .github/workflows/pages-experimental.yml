@@ -52,9 +52,8 @@ jobs:
           cd gui &&
           cargo set-version "$(echo "${{ steps.bump-semver.outputs.new_version }}" | cut -c2-)-$(git rev-parse --short HEAD)" &&
           cd assets && 
-          rm sw.js && rm manifest.json &&
-          mv sw_experimental.js sw.js &&
-          mv manifest_experimental.json manifest.json
+          mv -f ./experimental/* . &&
+          rm -rf ./experimental
       - name: Build # build
         # "${GITHUB_REPOSITORY#*/}" evaluates into the name of the repository
         # using --public-url something will allow trunk to modify all the href paths like from favicon.ico to repo_name/favicon.ico .
