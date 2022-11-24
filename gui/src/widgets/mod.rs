@@ -80,11 +80,11 @@ impl<'a> LinePickerDialog<'a> {
         }
     }
 
-    /// Returns whether something happened, and if something happened, whether a line as picked
-    pub fn show(&mut self, ctx: &Context) -> Option<bool> {
+    /// Returns whether something happened (dialog close)
+    pub fn show(&mut self, ctx: &Context) -> bool {
         let mut state = LinePickerDialogState::load(ctx, LINE_PICKER_ID);
 
-        let mut result: Option<bool> = None;
+        let mut result: bool = false;
         if state.is_open {
             dialog(ctx, None, |ui| {
                 let output = TextEdit::singleline(&mut state.text)
@@ -112,7 +112,7 @@ impl<'a> LinePickerDialog<'a> {
                         if key == Key::Escape {
                             state.text = String::new();
                             state.is_open = false;
-                            result = Some(false);
+                            result = true;
                         } else if key == Key::Enter {
                             let Ok(line_index) = state.text.parse::<usize>() else { return; };
 
@@ -134,7 +134,7 @@ impl<'a> LinePickerDialog<'a> {
 
                             state.text = String::new();
                             state.is_open = false;
-                            result = Some(true);
+                            result = true;
                         }
                     }
                 }

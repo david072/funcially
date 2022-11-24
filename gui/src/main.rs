@@ -650,11 +650,9 @@ impl App<'_> {
             &self.source,
         ).show(ctx);
 
-        if let Some(picked) = result {
+        if result {
             self.is_ui_enabled = true;
-            if picked {
-                self.input_should_request_focus = true;
-            }
+            self.input_should_request_focus = true;
         }
     }
 
