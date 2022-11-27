@@ -537,11 +537,11 @@ impl App<'_> {
                 if !*pressed { continue; }
                 match key {
                     Key::L if modifiers.command && modifiers.alt => self.format_source(),
-                    Key::G if modifiers.alt => {
+                    Key::G if modifiers.command => {
                         self.is_ui_enabled = false;
                         set_line_picker_open = true;
                     }
-                    Key::F if modifiers.ctrl => {
+                    Key::F if modifiers.command => {
                         self.search_state.open = true;
                         self.search_state.should_have_focus = true;
                     }
@@ -835,7 +835,7 @@ impl eframe::App for App<'_> {
                         self.search_state.should_have_focus = true;
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "Go to Line", "Alt+G").clicked() {
+                    if shortcut_button(ui, "Go to Line", &shortcut("G")).clicked() {
                         LinePickerDialog::set_open(ctx, true);
                         self.is_ui_enabled = false;
                         ui.close_menu();
