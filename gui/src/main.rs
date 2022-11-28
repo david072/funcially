@@ -1155,6 +1155,10 @@ fn input_layouter(
                         last_end = i_in_string;
                     }
                 }
+                else {
+                    job.sections.push(helpers::section(last_end..line.len() + offset, FONT_ID, Color32::GRAY));
+                    last_end = line.len() + offset;
+                }
 
                 offset += line.len() + 1;
                 line_counter += 1;
