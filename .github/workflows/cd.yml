@@ -16,13 +16,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v3
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - name: Rust Cache # cache the rust build artefacts
-        uses: Swatinem/rust-cache@v1
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: cargo build --bin cli --release && cargo build --bin gui --release && cargo build --bin discord --release
       - name: Rename
@@ -54,13 +57,16 @@ jobs:
       - name: Install WiX
         run: nuget install WiX
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v3
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - name: Rust Cache # cache the rust build artefacts
-        uses: Swatinem/rust-cache@v1
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build CLI
         run: cargo build --bin cli --release
       - name: Build GUI (installer)
@@ -94,13 +100,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v3
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - name: Rust Cache # cache the rust build artefacts
-        uses: Swatinem/rust-cache@v1
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build CLI
         run: cargo build --bin cli --release
       - name: Build GUI (installer)
@@ -140,13 +149,18 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body: |
-            # Changes
-            ## Fixed
-            - TODO
-            ## Changed
-            - TODO
-            ## Added
-            - TODO
+            <details>
+              <summary><h2>Changelog</h2></summary>
+            
+              ## Fixed
+              - TODO
+              ## Changed
+              - TODO
+              ## Added
+              - TODO
+            </details>
+            
+            **You can find the Web Version at https://funcially.com/app.**
           files: |
             gui-linux/gui-linux
             gui-windows/funcially-*-installer.msi

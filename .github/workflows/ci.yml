@@ -6,7 +6,7 @@ on:
     tags-ignore: '**'
     paths-ignore:
       - '.github/workflows/pages.yml'
-      - '.github/workflows/pages-main.yml'
+      - '.github/workflows/pages-experimental.yml'
       - '.github/workflows/cd.yml'
       - '.gitattributes'
       - '.gitignore'
@@ -28,13 +28,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v3
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - name: Rust Cache # cache the rust build artefacts
-        uses: Swatinem/rust-cache@v1
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: cargo build --bin cli && cargo build --bin gui && cargo build --bin discord
       - name: Upload CLI
@@ -58,13 +61,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v3
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - name: Rust Cache # cache the rust build artefacts
-        uses: Swatinem/rust-cache@v1
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: cargo build --bin cli && cargo build --bin gui && cargo build --bin discord
       - name: Upload CLI
@@ -88,13 +94,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v3
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - name: Rust Cache # cache the rust build artefacts
-        uses: Swatinem/rust-cache@v1
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: cargo build --bin cli && cargo build --bin gui && cargo build --bin discord
       - name: Upload CLI

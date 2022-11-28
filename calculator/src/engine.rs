@@ -399,7 +399,7 @@ impl<'a> Engine<'a> {
                 }
             };
             let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
-            if unit.is_some() { new_node.unit = unit; }
+            new_node.unit = unit;
             let _ = replace(node, new_node);
         }
 
@@ -418,7 +418,7 @@ impl<'a> Engine<'a> {
                 Err(ty) => return Err(ty.with(node.range.clone())),
             };
             let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
-            if unit.is_some() { new_node.unit = unit.clone(); }
+            new_node.unit = unit.clone();
             let _ = replace(node, new_node);
         }
 
@@ -434,7 +434,8 @@ impl<'a> Engine<'a> {
 
             let group_result = Self::evaluate(group_ast.clone(), self.env, self.currencies)?;
             // Construct Literal node with the evaluated result
-            let new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
+            let mut new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
+            new_node.unit = group_result.unit;
             let _ = replace(node, new_node);
         }
 

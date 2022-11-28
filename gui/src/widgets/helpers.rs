@@ -5,8 +5,77 @@
  */
 
 use std::ops::Range;
-use eframe::egui::{Color32, FontId, text, TextFormat};
+
+use eframe::egui::{Color32, Context, FontId, Id, text, TextFormat};
+use eframe::egui::text::{CCursor, CCursorRange};
+use eframe::egui::text_edit::TextEditState;
+
 use calculator::ColorSegment;
+
+#[derive(Debug, Default)]
+pub struct SearchState {
+    pub open: bool,
+    pub should_have_focus: bool,
+    pub text: String,
+    pub old_text: String,
+    pub occurrences: Vec<Range<usize>>,
+    pub selected_range: Option<usize>,
+}
+
+impl SearchState {
+    pub fn update(&mut self, searched_text: &str) {
+        if self.text != self.old_text {
+            self.old_text = self.text.clone();
+            if self.text.trim().is_empty() {
+                self.selected_range = None;
+            }
+            return;
+        }
+
+        let text = self.text.trim();
+        if text.is_empty() { return; }
+
+        self.occurrences = searched_text.match_indices(text)
+            .map(|(i, str)| i..i + str.len())
+            .collect::<Vec<_>>();
+    }
+
+    pub fn set_range_in_text_edit_state(&self, ctx: &Context, id: &str) {
+        if self.selected_range.is_none() { return; }
+
+        if let Some(mut state) = TextEditState::load(ctx, Id::new(id)) {
+            let range = &self.occurrences[self.selected_range.unwrap()];
+            state.set_ccursor_range(Some(CCursorRange::two(
+                CCursor::new(range.start),
+                CCursor::new(range.end),
+            )));
+            state.store(ctx, Id::new(id));
+        }
+    }
+
+    pub fn increment_selected_range(&mut self) {
+        if self.occurrences.is_empty() { return; }
+        self.selected_range = Some(
+            self.selected_range.map(|i| (i + 1) % self.occurrences.len()).unwrap_or_default()
+        );
+    }
+
+    pub fn text_if_open(&self) -> Option<String> {
+        if !self.open { return None; }
+
+        let text = self.text.trim();
+        if text.is_empty() {
+            None
+        } else {
+            Some(text.to_string())
+        }
+    }
+
+    pub fn selected_range_if_open(&self) -> Option<Range<usize>> {
+        if !self.open || self.occurrences.is_empty() { return None; }
+        self.selected_range.map(|i| self.occurrences[i].clone())
+    }
+}
 
 pub fn section(range: Range<usize>, font_id: FontId, color: Color32) -> text::LayoutSection {
     text::LayoutSection {

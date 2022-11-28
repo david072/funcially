@@ -353,6 +353,14 @@ impl<'a> Calculator<'a> {
                     if text.len() == 2 { text.push('0'); }
                 }
 
+                if i != 0 && token.ty == TokenType::Identifier {
+                    if let Some(previous) = tokens.get(i - 1) {
+                        if previous.ty == TokenType::Identifier {
+                            new_line.push(' ');
+                        }
+                    }
+                }
+
                 new_line += &text;
             } else if token.ty.is_operator() || token.ty.is_format() ||
                 token.ty == TokenType::DefinitionSign {
@@ -362,7 +370,6 @@ impl<'a> Calculator<'a> {
                         continue;
                     } else if tokens[i - 1].ty.is_operator() || matches!(tokens[i - 1].ty,
                         TokenType::OpenBracket
-                        | TokenType::CloseBracket
                         | TokenType::Comma
                     ) { // Check if we're a sign
                         if let Some(next) = tokens.get(i + 1) {

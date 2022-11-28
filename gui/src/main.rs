@@ -6,11 +6,13 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::sync::Arc;
+use std::ops::Range;
+use std::sync::{Arc, Mutex};
 
 use eframe::{CreationContext, Frame, Storage};
 use eframe::egui;
 use eframe::egui::text_edit::CursorRange;
+use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 
@@ -19,6 +21,9 @@ use calculator::{Calculator, Color, ColorSegment, Function as CalcFn, ResultData
 use crate::widgets::*;
 
 mod widgets;
+
+#[cfg(not(target_arch = "wasm32"))]
+const GITHUB_TAGS_URL: &str = "https://api.github.com/repos/david072/funcially/tags";
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const FONT_SIZE: f32 = 16.0;
@@ -93,6 +98,12 @@ fn main() {
     ).expect("Failed to start eframe");
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[cfg(not(target_arch = "wasm32"))]
+struct GitHubApiResponseItem {
+    name: String,
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Function(String, usize, #[serde(skip)] CalcFn);
 
@@ -141,6 +152,11 @@ struct App<'a> {
     use_thousands_separator: bool,
 
     #[serde(skip)]
+    search_state: helpers::SearchState,
+
+    #[serde(skip)]
+    show_new_version_dialog: Arc<Mutex<bool>>,
+    #[serde(skip)]
     first_frame: bool,
     #[serde(skip)]
     input_should_request_focus: bool,
@@ -167,8 +183,10 @@ impl Default for App<'_> {
             is_help_open: false,
             #[cfg(target_arch = "wasm32")]
             is_download_open: false,
+            show_new_version_dialog: Arc::new(Mutex::new(false)),
             is_settings_open: false,
             is_debug_info_open: false,
+            search_state: helpers::SearchState::default(),
             debug_information: None,
             use_thousands_separator: false,
             input_text_cursor_range: CursorRange::one(Cursor::default()),
@@ -187,6 +205,45 @@ impl App<'_> {
         }
 
         App::default()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn check_for_update(&self) {
+        let show_new_version_dialog = self.show_new_version_dialog.clone();
+
+        smol::spawn(async move {
+            fn get() -> reqwest::Result<Vec<GitHubApiResponseItem>> {
+                reqwest::blocking::Client::new()
+                    .get(GITHUB_TAGS_URL)
+                    .header("User-Agent", format!("funcially/{VERSION} desktop app")) // the API requires a user agent
+                    .send()?.json()
+            }
+
+            let Ok(mut response) = get() else { return; };
+            response.sort_by(|first, second| {
+                match version_compare::compare(&first.name, &second.name) {
+                    Ok(cmp) => match cmp {
+                        version_compare::Cmp::Lt => std::cmp::Ordering::Less,
+                        version_compare::Cmp::Eq => std::cmp::Ordering::Equal,
+                        version_compare::Cmp::Gt => std::cmp::Ordering::Greater,
+                        _ => unreachable!(),
+                    }
+                    Err(_) => {
+                        eprintln!("Failed to compare versions {} and {}", first.name, second.name);
+                        std::cmp::Ordering::Equal
+                    }
+                }
+            });
+
+            let GitHubApiResponseItem { name: newest } =
+                response.remove(response.len() - 1);
+
+            let result = version_compare::compare(newest, VERSION);
+            if let Ok(version_compare::Cmp::Gt) = result {
+                let Ok(mut show_dialog) = show_new_version_dialog.lock() else { return; };
+                *show_dialog = true;
+            }
+        }).detach();
     }
 
     fn calculate(&mut self, str: &str) -> Line {
@@ -244,6 +301,8 @@ impl App<'_> {
 
     fn update_lines(&mut self, galley: Arc<Galley>) {
         if self.source == self.source_old { return; }
+
+        self.search_state.update(&self.source);
 
         self.source_old = self.source.clone();
         // Since we re-calculate everything from the beginning,
@@ -450,9 +509,9 @@ impl App<'_> {
             });
     }
 
-    fn handle_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
+    /// Handles shortcuts that modify what's inside the textedit => needs a cursor range
+    fn handle_text_edit_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
         let mut copied_text = None;
-        let mut set_line_picker_open = false;
         for event in &ui.input().events {
             if let Event::Key { key, pressed, modifiers } = event {
                 if !*pressed { continue; }
@@ -460,10 +519,31 @@ impl App<'_> {
                     Key::N if modifiers.command && modifiers.alt => self.toggle_commentation(cursor_range),
                     Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
                     Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some(copied) = copied_text {
+            ui.output().copied_text = copied;
+        }
+    }
+
+    /// Handles shortcuts that are global => don't need a cursor range
+    fn handle_shortcuts(&mut self, ui: &Ui) {
+        let mut set_line_picker_open = false;
+        for event in &ui.input().events {
+            if let Event::Key { key, pressed, modifiers } = event {
+                if !*pressed { continue; }
+                match key {
                     Key::L if modifiers.command && modifiers.alt => self.format_source(),
                     Key::G if modifiers.command => {
                         self.is_ui_enabled = false;
                         set_line_picker_open = true;
+                    }
+                    Key::F if modifiers.command => {
+                        self.search_state.open = true;
+                        self.search_state.should_have_focus = true;
                     }
                     _ => {}
                 }
@@ -472,10 +552,6 @@ impl App<'_> {
 
         if set_line_picker_open {
             LinePickerDialog::set_open(ui.ctx(), true);
-        }
-
-        if let Some(copied) = copied_text {
-            ui.output().copied_text = copied;
         }
     }
 
@@ -599,10 +675,101 @@ impl App<'_> {
             &self.source,
         ).show(ctx);
 
-        if let Some(picked) = result {
+        if result {
             self.is_ui_enabled = true;
-            if picked {
+            self.input_should_request_focus = true;
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn new_version_dialog(&mut self, ctx: &Context) {
+        if let Ok(mut show_new_version_dialog) = self.show_new_version_dialog.lock() {
+            if *show_new_version_dialog {
+                self.is_ui_enabled = false;
+                dialog(ctx, Some("New Version"), |ui| {
+                    ui.vertical(|ui| {
+                        ui.label("There is a new version available!");
+
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            ui.label("Download the latest version from ");
+                            ui.hyperlink_to("the Website", "https://funcially.com/download");
+                            ui.label(".");
+                        });
+
+                        ui.add_space(15.0);
+                        ui.vertical_centered(|ui| {
+                            if ui.button("Ok").clicked() {
+                                *show_new_version_dialog = false;
+                                self.is_ui_enabled = true;
+                            }
+                        });
+                    });
+
+                    if ctx.input().events.iter().any(|event| {
+                        if let Event::Key { key, .. } = event {
+                            if *key == Key::Escape {
+                                return true;
+                            }
+                        }
+                        false
+                    }) {
+                        *show_new_version_dialog = false;
+                        self.is_ui_enabled = true;
+                    }
+                });
+            }
+        }
+    }
+
+    fn search_input(&mut self, ui: &mut Ui) {
+        if self.search_state.open {
+            fn is_key_pressed(ui: &Ui, k: Key) -> bool {
+                ui.input().events.iter().any(|event| {
+                    if let Event::Key { key, pressed, .. } = event {
+                        if *key == k && *pressed {
+                            return true;
+                        }
+                    }
+
+                    false
+                })
+            }
+
+            let output = TextEdit::singleline(&mut self.search_state.text)
+                .font(FontSelection::from(FONT_ID))
+                .hint_text("Search")
+                .show(ui);
+
+            self.search_state.update(&self.source);
+
+            ui.label(format!(
+                "{}/{}",
+                self.search_state.selected_range.map(|i| i + 1).unwrap_or_default(),
+                self.search_state.occurrences.len()
+            ));
+
+            if ui.small_button("X").clicked() { self.search_state.open = false; }
+
+            if self.search_state.should_have_focus {
+                output.response.request_focus();
+                self.search_state.should_have_focus = false;
+            }
+
+            if is_key_pressed(ui, Key::Escape) {
+                self.search_state.open = false;
+                self.search_state.should_have_focus = false;
                 self.input_should_request_focus = true;
+                self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+            } else if is_key_pressed(ui, Key::Enter) {
+                // TextEdit automatically looses focus when pressing enter, so we have to take it
+                // back
+                output.response.request_focus();
+                self.search_state.increment_selected_range();
+
+                if !self.search_state.occurrences.is_empty() {
+                    self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+                }
             }
         }
     }
@@ -610,6 +777,15 @@ impl App<'_> {
 
 impl eframe::App for App<'_> {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.first_frame {
+                self.check_for_update();
+            }
+
+            self.new_version_dialog(ctx);
+        }
+
         if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
             self.cached_help_window_color_segments.clear();
         }
@@ -620,6 +796,8 @@ impl eframe::App for App<'_> {
             &self.lines,
             &self.calculator,
         ).maybe_show(ctx);
+
+        self.line_picker_dialog(ctx);
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.set_enabled(self.is_ui_enabled);
@@ -652,6 +830,11 @@ impl eframe::App for App<'_> {
                 });
 
                 ui.menu_button("Navigate", |ui| {
+                    if shortcut_button(ui, "Search", &shortcut("F")).clicked() {
+                        self.search_state.open = true;
+                        self.search_state.should_have_focus = true;
+                        ui.close_menu();
+                    }
                     if shortcut_button(ui, "Go to Line", &shortcut("G")).clicked() {
                         LinePickerDialog::set_open(ctx, true);
                         self.is_ui_enabled = false;
@@ -682,13 +865,30 @@ impl eframe::App for App<'_> {
             })
         });
 
-        TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
-            ui.set_enabled(self.is_ui_enabled);
+        TopBottomPanel::bottom("bottom_bar")
+            .frame(egui::Frame {
+                inner_margin: style::Margin {
+                    left: 2.0,
+                    right: 8.0,
+                    top: 2.0,
+                    bottom: 2.0,
+                },
+                rounding: Rounding::none(),
+                shadow: Shadow::default(),
+                ..egui::Frame::window(&ctx.style())
+            })
+            .show(ctx, |ui| {
+                ui.set_enabled(self.is_ui_enabled);
 
-            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                ui.label(RichText::new(&self.bottom_text).font(FontId::proportional(FOOTER_FONT_SIZE)));
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    self.search_input(ui);
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let bottom_text = RichText::new(&self.bottom_text)
+                            .font(FontId::proportional(FOOTER_FONT_SIZE));
+                        ui.label(bottom_text);
+                    });
+                });
             });
-        });
 
         // We wait for the second frame to have the lines updated if they've been loaded on startup
         if !self.first_frame && self.is_plot_open { self.plot_panel(ctx); }
@@ -733,7 +933,11 @@ impl eframe::App for App<'_> {
                         .desired_width(input_width)
                         .font(FontSelection::from(FONT_ID))
                         .desired_rows(rows)
-                        .layouter(&mut input_layouter(lines))
+                        .layouter(&mut input_layouter(
+                            lines,
+                            self.search_state.text_if_open(),
+                            self.search_state.selected_range_if_open(),
+                        ))
                         .show(ui);
                     if let Some(range) = output.cursor_range {
                         self.input_text_cursor_range = range;
@@ -741,14 +945,15 @@ impl eframe::App for App<'_> {
 
                     if self.input_should_request_focus {
                         self.input_should_request_focus = false;
-                        ui.ctx().memory().request_focus(output.response.id);
+                        output.response.request_focus();
                     }
 
                     self.update_lines(output.galley);
 
                     if let Some(range) = output.cursor_range {
-                        self.handle_shortcuts(ui, range);
+                        self.handle_text_edit_shortcuts(ui, range);
                     }
+                    self.handle_shortcuts(ui);
 
                     vertical_spacer(ui);
 
@@ -772,7 +977,15 @@ impl eframe::App for App<'_> {
                                     if let Some(Function(_, arg_count, _)) = function {
                                         if *arg_count == 1 {
                                             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                                                ui.checkbox(show_in_plot, "Plot");
+                                                let mut show_ui = |ui: &mut Ui| {
+                                                    ui.checkbox(show_in_plot, "Plot");
+                                                };
+
+                                                if ui.available_width() < 30.0 {
+                                                    ui.menu_button("☰", show_ui);
+                                                } else {
+                                                    show_ui(ui);
+                                                }
                                                 ui.add_space(-2.0);
                                             });
                                             continue;
@@ -790,7 +1003,6 @@ impl eframe::App for App<'_> {
             });
         });
 
-        self.line_picker_dialog(ctx);
         self.first_frame = false;
     }
 
@@ -799,7 +1011,18 @@ impl eframe::App for App<'_> {
     }
 }
 
-fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> + '_ {
+fn input_layouter(
+    lines: &[Line],
+    highlighted_text: Option<String>,
+    selection_preview: Option<Range<usize>>,
+) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> + '_ {
+    // we need a Vec to chain it to the other iterators in `iter_over_all_ranges()`
+    let selection_preview_vec = if let Some(sp) = &selection_preview {
+        vec![sp.clone()]
+    } else {
+        vec![]
+    };
+
     move |ui, string, wrap_width| {
         let mut job = text::LayoutJob {
             text: string.into(),
@@ -807,36 +1030,137 @@ fn input_layouter(lines: &[Line]) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> +
         };
 
         if !lines.is_empty() {
-            let mut end = 0usize;
+            let mut last_end = 0usize;
             let mut offset = 0usize;
-            let mut i = 0usize;
+            let mut line_counter = 0usize;
 
             for line in string.lines() {
-                if i >= lines.len() { break; }
+                if line_counter > lines.len() { break; }
 
                 let trimmed_line = line.trim();
-                // Skip empty lines
                 if !trimmed_line.is_empty() && !trimmed_line.starts_with('#') {
                     // NOTE: We use `Line::Empty`s to add spacing if the line spans multiple rows.
                     //  We have to skip these lines here to get to the actual color segments.
-                    while matches!(lines.get(i), Some(Line::Empty)) { i += 1; }
+                    while matches!(lines.get(line_counter), Some(Line::Empty)) { line_counter += 1; }
 
-                    if let Some(Line::Line { color_segments, .. }) = &lines.get(i) {
-                        if !layout_segments(FONT_ID, color_segments, &mut job, string, &mut end, offset) {
-                            break;
+                    let Some(Line::Line { color_segments: segments, .. }) =
+                        lines.get(line_counter) else { break; };
+
+                    // We often add `offset` to numbers here. This is because we need to translate
+                    // per-line indices to their respective index in `string` (the full text).
+
+                    let segments = segments.iter()
+                        .map(|seg| {
+                            let mut seg = seg.clone();
+                            seg.range.start += offset;
+                            seg.range.end += offset;
+                            seg
+                        })
+                        .collect::<Vec<_>>();
+                    let highlighted_ranges = if let Some(highlighted_text) = &highlighted_text {
+                        line
+                            .match_indices(highlighted_text)
+                            .map(|(i, matched)| i + offset..i + matched.len() + offset)
+                            .collect::<Vec<_>>()
+                    } else {
+                        Vec::new()
+                    };
+
+                    let iter_over_all_ranges = || {
+                        segments.iter().map(|s| &s.range)
+                            .chain(highlighted_ranges.iter())
+                            .chain(selection_preview_vec.iter())
+                    };
+
+                    /// Adds a section. It finds out what color it needs to have, as well as whether
+                    /// the section needs to be highlighted by checking what ranges contain the
+                    /// given index.
+                    fn add_section(
+                        ui: &Ui,
+                        i_in_string: usize,
+                        segments: &[ColorSegment],
+                        highlighted_ranges: &[Range<usize>],
+                        selection_preview: &Option<Range<usize>>,
+                        job: &mut text::LayoutJob,
+                        last_end: usize,
+                    ) {
+                        let segment = segments.iter()
+                            .find(|seg| {
+                                (seg.range.start..seg.range.end + 1)
+                                    .contains(&i_in_string)
+                            })
+                            .map(|seg| {
+                                Color32::from_rgba_premultiplied(
+                                    seg.color.0[0],
+                                    seg.color.0[1],
+                                    seg.color.0[2],
+                                    seg.color.0[3],
+                                )
+                            });
+                        let highlighted = highlighted_ranges.iter()
+                            // don't need to add offset here, since the highlighted_ranges already
+                            // have it added
+                            .any(|range| range.contains(&(i_in_string - 1)));
+                        let is_selection_preview = selection_preview
+                            .as_ref()
+                            .map(|range| range.contains(&(i_in_string - 1)))
+                            .unwrap_or(false);
+
+                        job.sections.push(text::LayoutSection {
+                            leading_space: 0.0,
+                            byte_range: last_end..i_in_string,
+                            format: TextFormat {
+                                font_id: FONT_ID,
+                                color: segment.unwrap_or(Color32::GRAY),
+                                underline: if highlighted {
+                                    Stroke::new(3.0, Color32::GOLD)
+                                } else {
+                                    Stroke::none()
+                                },
+                                background: if is_selection_preview {
+                                    ui.visuals().selection.bg_fill
+                                } else { Color32::TRANSPARENT },
+                                ..Default::default()
+                            },
+                        });
+                    }
+
+                    for i in 0..line.len() {
+                        let i_in_string = i + offset;
+
+                        // check if this char is the start of a range
+                        let is_start = iter_over_all_ranges().any(|range| range.start == i_in_string);
+                        // check if this char is the end of a range
+                        let is_end = iter_over_all_ranges().any(|range| range.end == i_in_string);
+
+                        // if this that is at the end of a range, or we're at the start and have
+                        // characters left to add (last_end is not here)
+                        if is_end || is_start && last_end != i_in_string {
+                            add_section(ui, i_in_string, &segments, &highlighted_ranges, &selection_preview, &mut job, last_end);
+                            last_end = i_in_string;
                         }
+                    }
+
+                    if last_end != line.len() {
+                        let mut i_in_string = line.len() + offset;
+                        add_section(ui, i_in_string, &segments, &highlighted_ranges, &selection_preview, &mut job, last_end);
+                        if i_in_string < string.len() {
+                            job.sections.push(helpers::section(i_in_string..i_in_string + 1, FONT_ID, Color32::GRAY));
+                            i_in_string += 1;
+                        }
+                        last_end = i_in_string;
                     }
                 }
 
                 offset += line.len() + 1;
-                i += 1;
+                line_counter += 1;
             }
 
-            if end != string.len() {
-                job.sections.push(section(end..string.len(), FONT_ID, Color32::GRAY));
+            if last_end != string.len() {
+                job.sections.push(helpers::section(last_end..string.len(), FONT_ID, Color32::GRAY));
             }
         } else {
-            job.sections.push(section(0..string.len(), FONT_ID, Color32::GRAY));
+            job.sections.push(helpers::section(0..string.len(), FONT_ID, Color32::GRAY));
         }
 
         job.wrap.max_width = wrap_width;

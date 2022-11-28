@@ -10,11 +10,27 @@ use eframe::egui::text_edit::TextEditState;
 use eframe::epaint::Shadow;
 
 use calculator::{Calculator, colorize_text, ColorSegment};
-pub use helpers::*;
+use helpers::*;
 
 use crate::Line;
 
 pub mod helpers;
+
+macro_rules! storable {
+    ($st:ident) => {
+        impl $st {
+            pub fn load(ctx: &Context, id: &str) -> $st {
+                ctx.data()
+                    .get_temp(Id::new(id))
+                    .unwrap_or_default()
+            }
+
+            pub fn store(self, ctx: &Context, id: &str) {
+                ctx.data().insert_temp(Id::new(id), self)
+            }
+        }
+    }
+}
 
 const LINE_PICKER_ID: &str = "line-picker-dialog";
 const FULL_SCREEN_PLOT_ID: &str = "full-screen-plot";
@@ -25,27 +41,31 @@ pub struct LinePickerDialogState {
     text: String,
 }
 
+storable!(LinePickerDialogState);
+
 pub struct LinePickerDialog<'a> {
     font_id: FontId,
     target_text_edit_id: Id,
     target_text_edit_text: &'a str,
 }
 
+pub fn dialog<R>(ctx: &Context, title: Option<&str>, add_contents: impl FnOnce(&mut Ui) -> R) -> R {
+    let response = Window::new(title.unwrap_or(""))
+        .title_bar(title.is_some())
+        .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+        .resizable(false)
+        .scroll2([false, false])
+        .collapsible(false)
+        .show(ctx, add_contents);
+
+    response.unwrap().inner.unwrap()
+}
+
 impl<'a> LinePickerDialog<'a> {
-    fn load_state(ctx: &Context) -> LinePickerDialogState {
-        ctx.data()
-            .get_temp(Id::new(LINE_PICKER_ID))
-            .unwrap_or_default()
-    }
-
-    fn store_state(ctx: &Context, state: LinePickerDialogState) {
-        ctx.data().insert_temp(Id::new(LINE_PICKER_ID), state);
-    }
-
     pub fn set_open(ctx: &Context, open: bool) {
-        let mut state = Self::load_state(ctx);
+        let mut state = LinePickerDialogState::load(ctx, LINE_PICKER_ID);
         state.is_open = open;
-        Self::store_state(ctx, state);
+        state.store(ctx, LINE_PICKER_ID);
     }
 
     pub fn new(
@@ -60,74 +80,68 @@ impl<'a> LinePickerDialog<'a> {
         }
     }
 
-    /// Returns whether something happened, and if something happened, whether a line as picked
-    pub fn show(&mut self, ctx: &Context) -> Option<bool> {
-        let mut state = Self::load_state(ctx);
+    /// Returns whether something happened (dialog close)
+    pub fn show(&mut self, ctx: &Context) -> bool {
+        let mut state = LinePickerDialogState::load(ctx, LINE_PICKER_ID);
 
-        let mut result: Option<bool> = None;
+        let mut result: bool = false;
         if state.is_open {
-            Window::new("Go to Line")
-                .title_bar(false)
-                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-                .resizable(false)
-                .scroll2([false, false])
-                .collapsible(false)
-                .show(ctx, |ui| {
-                    let output = TextEdit::singleline(&mut state.text)
-                        .hint_text("Go to Line")
-                        .font(FontSelection::from(self.font_id.clone()))
-                        .layouter(&mut |ui, str, wrap_width| {
-                            let job = text::LayoutJob::simple(
-                                str.into(),
-                                self.font_id.clone(),
-                                if str.parse::<usize>().is_ok() { Color32::GRAY } else { Color32::RED },
-                                wrap_width,
-                            );
-                            ui.fonts().layout_job(job)
-                        })
-                        .show(ui);
-                    output.response.request_focus();
+            dialog(ctx, None, |ui| {
+                let output = TextEdit::singleline(&mut state.text)
+                    .hint_text("Go to Line")
+                    .font(FontSelection::from(self.font_id.clone()))
+                    .layouter(&mut |ui, str, wrap_width| {
+                        let job = text::LayoutJob::simple(
+                            str.into(),
+                            self.font_id.clone(),
+                            if str.parse::<usize>().is_ok() { Color32::GRAY } else { Color32::RED },
+                            wrap_width,
+                        );
+                        ui.fonts().layout_job(job)
+                    })
+                    .show(ui);
+                output.response.request_focus();
 
-                    let events = {
-                        // avoid deadlock when loading TextEditState
-                        let res = ui.input().events.clone();
-                        res
-                    };
-                    for event in events {
-                        if let Event::Key { key, .. } = event {
-                            if key == Key::Escape {
-                                state.text = String::new();
-                                state.is_open = false;
-                                result = Some(false);
-                            } else if key == Key::Enter {
-                                let Ok(line_index) = state.text.parse::<usize>() else { return; };
+                let events = {
+                    // avoid deadlock when loading TextEditState
+                    let res = ui.input().events.clone();
+                    res
+                };
+                for event in events {
+                    if let Event::Key { key, .. } = event {
+                        if key == Key::Escape {
+                            state.text = String::new();
+                            state.is_open = false;
+                            result = true;
+                        } else if key == Key::Enter {
+                            let Ok(line_index) = state.text.parse::<usize>() else { return; };
 
-                                let Some(mut text_edit_state) = TextEditState::load(ctx, self.target_text_edit_id) else { return; };
-                                let Some(mut cursor_range) = text_edit_state.ccursor_range() else { return; };
+                            let Some(mut text_edit_state) = TextEditState::load(ctx, self.target_text_edit_id) else { return; };
+                            let Some(mut cursor_range) = text_edit_state.ccursor_range() else { return; };
 
-                                let mut index = 0usize;
-                                for (i, line) in self.target_text_edit_text.lines().enumerate() {
-                                    if i == line_index - 1 { break; }
-                                    index += line.len() + 1;
-                                }
-
-                                if cursor_range.primary == cursor_range.secondary {
-                                    cursor_range.secondary.index = index;
-                                }
-                                cursor_range.primary.index = index;
-                                text_edit_state.set_ccursor_range(Some(cursor_range));
-                                text_edit_state.store(ctx, self.target_text_edit_id);
-
-                                state.text = String::new();
-                                state.is_open = false;
-                                result = Some(true);
+                            let mut index = 0usize;
+                            for (i, line) in self.target_text_edit_text.lines().enumerate() {
+                                if i == line_index - 1 { break; }
+                                index += line.len() + 1;
                             }
+
+                            if cursor_range.primary == cursor_range.secondary {
+                                cursor_range.secondary.index = index;
+                            }
+                            cursor_range.primary.index = index;
+                            text_edit_state.set_ccursor_range(Some(cursor_range));
+                            text_edit_state.store(ctx, self.target_text_edit_id);
+
+                            state.text = String::new();
+                            state.is_open = false;
+                            result = true;
                         }
                     }
-                });
+                }
+            });
         }
 
-        Self::store_state(ctx, state);
+        state.store(ctx, LINE_PICKER_ID);
         result
     }
 }
@@ -137,6 +151,8 @@ struct FullScreenPlotState {
     is_full_screen: bool,
 }
 
+storable!(FullScreenPlotState);
+
 pub struct FullScreenPlot<'a> {
     full_size: Vec2,
     lines: &'a Vec<Line>,
@@ -144,24 +160,14 @@ pub struct FullScreenPlot<'a> {
 }
 
 impl<'a> FullScreenPlot<'a> {
-    fn load_state(ctx: &Context) -> FullScreenPlotState {
-        ctx.data()
-            .get_temp(Id::new(FULL_SCREEN_PLOT_ID))
-            .unwrap_or_default()
-    }
-
-    fn store_state(ctx: &Context, state: FullScreenPlotState) {
-        ctx.data().insert_temp(Id::new(FULL_SCREEN_PLOT_ID), state);
-    }
-
     pub fn set_fullscreen(ctx: &Context, fullscreen: bool) {
-        let mut state = Self::load_state(ctx);
+        let mut state = FullScreenPlotState::load(ctx, FULL_SCREEN_PLOT_ID);
         state.is_full_screen = fullscreen;
-        Self::store_state(ctx, state);
+        state.store(ctx, FULL_SCREEN_PLOT_ID);
     }
 
     pub fn is_fullscreen(ctx: &Context) -> bool {
-        Self::load_state(ctx).is_full_screen
+        FullScreenPlotState::load(ctx, FULL_SCREEN_PLOT_ID).is_full_screen
     }
 
     pub fn new(
@@ -177,11 +183,11 @@ impl<'a> FullScreenPlot<'a> {
     }
 
     pub fn maybe_show(&self, ctx: &Context) {
-        let mut state = Self::load_state(ctx);
+        let mut state = FullScreenPlotState::load(ctx, FULL_SCREEN_PLOT_ID);
 
         // if we're not in full, stop showing
         if !state.is_full_screen {
-            Self::store_state(ctx, state);
+            state.store(ctx, FULL_SCREEN_PLOT_ID);
             return;
         }
 
@@ -214,7 +220,7 @@ impl<'a> FullScreenPlot<'a> {
                 );
             });
 
-        Self::store_state(ctx, state);
+        state.store(ctx, FULL_SCREEN_PLOT_ID);
     }
 }
 
@@ -284,7 +290,7 @@ pub fn output_text(ui: &mut Ui, str: &str, font_id: FontId, index: usize) -> Res
     let index_str_width = index.len() as f32 * glyph_width;
 
     let (full_rect, response) = ui.allocate_exact_size(
-        vec2(ui.available_width() - index_str_width, galley.size().y), Sense::click());
+        vec2(ui.available_width(), galley.size().y), Sense::click());
 
     let index_rect = Rect::from_min_max(
         full_rect.left_top(),

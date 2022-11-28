@@ -126,6 +126,21 @@
     <!--Register Service Worker. this will cache the wasm / js scripts for offline use (for PWA functionality). -->
     <!-- Force refresh (Ctrl + F5) to load the latest files instead of cached files  -->
     <script>
+        // prevent the browser from handling some shortcuts
+        window.addEventListener("keydown", (e) => {
+            var isIOS = /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform);
+            var isModifierPressed = false;
+            if (isIOS) {
+                isModifierPressed = e.metaKey;
+            } else {
+                isModifierPressed = e.ctrlKey;
+            }
+
+            if ((e.key === "f" && isModifierPressed) || (e.key === "g" && isModifierPressed)) {
+                e.preventDefault();
+            }
+        });
+
         // We disable caching during development so that we always view the latest version.
         if ('serviceWorker' in navigator && window.location.hash !== "#dev") {
             window.addEventListener('load', function () {
