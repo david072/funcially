@@ -749,7 +749,11 @@ impl App<'_> {
                 self.search_state.occurrences.len()
             ));
 
-            if ui.small_button("X").clicked() { self.search_state.open = false; }
+            if ui.small_button("X").clicked() {
+                self.search_state.open = false;
+                self.input_should_request_focus = true;
+                self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+            }
 
             if self.search_state.should_have_focus {
                 output.response.request_focus();
