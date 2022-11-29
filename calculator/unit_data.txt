@@ -151,30 +151,31 @@
 
 # length / area
   m->mi: x / 1609.344                                           | np
-  m->ft: x * 3.281                                               | np
+  m->ft: x * 3.281                                              | np
   m->in: x * 39.37                                              | np
   m->yd: x * 1.094                                              | np
-  m->nmi: x / 1852.0                                            | n
+  m->nmi: x / 1852.0                                            | np
 
   ft->mi: x / 5280.0                                            | np
   ft->in: x * 12.0                                              | np
   ft->yd: x / 3.0                                               | np
-  ft->nmi: x / 6076.0                                           | n
+  ft->nmi: x / 6076.0                                           | np
 
   mi->in: x * 63360.0                                           | np
   mi->yd: x * 1760.0                                            | np
-  mi->nmi: x / 1.151                                            | n
+  mi->nmi: x / 1.151                                            | np
 
   in->yd: x / 36.0                                              | np
-  in->nmi: x / 72910.0                                          | n
+  in->nmi: x / 72910.0                                          | np
   
-  yd->nmi: x / 2025.0                                           | n
+  yd->nmi: x / 2025.0                                           | np
   
   a->m^2: x * 100.0                                             | n
   a->ft^2: x * 1076.0                                           | n
   a->mi^2: x / 25_900.0                                         | n
   a->in^2: x * 155_000.0                                        | n
   a->yd^2: x * 119.6                                            | n
+  a->nmi^2: x * 847.5                                           | n
   
 
 # volume
