@@ -20,6 +20,7 @@
   yd: Yard
   a: Are
   nmi: Nautical Mile
+  
 
 # volume
   l: Liter
@@ -27,6 +28,7 @@
   tbsp: Tablespoon
   floz: Fluid Ounce
   cup: Cup
+  
 
 # angle
    °: Degree
@@ -35,6 +37,7 @@
    ': Arcminute
    ": Arcsecond
    gon: Gon
+   
 
 # time
   s: Second
@@ -43,6 +46,7 @@
   d: Day
   mo: Month
   y: Year
+  
 
 # mass
   g: Gram
@@ -51,6 +55,7 @@
   u: Atomic mass unit
   oz: Ounce
   ct: carat
+  
 
 
 # pressure
@@ -68,7 +73,7 @@
 
 # energy
   cal: Calorie
-  J: Joule
+  J: Joule / Joule
   eV: Electronvolt
   erg: Erg
 
@@ -86,28 +91,29 @@
 # frequency
   Hz: Hertz / Hertz
   
+  
 # power
-  W: Watt / Watt
+  W: Watt
  
  
 # electric charge
-  C: Coulomb / Coulomb
+  C: Coulomb
  
  
 # electric potential
-  V: Volt / Volt
+  V: Volt
   
  
 # electric capacitance
-  F: Farad / Farad
+  F: Farad
   
   
 # resistance
-  Ohm: Ohm / Ohm
+  Ohm: Ohm
   
   
 # electrical conductance
-  S: Siemens
+  S: Siemens / Siemens
   
   
 # magnetic flux
@@ -119,15 +125,15 @@
   
   
 # inductance
-  H: Henry
+  H: Henry / Henries
   
   
 # luminous flux
-  lm: Lumen
+  lm: Lumen / Lumina
   
   
 # illuminance
-  lx: Lux
+  lx: Lux / Luxes
   
   
 # activity referred to a radionuclide
@@ -146,8 +152,8 @@
   kat: katal
   
   
-  
-----
+  ----
+
 
 # length / area
   m->mi: x / 1609.344                                           | np
