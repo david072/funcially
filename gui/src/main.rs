@@ -1038,17 +1038,25 @@ fn input_layouter(
             let mut offset = 0usize;
             let mut line_counter = 0usize;
 
-            for line in string.lines() {
+            'outer: for line in string.lines() {
                 if line_counter > lines.len() { break; }
 
                 let trimmed_line = line.trim();
-                if !trimmed_line.is_empty() && !trimmed_line.starts_with('#') {
-                    // NOTE: We use `Line::Empty`s to add spacing if the line spans multiple rows.
-                    //  We have to skip these lines here to get to the actual color segments.
-                    while matches!(lines.get(line_counter), Some(Line::Empty)) { line_counter += 1; }
+                if !trimmed_line.is_empty() {
+                    let segments = 'blk: {
+                        // If the line is a comment, we don't have color segments, however we might
+                        // have highlights, etc. in this line, so we just return an empty slice
+                        const EMPTY: &[ColorSegment] = &[];
+                        if trimmed_line.starts_with('#') { break 'blk EMPTY; }
 
-                    let Some(Line::Line { color_segments: segments, .. }) =
-                        lines.get(line_counter) else { break; };
+                        // NOTE: We use `Line::Empty`s to add spacing if the line spans multiple rows.
+                        //  We have to skip these lines here to get to the actual color segments.
+                        while matches!(lines.get(line_counter), Some(Line::Empty)) { line_counter += 1; }
+
+                        let Some(Line::Line { color_segments: segments, .. }) =
+                            lines.get(line_counter) else { break 'outer; };
+                        &segments[..]
+                    };
 
                     // We often add `offset` to numbers here. This is because we need to translate
                     // per-line indices to their respective index in `string` (the full text).
@@ -1090,8 +1098,8 @@ fn input_layouter(
                     ) {
                         let segment = segments.iter()
                             .find(|seg| {
-                                (seg.range.start..seg.range.end + 1)
-                                    .contains(&i_in_string)
+                                (seg.range.start..seg.range.end)
+                                    .contains(&(i_in_string - 1))
                             })
                             .map(|seg| {
                                 Color32::from_rgba_premultiplied(
@@ -1154,10 +1162,6 @@ fn input_layouter(
                         }
                         last_end = i_in_string;
                     }
-                }
-                else {
-                    job.sections.push(helpers::section(last_end..line.len() + offset, FONT_ID, Color32::GRAY));
-                    last_end = line.len() + offset;
                 }
 
                 offset += line.len() + 1;
