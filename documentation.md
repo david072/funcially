@@ -214,6 +214,12 @@ Units and unit prefixes are case-sensitive.
 
 | Prefix | Value |
 |--------|-------|
+| `y`    | 1e-24  |
+| `z`    | 1e-21  |
+| `a`    | 1e-18  |
+| `f`    | 1e-15  |
+| `p`    | 1e-12  |
+| `n`    | 1e-9  |
 | `m`    | 1e-3  |
 | `c`    | 1e-2  |
 | `d`    | 1e-1  |
@@ -222,6 +228,10 @@ Units and unit prefixes are case-sensitive.
 | `M`    | 1e6   |
 | `G`    | 1e9   |
 | `T`    | 1e12  |
+| `P`    | 1e15  |
+| `E`    | 1e18  |
+| `Z`    | 1e21  |
+| `Y`    | 1e24  |
 
 Unit prefixes can be used without a unit and thus act like a modifier (e.g. `3k = 3000`).
 
