@@ -1098,8 +1098,8 @@ fn input_layouter(
                     ) {
                         let segment = segments.iter()
                             .find(|seg| {
-                                (seg.range.start..seg.range.end + 1)
-                                    .contains(&i_in_string)
+                                (seg.range.start..seg.range.end)
+                                    .contains(&(i_in_string - 1))
                             })
                             .map(|seg| {
                                 Color32::from_rgba_premultiplied(
