@@ -190,6 +190,8 @@ impl Environment {
             args[i]
         };
 
+        let unit_0 = &arg_results[0].unit;
+
         match f {
             "sin" => Ok((as_radians(0).sin(), None)),
             "asin" => {
@@ -207,25 +209,25 @@ impl Environment {
             }
             "tan" => Ok((as_radians(0).tan(), None)),
             "atan" => Ok((args[0].atan(), Some(Unit::from("rad")))),
-            "ln" => Ok((args[0].ln(), None)),
+            "ln" => Ok((args[0].ln(), unit_0.clone())),
             "log" => Ok((if args[0] == 2.0 {
                 args[1].log2()
             } else if args[0] == 10.0 {
                 args[1].log10()
             } else {
                 args[1].log(args[0])
-            }, None)),
-            "sqrt" => Ok((args[0].sqrt(), None)),
-            "cbrt" => Ok((args[0].cbrt(), None)),
-            "root" => Ok((args[1].powf(1.0 / args[0]), None)),
-            "abs" => Ok((args[0].abs(), None)),
-            "floor" => Ok((args[0].floor(), None)),
-            "ceil" => Ok((args[0].ceil(), None)),
+            }, unit_0.clone())),
+            "sqrt" => Ok((args[0].sqrt(), unit_0.clone())),
+            "cbrt" => Ok((args[0].cbrt(), unit_0.clone())),
+            "root" => Ok((args[1].powf(1.0 / args[0]), unit_0.clone())),
+            "abs" => Ok((args[0].abs(), unit_0.clone())),
+            "floor" => Ok((args[0].floor(), unit_0.clone())),
+            "ceil" => Ok((args[0].ceil(), unit_0.clone())),
             "clamp" => {
                 if args[1] > args[2] {
                     return Err(ErrorType::Arg1GreaterThanArg2);
                 }
-                Ok((args[0].clamp(args[1], args[2]), None))
+                Ok((args[0].clamp(args[1], args[2]), unit_0.clone()))
             }
             "map" => {
                 let a1 = args[1];
@@ -234,7 +236,7 @@ impl Environment {
                 let b2 = args[4];
                 Ok(((args[0] - a1) * (b2 - a2) / (b1 - a1) + a2, None))
             }
-            "round" => Ok((args[0].round(), None)),
+            "round" => Ok((args[0].round(), unit_0.clone())),
             _ => Err(ErrorType::UnknownFunction(f.to_owned())),
         }
     }
