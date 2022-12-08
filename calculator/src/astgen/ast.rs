@@ -112,7 +112,7 @@ macro_rules! expect_args {
 
 macro_rules! expect_int {
     ($val:expr, $range:expr, $operator:expr) => {
-        expect_args!($val.fract() == 0.0, ExpectedInteger(format!("{:?}", $operator)), $range);
+        expect_args!($val.fract() == 0.0, ExpectedIntegerWithOperator(format!("{:?}", $operator)), $range);
     }
 }
 

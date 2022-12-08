@@ -12,7 +12,7 @@ use crate::FromPrimitive;
 
 const CRATE_NAME: &str = "funcially";
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum ErrorType {
     /// Not actually an error. Used when e.g.
     /// a variable needs a value, but will never be used.
@@ -53,6 +53,8 @@ pub enum ErrorType {
     UnknownFunction(String),
     #[error("Wrong number of arguments (expected {0} arguments)")]
     WrongNumberOfArguments(usize),
+    #[error("Wrong number of arguments (expected one of {0:?} arguments)")]
+    WrongNumberOfArgumentsMultiple(&'static [usize]),
     #[error("Expected unit")]
     ExpectedUnit,
     #[error("Unexpected unit")]
@@ -90,7 +92,9 @@ pub enum ErrorType {
     #[error("Cannot divide by zero")]
     DivideByZero,
     #[error("Expected integer for operator '{0}'")]
-    ExpectedInteger(String),
+    ExpectedIntegerWithOperator(String),
+    #[error("Expected an integer, found {0}")]
+    ExpectedInteger(f64),
     #[error("Expected percentage for 'of' operator")]
     ExpectedPercentage,
     #[error("Argument 1 must be less than argument 2")]

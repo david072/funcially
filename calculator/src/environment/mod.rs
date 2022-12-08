@@ -34,16 +34,31 @@ const VAR_TAU: &Variable = &Variable(TAU, None);
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Function(pub(crate) Vec<String>, pub(crate) Vec<AstNode>);
 
-const STANDARD_FUNCTIONS: [(&str, usize); 17] = [
-    ("sin", 1), ("asin", 1),
-    ("cos", 1), ("acos", 1),
-    ("tan", 1), ("atan", 1),
-    ("ln", 1), ("log", 2), // log arg2 to base arg1
-    ("sqrt", 1), ("cbrt", 1), ("root", 2), // root with "index" arg1 of arg2
-    ("abs", 1),
-    ("floor", 1), ("ceil", 1),
-    ("clamp", 3), ("map", 5), // map arg1 from range arg2..arg3 to range arg4..arg5
-    ("round", 1),
+#[derive(Debug)]
+pub(crate) enum ArgCount {
+    Single(usize),
+    Multiple(&'static [usize]),
+}
+
+impl ArgCount {
+    pub fn is_valid_count(&self, count: usize) -> bool {
+        match self {
+            Self::Single(n) => count == *n,
+            Self::Multiple(options) => options.contains(&count),
+        }
+    }
+}
+
+const STANDARD_FUNCTIONS: [(&str, ArgCount); 17] = [
+    ("sin", ArgCount::Single(1)), ("asin", ArgCount::Single(1)),
+    ("cos", ArgCount::Single(1)), ("acos", ArgCount::Single(1)),
+    ("tan", ArgCount::Single(1)), ("atan", ArgCount::Single(1)),
+    ("ln", ArgCount::Single(1)), ("log", ArgCount::Single(2)), // log arg2 to base arg1
+    ("sqrt", ArgCount::Single(1)), ("cbrt", ArgCount::Single(1)), ("root", ArgCount::Single(2)), // root with "index" arg1 of arg2
+    ("abs", ArgCount::Single(1)),
+    ("floor", ArgCount::Single(1)), ("ceil", ArgCount::Single(1)),
+    ("clamp", ArgCount::Single(3)), ("map", ArgCount::Single(5)), // map arg1 from range arg2..arg3 to range arg4..arg5
+    ("round", ArgCount::Multiple(&[1, 2])),
 ];
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -165,12 +180,12 @@ impl Environment {
         None
     }
 
-    pub(crate) fn function_argument_count(&self, name: &str) -> Option<usize> {
+    pub(crate) fn function_argument_count(&self, name: &str) -> Option<ArgCount> {
         for (f, arg_count) in STANDARD_FUNCTIONS {
             if f == name { return Some(arg_count); }
         }
         for (f, Function(args, _)) in &self.functions {
-            if f == name { return Some(args.len()); }
+            if f == name { return Some(ArgCount::Single(args.len())); }
         }
         None
     }
@@ -236,7 +251,18 @@ impl Environment {
                 let b2 = args[4];
                 Ok(((args[0] - a1) * (b2 - a2) / (b1 - a1) + a2, None))
             }
-            "round" => Ok((args[0].round(), unit_0.clone())),
+            "round" => {
+                let result = if let Some(decimal_places) = args.get(1) {
+                    if decimal_places.fract() != 0.0 {
+                        return Err(ErrorType::ExpectedInteger(*decimal_places));
+                    }
+                    let multiplier = 10.0f64.powf(*decimal_places);
+                    (args[0] * multiplier).round() / multiplier
+                } else {
+                    args[0].round()
+                };
+                Ok((result, unit_0.clone()))
+            }
             _ => Err(ErrorType::UnknownFunction(f.to_owned())),
         }
     }
