@@ -22,7 +22,7 @@ use environment::{
 };
 pub use environment::{Environment, Function};
 
-use crate::engine::Format;
+pub use crate::engine::Format;
 
 mod astgen;
 mod common;
@@ -82,6 +82,11 @@ pub enum ResultData {
         arg_count: usize,
         function: Function,
     },
+    Variable {
+        name: String,
+        value: f64,
+        unit: Option<String>,
+    },
 }
 
 pub struct CalculatorResult {
@@ -114,6 +119,13 @@ impl CalculatorResult {
     pub fn function(name: String, arg_count: usize, function: Function, segments: Vec<ColorSegment>) -> Self {
         Self {
             data: ResultData::Function { name, arg_count, function },
+            color_segments: segments,
+        }
+    }
+
+    pub fn variable(name: String, value: f64, unit: Option<String>, segments: Vec<ColorSegment>) -> Self {
+        Self {
+            data: ResultData::Variable { name, value, unit },
             color_segments: segments,
         }
     }
@@ -239,11 +251,7 @@ impl<'a> Calculator<'a> {
                 self.env_mut().set_ans_variable(Variable(result.result, result.unit.clone()));
 
                 let unit = result.unit.as_ref().map(|unit| {
-                    if result.is_long_unit {
-                        format!(" {}", unit.format(result.result != 1.0))
-                    } else {
-                        unit.to_string()
-                    }
+                    unit.format(result.is_long_unit, result.result != 1.0)
                 });
                 Ok(CalculatorResult::number(result.result, unit, result.format, color_segments))
             }
@@ -264,8 +272,17 @@ impl<'a> Calculator<'a> {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.env(), &self.currencies)?;
+                        let unit = res.unit.as_ref().map(|unit| {
+                            unit.format(res.is_long_unit, res.result != 1.0)
+                        });
+
                         self.env_mut().set_variable(&name, Variable(res.result, res.unit)).unwrap();
-                        Ok(CalculatorResult::nothing(color_segments))
+                        Ok(CalculatorResult::variable(
+                            name,
+                            res.result,
+                            unit,
+                            color_segments,
+                        ))
                     }
                     None => {
                         self.env_mut().remove_variable(&name).unwrap();
