@@ -1038,6 +1038,12 @@ fn input_layouter(
             let mut offset = 0usize;
             let mut line_counter = 0usize;
 
+            let verify_char_boundary = |i: usize| {
+                let mut i = i;
+                while !string.is_char_boundary(i) { i += 1; }
+                i
+            };
+
             'outer: for line in string.lines() {
                 if line_counter > lines.len() { break; }
 
@@ -1084,18 +1090,12 @@ fn input_layouter(
                             .chain(selection_preview_vec.iter())
                     };
 
-                    /// Adds a section. It finds out what color it needs to have, as well as whether
-                    /// the section needs to be highlighted by checking what ranges contain the
-                    /// given index.
-                    fn add_section(
-                        ui: &Ui,
-                        i_in_string: usize,
-                        segments: &[ColorSegment],
-                        highlighted_ranges: &[Range<usize>],
-                        selection_preview: &Option<Range<usize>>,
-                        job: &mut text::LayoutJob,
-                        last_end: usize,
-                    ) {
+                    // Adds a section. It finds out what color it needs to have, as well as whether
+                    // the section needs to be highlighted by checking what ranges contain the
+                    // given index.
+                    // NOTE: We pass last_end since the clojure would otherwise borrow it, causing
+                    //       issues further down
+                    let mut add_section = |i_in_string: usize, last_end: usize| {
                         let segment = segments.iter()
                             .find(|seg| {
                                 (seg.range.start..seg.range.end)
@@ -1118,6 +1118,9 @@ fn input_layouter(
                             .map(|range| range.contains(&(i_in_string - 1)))
                             .unwrap_or(false);
 
+                        let last_end = verify_char_boundary(last_end);
+                        let i_in_string = verify_char_boundary(i_in_string);
+
                         job.sections.push(text::LayoutSection {
                             leading_space: 0.0,
                             byte_range: last_end..i_in_string,
@@ -1135,7 +1138,7 @@ fn input_layouter(
                                 ..Default::default()
                             },
                         });
-                    }
+                    };
 
                     for i in 0..line.len() {
                         let i_in_string = i + offset;
@@ -1148,16 +1151,18 @@ fn input_layouter(
                         // if this that is at the end of a range, or we're at the start and have
                         // characters left to add (last_end is not here)
                         if is_end || is_start && last_end != i_in_string {
-                            add_section(ui, i_in_string, &segments, &highlighted_ranges, &selection_preview, &mut job, last_end);
+                            add_section(i_in_string, last_end);
                             last_end = i_in_string;
                         }
                     }
 
                     if last_end != line.len() {
                         let mut i_in_string = line.len() + offset;
-                        add_section(ui, i_in_string, &segments, &highlighted_ranges, &selection_preview, &mut job, last_end);
+                        add_section(i_in_string, last_end);
                         if i_in_string < string.len() {
-                            job.sections.push(helpers::section(i_in_string..i_in_string + 1, FONT_ID, Color32::GRAY));
+                            let start = verify_char_boundary(i_in_string);
+                            let end = verify_char_boundary(i_in_string + 1);
+                            job.sections.push(helpers::section(start..end, FONT_ID, Color32::GRAY));
                             i_in_string += 1;
                         }
                         last_end = i_in_string;
@@ -1169,6 +1174,7 @@ fn input_layouter(
             }
 
             if last_end != string.len() {
+                let last_end = verify_char_boundary(last_end);
                 job.sections.push(helpers::section(last_end..string.len(), FONT_ID, Color32::GRAY));
             }
         } else {
