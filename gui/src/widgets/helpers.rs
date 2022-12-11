@@ -18,6 +18,7 @@ pub struct SearchState {
     pub should_have_focus: bool,
     pub text: String,
     pub old_text: String,
+    pub match_case: bool,
     pub occurrences: Vec<Range<usize>>,
     pub selected_range: Option<usize>,
 }
@@ -35,7 +36,12 @@ impl SearchState {
         let text = self.text.trim();
         if text.is_empty() { return; }
 
-        self.occurrences = searched_text.match_indices(text)
+        let (searched_text, text) = if self.match_case {
+            (searched_text.to_string(), text.to_string())
+        } else {
+            (searched_text.to_lowercase(), text.to_lowercase())
+        };
+        self.occurrences = searched_text.match_indices(&text)
             .map(|(i, str)| i..i + str.len())
             .collect::<Vec<_>>();
     }
@@ -44,7 +50,7 @@ impl SearchState {
         if self.selected_range.is_none() { return; }
 
         if let Some(mut state) = TextEditState::load(ctx, Id::new(id)) {
-            let range = &self.occurrences[self.selected_range.unwrap()];
+            let Some(range) = self.occurrences.get(self.selected_range.unwrap()) else { return; };
             state.set_ccursor_range(Some(CCursorRange::two(
                 CCursor::new(range.start),
                 CCursor::new(range.end),

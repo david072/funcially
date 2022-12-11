@@ -721,53 +721,61 @@ impl App<'_> {
         }
     }
 
-    fn search_input(&mut self, ui: &mut Ui) {
-        if self.search_state.open {
-            let output = TextEdit::singleline(&mut self.search_state.text)
-                .font(FontSelection::from(FONT_ID))
-                .hint_text("Search")
-                .show(ui);
+    fn search_ui(&mut self, ui: &mut Ui) {
+        if !self.search_state.open { return; }
+        let output = TextEdit::singleline(&mut self.search_state.text)
+            .font(FontSelection::from(FONT_ID))
+            .hint_text("Search")
+            .show(ui);
 
-            self.search_state.update(&self.source);
+        ui.label(format!(
+            "{}/{}",
+            self.search_state.selected_range.map(|i| i + 1).unwrap_or_default(),
+            self.search_state.occurrences.len()
+        ));
 
-            ui.label(format!(
-                "{}/{}",
-                self.search_state.selected_range.map(|i| i + 1).unwrap_or_default(),
-                self.search_state.occurrences.len()
-            ));
+        let match_case_button = if self.search_state.match_case {
+            ui.button(RichText::new("Aa").strong().underline())
+        } else {
+            ui.small_button("Aa")
+        };
+        if match_case_button.on_hover_text("Match case").clicked() {
+            self.search_state.match_case = !self.search_state.match_case;
+        }
 
-            if ui.small_button("X").clicked() {
-                self.search_state.open = false;
-                self.input_should_request_focus = true;
-                self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+        self.search_state.update(&self.source);
+
+        if ui.small_button("X").clicked() {
+            self.search_state.open = false;
+            self.input_should_request_focus = true;
+            self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+        }
+
+        if self.search_state.should_have_focus {
+            output.response.request_focus();
+            self.search_state.should_have_focus = false;
+        }
+
+        if helpers::is_key_pressed(ui, Key::Escape) {
+            self.search_state.open = false;
+            self.search_state.should_have_focus = false;
+            self.input_should_request_focus = true;
+            self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+        } else if helpers::is_key_pressed(ui, Key::Enter) {
+            // TextEdit automatically looses focus when pressing enter, so we have to take it
+            // back
+            output.response.request_focus();
+            if helpers::is_key_pressed_fn(
+                ui,
+                |k, down, mods| *k == Key::Enter && down && mods.shift,
+            ) {
+                self.search_state.decrement_selected_range();
+            } else {
+                self.search_state.increment_selected_range();
             }
 
-            if self.search_state.should_have_focus {
-                output.response.request_focus();
-                self.search_state.should_have_focus = false;
-            }
-
-            if helpers::is_key_pressed(ui, Key::Escape) {
-                self.search_state.open = false;
-                self.search_state.should_have_focus = false;
-                self.input_should_request_focus = true;
+            if !self.search_state.occurrences.is_empty() {
                 self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
-            } else if helpers::is_key_pressed(ui, Key::Enter) {
-                // TextEdit automatically looses focus when pressing enter, so we have to take it
-                // back
-                output.response.request_focus();
-                if helpers::is_key_pressed_fn(
-                    ui,
-                    |k, down, mods| *k == Key::Enter && down && mods.shift,
-                ) {
-                    self.search_state.decrement_selected_range();
-                } else {
-                    self.search_state.increment_selected_range();
-                }
-
-                if !self.search_state.occurrences.is_empty() {
-                    self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
-                }
             }
         }
     }
@@ -879,7 +887,7 @@ impl eframe::App for App<'_> {
                 ui.set_enabled(self.is_ui_enabled);
 
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                    self.search_input(ui);
+                    self.search_ui(ui);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let bottom_text = RichText::new(&self.bottom_text)
                             .font(FontId::proportional(FOOTER_FONT_SIZE));
