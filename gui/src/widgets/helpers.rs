@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 
-use eframe::egui::{Color32, Context, FontId, Id, text, TextFormat};
+use eframe::egui::{Color32, Context, Event, FontId, Id, Key, Modifiers, text, TextFormat, Ui};
 use eframe::egui::text::{CCursor, CCursorRange};
 use eframe::egui::text_edit::TextEditState;
 
@@ -60,6 +60,19 @@ impl SearchState {
         );
     }
 
+    pub fn decrement_selected_range(&mut self) {
+        if self.occurrences.is_empty() { return; }
+        self.selected_range = Some(
+            self.selected_range.map(|i| {
+                if i == 0 {
+                    self.occurrences.len() - 1
+                } else {
+                    i - 1
+                }
+            }).unwrap_or_default()
+        );
+    }
+
     pub fn text_if_open(&self) -> Option<String> {
         if !self.open { return None; }
 
@@ -75,6 +88,30 @@ impl SearchState {
         if !self.open || self.occurrences.is_empty() { return None; }
         self.selected_range.map(|i| self.occurrences[i].clone())
     }
+}
+
+pub fn is_key_pressed(ui: &Ui, k: Key) -> bool {
+    ui.input().events.iter().any(|event| {
+        if let Event::Key { key, pressed, .. } = event {
+            if *key == k && *pressed {
+                return true;
+            }
+        }
+
+        false
+    })
+}
+
+pub fn is_key_pressed_fn<Checker: FnMut(&Key, bool, &Modifiers) -> bool>(ui: &Ui, mut checker: Checker) -> bool {
+    ui.input().events.iter().any(|event| {
+        if let Event::Key { key, pressed, modifiers, .. } = event {
+            if checker(key, *pressed, modifiers) {
+                return true;
+            }
+        }
+
+        false
+    })
 }
 
 pub fn section(range: Range<usize>, font_id: FontId, color: Color32) -> text::LayoutSection {

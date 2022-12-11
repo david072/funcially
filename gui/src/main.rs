@@ -712,14 +712,7 @@ impl App<'_> {
                         });
                     });
 
-                    if ctx.input().events.iter().any(|event| {
-                        if let Event::Key { key, .. } = event {
-                            if *key == Key::Escape {
-                                return true;
-                            }
-                        }
-                        false
-                    }) {
+                    if helpers::is_key_pressed(ui, Key::Escape) {
                         *show_new_version_dialog = false;
                         self.is_ui_enabled = true;
                     }
@@ -730,18 +723,6 @@ impl App<'_> {
 
     fn search_input(&mut self, ui: &mut Ui) {
         if self.search_state.open {
-            fn is_key_pressed(ui: &Ui, k: Key) -> bool {
-                ui.input().events.iter().any(|event| {
-                    if let Event::Key { key, pressed, .. } = event {
-                        if *key == k && *pressed {
-                            return true;
-                        }
-                    }
-
-                    false
-                })
-            }
-
             let output = TextEdit::singleline(&mut self.search_state.text)
                 .font(FontSelection::from(FONT_ID))
                 .hint_text("Search")
@@ -766,16 +747,23 @@ impl App<'_> {
                 self.search_state.should_have_focus = false;
             }
 
-            if is_key_pressed(ui, Key::Escape) {
+            if helpers::is_key_pressed(ui, Key::Escape) {
                 self.search_state.open = false;
                 self.search_state.should_have_focus = false;
                 self.input_should_request_focus = true;
                 self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
-            } else if is_key_pressed(ui, Key::Enter) {
+            } else if helpers::is_key_pressed(ui, Key::Enter) {
                 // TextEdit automatically looses focus when pressing enter, so we have to take it
                 // back
                 output.response.request_focus();
-                self.search_state.increment_selected_range();
+                if helpers::is_key_pressed_fn(
+                    ui,
+                    |k, down, mods| *k == Key::Enter && down && mods.shift,
+                ) {
+                    self.search_state.decrement_selected_range();
+                } else {
+                    self.search_state.increment_selected_range();
+                }
 
                 if !self.search_state.occurrences.is_empty() {
                     self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
