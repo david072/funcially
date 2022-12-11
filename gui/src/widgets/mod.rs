@@ -350,18 +350,22 @@ pub fn output_text(ui: &mut Ui, str: &str, font_id: FontId, index: usize) -> Res
             show_copied_text = true;
         }
 
-        if galley_length >= text_max_rect.width() && response.hovered() {
+        let show_copied_label = ui.ctx().animate_bool_with_time(
+            response.id.with("__copied_text_anim"),
+            show_copied_text,
+            2.0,
+        ) != 0.0;
+
+        if (galley_length >= text_max_rect.width() && response.hovered()) || show_copied_label {
             show_tooltip_at(
                 ui.ctx(),
                 response.id.with("__out_tooltip"),
                 Some(full_rect.right_bottom()),
                 |ui| {
-                    ui.label(str);
-                    if ui.ctx().animate_bool_with_time(
-                        response.id.with("__copied_text_anim"),
-                        show_copied_text,
-                        2.0,
-                    ) != 0.0 {
+                    if galley_length >= text_max_rect.width() && response.hovered() {
+                        ui.label(str);
+                    }
+                    if show_copied_label {
                         ui.label("Copied!");
                     }
                 });
