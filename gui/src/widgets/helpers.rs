@@ -79,17 +79,6 @@ impl SearchState {
         );
     }
 
-    pub fn text_if_open(&self) -> Option<String> {
-        if !self.open { return None; }
-
-        let text = self.text.trim();
-        if text.is_empty() {
-            None
-        } else {
-            Some(text.to_string())
-        }
-    }
-
     pub fn selected_range_if_open(&self) -> Option<Range<usize>> {
         if !self.open || self.occurrences.is_empty() { return None; }
         self.selected_range.map(|i| self.occurrences[i].clone())
