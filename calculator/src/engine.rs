@@ -565,13 +565,13 @@ mod tests {
     fn print_full_unit() -> Result<()> {
         let res = eval!("1min")?;
         assert!(res.is_long_unit);
-        assert_eq!(res.unit.unwrap().format(false), "Minute");
+        assert_eq!(res.unit.unwrap().format(true, false), " Minute");
         let res = eval!("3m")?;
-        assert_eq!(res.unit.unwrap().format(true), "Meters");
+        assert_eq!(res.unit.unwrap().format(true, true), " Meters");
         let res = eval!("3km")?;
-        assert_eq!(res.unit.unwrap().format(true), "Kilometers");
+        assert_eq!(res.unit.unwrap().format(true, true), " Kilometers");
         let res = eval!("3km/h")?;
-        assert_eq!(res.unit.unwrap().format(true), "Kilometers per Hour");
+        assert_eq!(res.unit.unwrap().format(true, true), " Kilometers per Hour");
         Ok(())
     }
 

@@ -23,7 +23,7 @@ pub struct Unit(pub String, pub Option<String>);
 impl Unit {
     pub fn format(&self, full_unit: bool, plural: bool) -> String {
         if !full_unit {
-            return self.to_string();
+            self.to_string()
         }
         else {
             let mut result = " ".to_string();
