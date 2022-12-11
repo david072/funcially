@@ -941,7 +941,7 @@ impl eframe::App for App<'_> {
                         .desired_rows(rows)
                         .layouter(&mut input_layouter(
                             lines,
-                            self.search_state.text_if_open(),
+                            if self.search_state.open { Some(self.search_state.occurrences.clone()) } else { None },
                             self.search_state.selected_range_if_open(),
                         ))
                         .show(ui);
@@ -1019,7 +1019,7 @@ impl eframe::App for App<'_> {
 
 fn input_layouter(
     lines: &[Line],
-    highlighted_text: Option<String>,
+    highlighted_ranges: Option<Vec<Range<usize>>>,
     selection_preview: Option<Range<usize>>,
 ) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> + '_ {
     // we need a Vec to chain it to the other iterators in `iter_over_all_ranges()`
@@ -1028,6 +1028,7 @@ fn input_layouter(
     } else {
         vec![]
     };
+    let highlighted_ranges = highlighted_ranges.unwrap_or_default();
 
     move |ui, string, wrap_width| {
         let mut job = text::LayoutJob {
@@ -1077,14 +1078,6 @@ fn input_layouter(
                             seg
                         })
                         .collect::<Vec<_>>();
-                    let highlighted_ranges = if let Some(highlighted_text) = &highlighted_text {
-                        line
-                            .match_indices(highlighted_text)
-                            .map(|(i, matched)| i + offset..i + matched.len() + offset)
-                            .collect::<Vec<_>>()
-                    } else {
-                        Vec::new()
-                    };
 
                     let iter_over_all_ranges = || {
                         segments.iter().map(|s| &s.range)
