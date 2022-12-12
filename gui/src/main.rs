@@ -428,7 +428,7 @@ impl App<'_> {
     fn help_window(&mut self, ctx: &Context) {
         let is_help_open = &mut self.is_help_open;
         let color_segments = &mut self.cached_help_window_color_segments;
-        Window::new("Help")
+        Window::new("Help lelelelelelelele")
             .open(is_help_open)
             .vscroll(true)
             .hscroll(true)
