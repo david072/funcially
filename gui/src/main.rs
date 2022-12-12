@@ -725,7 +725,7 @@ impl App<'_> {
         if !self.search_state.open { return; }
         let output = TextEdit::singleline(&mut self.search_state.text)
             .font(FontSelection::from(FONT_ID))
-            .hint_text("Search")
+            .hint_text("Search now omg")
             .show(ui);
 
         ui.label(format!(
