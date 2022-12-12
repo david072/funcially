@@ -65,7 +65,7 @@ jobs:
           rm -rf pr${{ github.event.number }}
           mkdir pr${{ github.event.number }}
           mv ./gui/dist/* ./pr${{ github.event.number }}
-          git clean -f -d
+          git clean -f -d -x -e pr${{ github.event.number }}
           sudo chgrp -R $(id -g -n $(whoami)) ./.git/objects
           sudo chmod -R g+rws ./.git/objects
           git add --all .
