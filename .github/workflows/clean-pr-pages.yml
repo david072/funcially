@@ -14,6 +14,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Clean
         run: |
+          git fetch origin
           git checkout gh-pages
           rm -rf pr${{ github.event.number }}
           sudo chgrp -R $(id -g -n $(whoami)) ./.git/objects
