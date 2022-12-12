@@ -1,0 +1,23 @@
+name: Clean GitHub Pages Pull Request
+
+on:
+  pull_request:
+    types: [closed]
+    
+permissions:
+  contents: write
+  
+jobs:
+  clean-github-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Clean
+        run: |
+          git checkout gh-pages
+          rm -rf pr${{ github.event.number }}
+          sudo chgrp -R $(id -g -n $(whoami)) ./.git/objects
+          sudo chmod -R g+rws ./.git/objects
+          git add --all .
+          git commit -m "Remove pull request artifacts"
+          git push --force
