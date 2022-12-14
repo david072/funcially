@@ -66,9 +66,6 @@ fn main() {
                             println!("=> {}", if b { "True".green() } else { "False".red() });
                         }
                         ResultData::Function { .. } | ResultData::Nothing => {}
-                        ResultData::Variable { name, value, unit } => {
-                            println!("-> {name} = {value}{}", unit.unwrap_or_default());
-                        }
                     },
                     Err(error) => {
                         eprintln!("{}: {}", "Error".red(), error.error);

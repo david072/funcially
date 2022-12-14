@@ -16,7 +16,7 @@ use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 
-use calculator::{Calculator, Color, ColorSegment, Format, Function as CalcFn, ResultData, Verbosity};
+use calculator::{Calculator, Color, ColorSegment, Function as CalcFn, ResultData, Verbosity};
 
 use crate::widgets::*;
 
@@ -266,12 +266,6 @@ impl App<'_> {
                     ResultData::Function { name, arg_count, function: f } => {
                         function = Some(Function(name, arg_count, f));
                         String::new()
-                    }
-                    ResultData::Variable { name, value, unit } => {
-                        format!("{name} = {}{}",
-                                Format::Decimal.format(value, self.use_thousands_separator),
-                                unit.unwrap_or_default(),
-                        )
                     }
                     ResultData::Nothing => String::new(),
                 }

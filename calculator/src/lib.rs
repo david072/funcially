@@ -82,11 +82,6 @@ pub enum ResultData {
         arg_count: usize,
         function: Function,
     },
-    Variable {
-        name: String,
-        value: f64,
-        unit: Option<String>,
-    },
 }
 
 pub struct CalculatorResult {
@@ -119,13 +114,6 @@ impl CalculatorResult {
     pub fn function(name: String, arg_count: usize, function: Function, segments: Vec<ColorSegment>) -> Self {
         Self {
             data: ResultData::Function { name, arg_count, function },
-            color_segments: segments,
-        }
-    }
-
-    pub fn variable(name: String, value: f64, unit: Option<String>, segments: Vec<ColorSegment>) -> Self {
-        Self {
-            data: ResultData::Variable { name, value, unit },
             color_segments: segments,
         }
     }
@@ -277,10 +265,10 @@ impl<'a> Calculator<'a> {
                         });
 
                         self.env_mut().set_variable(&name, Variable(res.result, res.unit)).unwrap();
-                        Ok(CalculatorResult::variable(
-                            name,
+                        Ok(CalculatorResult::number(
                             res.result,
                             unit,
+                            Format::Decimal,
                             color_segments,
                         ))
                     }
