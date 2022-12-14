@@ -104,7 +104,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 }
 
 const NUMBERS: &str = "0123456789_";
-const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
 const HEXADECIMAL_CHARS: &str = "0123456789abcdefABCDEF_";
 const BINARY_DIGITS: &str = "01_";
 const WHITESPACE: &str = " \t\r\n";
