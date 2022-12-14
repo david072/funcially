@@ -194,7 +194,7 @@ impl<'a> FullScreenPlot<'a> {
         Window::new("__full_screen_plot_window")
             .title_bar(false)
             .frame(Frame {
-                stroke: Stroke::none(),
+                stroke: Stroke::NONE,
                 shadow: Shadow::default(),
                 rounding: Rounding::none(),
                 inner_margin: Margin::same(0.0),
@@ -334,7 +334,7 @@ pub fn output_text(ui: &mut Ui, str: &str, font_id: FontId, index: usize) -> Res
                         bg_rect,
                         0.5 * full_rect.height(),
                         Color32::GREEN,
-                        Stroke::none(),
+                        Stroke::NONE,
                     );
             }
         }

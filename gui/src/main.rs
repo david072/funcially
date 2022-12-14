@@ -26,13 +26,20 @@ mod widgets;
 const GITHUB_TAGS_URL: &str = "https://api.github.com/repos/david072/funcially/tags";
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const FONT_SIZE: f32 = 16.0;
+const FONT_SIZE: f32 = 14.0;
 const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
 const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
 
 const INPUT_TEXT_EDIT_ID: &str = "input-text-edit";
+
+const TOGGLE_COMMENTATION_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::N);
+const SURROUND_WITH_BRACKETS_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::B);
+const COPY_RESULT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::C);
+const FORMAT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::L);
+const LINE_PICKER_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::G);
+const SEARCH_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::F);
 
 #[cfg(feature = "experimental")]
 fn app_key() -> String {
@@ -510,48 +517,28 @@ impl App<'_> {
     }
 
     /// Handles shortcuts that modify what's inside the textedit => needs a cursor range
-    fn handle_text_edit_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
-        let mut copied_text = None;
-        for event in &ui.input().events {
-            if let Event::Key { key, pressed, modifiers } = event {
-                if !*pressed { continue; }
-                match key {
-                    Key::N if modifiers.command && modifiers.alt => self.toggle_commentation(cursor_range),
-                    Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
-                    Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
-                    _ => {}
-                }
-            }
+    fn handle_text_edit_shortcuts(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
+        if ui.input_mut().consume_shortcut(&TOGGLE_COMMENTATION_SHORTCUT) {
+            self.toggle_commentation(cursor_range);
         }
-
-        if let Some(copied) = copied_text {
-            ui.output().copied_text = copied;
+        if ui.input_mut().consume_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT) {
+            self.surround_selection_with_brackets(cursor_range);
+        }
+        if ui.input_mut().consume_shortcut(&COPY_RESULT_SHORTCUT) {
+            self.copy_result(ui, cursor_range);
         }
     }
 
     /// Handles shortcuts that are global => don't need a cursor range
     fn handle_shortcuts(&mut self, ui: &Ui) {
-        let mut set_line_picker_open = false;
-        for event in &ui.input().events {
-            if let Event::Key { key, pressed, modifiers } = event {
-                if !*pressed { continue; }
-                match key {
-                    Key::L if modifiers.command && modifiers.alt => self.format_source(),
-                    Key::G if modifiers.command => {
-                        self.is_ui_enabled = false;
-                        set_line_picker_open = true;
-                    }
-                    Key::F if modifiers.command => {
-                        self.search_state.open = true;
-                        self.search_state.should_have_focus = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        if set_line_picker_open {
+        if ui.input_mut().consume_shortcut(&FORMAT_SHORTCUT) { self.format_source(); }
+        if ui.input_mut().consume_shortcut(&LINE_PICKER_SHORTCUT) {
+            self.is_ui_enabled = false;
             LinePickerDialog::set_open(ui.ctx(), true);
+        }
+        if ui.input_mut().consume_shortcut(&SEARCH_SHORTCUT) {
+            self.search_state.open = true;
+            self.search_state.should_have_focus = true;
         }
     }
 
@@ -639,12 +626,10 @@ impl App<'_> {
         self.source = new_source;
     }
 
-    fn copy_result(&mut self, cursor_range: CursorRange, copied_text: &mut Option<String>) {
+    fn copy_result(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
         let line = cursor_range.primary.rcursor.row;
         if let Some(Line::Line { output_text, .. }) = self.lines.get(line) {
-            *copied_text = Some(output_text.to_owned());
-            // Taking the ui.output() lock here leads to a deadlock (if called from
-            // handle_shortcuts()), so we have to write it to the variable passed in.
+            ui.output().copied_text = output_text.to_string();
         }
     }
 
@@ -803,39 +788,42 @@ impl eframe::App for App<'_> {
             ui.set_enabled(self.is_ui_enabled);
 
             menu::bar(ui, |ui| {
-                let cmd_string = if matches!(std::env::consts::OS, "macos" | "ios") { "⌘" } else { "Ctrl" };
-                let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
-
                 ui.menu_button("Edit", |ui| {
-                    if shortcut_button(ui, "Surround selection with brackets", &shortcut("B")).clicked() {
+                    let shortcut = ui.ctx().format_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT);
+                    if shortcut_button(ui, "Surround selection with brackets", &shortcut).clicked() {
                         self.surround_selection_with_brackets(self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
+
+                    let shortcut = ui.ctx().format_shortcut(&TOGGLE_COMMENTATION_SHORTCUT);
+                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut).clicked() {
                         self.toggle_commentation(self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "Copy result", &shortcut("Shift+C")).clicked() {
-                        let mut copied_text = None;
-                        self.copy_result(self.input_text_cursor_range, &mut copied_text);
-                        if let Some(copied) = copied_text {
-                            ui.output().copied_text = copied;
-                        }
+
+                    let shortcut = ui.ctx().format_shortcut(&COPY_RESULT_SHORTCUT);
+                    if shortcut_button(ui, "Copy result", &shortcut).clicked() {
+                        self.copy_result(ui, self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "Format input", &shortcut("Shift+L")).clicked() {
+
+                    let shortcut = ui.ctx().format_shortcut(&FORMAT_SHORTCUT);
+                    if shortcut_button(ui, "Format input", &shortcut).clicked() {
                         self.format_source();
                         ui.close_menu();
                     }
                 });
 
                 ui.menu_button("Navigate", |ui| {
-                    if shortcut_button(ui, "Search", &shortcut("F")).clicked() {
+                    let shortcut = ui.ctx().format_shortcut(&SEARCH_SHORTCUT);
+                    if shortcut_button(ui, "Search", &shortcut).clicked() {
                         self.search_state.open = true;
                         self.search_state.should_have_focus = true;
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "Go to Line", &shortcut("G")).clicked() {
+
+                    let shortcut = ui.ctx().format_shortcut(&LINE_PICKER_SHORTCUT);
+                    if shortcut_button(ui, "Go to Line", &shortcut).clicked() {
                         LinePickerDialog::set_open(ctx, true);
                         self.is_ui_enabled = false;
                         ui.close_menu();
@@ -902,7 +890,8 @@ impl eframe::App for App<'_> {
         CentralPanel::default().show(ctx, |ui| {
             ui.set_enabled(self.is_ui_enabled);
 
-            let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y - FOOTER_FONT_SIZE) / FONT_SIZE) as usize;
+            // FIXME: Scroll bar is too long (potential issue in egui?)
+            let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y) / FONT_SIZE) as usize;
 
             ScrollArea::vertical().show(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
@@ -1119,7 +1108,7 @@ fn input_layouter(
                                 underline: if highlighted {
                                     Stroke::new(3.0, Color32::GOLD)
                                 } else {
-                                    Stroke::none()
+                                    Stroke::NONE
                                 },
                                 background: if is_selection_preview {
                                     ui.visuals().selection.bg_fill
