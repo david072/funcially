@@ -4,15 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use std::fmt::{Formatter, Display, Debug};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::Range;
+
 use crate::{
-    Format,
     common::*,
     environment::{
-        units::{convert, Unit},
         currencies::Currencies,
+        units::{convert, Unit},
     },
+    Format,
 };
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
@@ -137,6 +138,13 @@ impl AstNode {
             range: other.range.clone(),
             did_apply_modifiers: false,
         }
+    }
+
+    pub fn can_have_power_modifier(&self) -> bool {
+        matches!(self.data, AstNodeData::Literal(_)
+            | AstNodeData::FunctionInvocation(..)
+            | AstNodeData::VariableReference(..)
+            | AstNodeData::Group(..))
     }
 
     pub fn apply(&mut self, operator: &Self, rhs: &mut Self, currencies: &Currencies) -> Result<()> {

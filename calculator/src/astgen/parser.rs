@@ -603,6 +603,9 @@ impl<'a> Parser<'a> {
             } else if is_prefix(first) {
                 let power = get_prefix_power(first).unwrap();
                 if let Some(last) = last {
+                    if !last.can_have_power_modifier() {
+                        error!(ExpectedNumber(identifier.range));
+                    }
                     last.modifiers.push(AstNodeModifier::Power(power));
                 } else {
                     error!(ExpectedNumber(identifier.range));
