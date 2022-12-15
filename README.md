@@ -24,7 +24,7 @@ To update, run `rustup update stable`.
 
 1. Clone the project with `git clone https://github.com/david072/funcially`
 2. `cd funcially`
-3. Run the CLI version with `cargo run -p cli`, or the GUI version with `cargo run` / `cargo run -p gui`
+3. Run the GUI version with `cargo run` (`cargo run -p gui`) or the CLI version with `cargo run -p cli`.
 
 To pass arguments to the CLI, use `cargo run -p cli -- <args>`
 
@@ -38,3 +38,5 @@ To pass arguments to the CLI, use `cargo run -p cli -- <args>`
 
 You can contribute either by using the application and reporting issues and submitting feature requests,
 or by forking the project and working on it yourself.
+
+Take a look at our [Contributing Guidelines](https://github.com/david072/funcially/blob/main/CONTRIBUTING.md) for more detail about contributing!
