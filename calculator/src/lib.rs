@@ -342,8 +342,10 @@ impl<'a> Calculator<'a> {
                 if token.ty == TokenType::DecimalLiteral {
                     text = if text.contains('.') {
                         text.trim_matches('0').to_owned()
-                    } else {
+                    } else if text.len() > 1 {
                         text.trim_start_matches('0').to_owned()
+                    } else {
+                        text
                     };
 
                     if text.len() == 1 && text == "." {
