@@ -98,11 +98,15 @@ fn main() {
     tracing_wasm::set_as_global_default();
 
     let web_options = eframe::WebOptions::default();
-    eframe::start_web(
-        "the_canvas_id",
-        web_options,
-        Box::new(|cc| Box::new(App::new(cc))),
-    ).expect("Failed to start eframe");
+    wasm_bindgen_futures::spawn_local(async {
+        eframe::start_web(
+            "the_canvas_id",
+            web_options,
+            Box::new(|cc| Box::new(App::new(cc))),
+        )
+            .await
+            .expect("Failed to start eframe");
+    });
 }
 
 #[derive(Debug, serde::Deserialize)]

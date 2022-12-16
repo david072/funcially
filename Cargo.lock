@@ -1493,6 +1493,7 @@ dependencies = [
  "smol",
  "tracing-wasm",
  "version-compare",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
