@@ -378,6 +378,8 @@ impl<'a> Calculator<'a> {
                     } else if tokens[i - 1].ty.is_operator() || matches!(tokens[i - 1].ty,
                         TokenType::OpenBracket
                         | TokenType::Comma
+                        | TokenType::DefinitionSign
+                        | TokenType::EqualsSign
                     ) { // Check if we're a sign
                         if let Some(next) = tokens.get(i + 1) {
                             if next.ty.is_number() {
