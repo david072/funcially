@@ -109,7 +109,7 @@
   
   
 # resistance
-  Ohm: Ohm / Ohme
+  Ohm: Ohm
   
   
 # electrical conductance
