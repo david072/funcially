@@ -1,0 +1,73 @@
+name: GitHub Pages Pull Request
+
+on:
+  pull_request:
+    types: [opened, edited]
+    
+permissions:
+  contents: write
+  
+jobs:
+  build-github-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Checkout PR
+        uses: dawidd6/action-checkout-pr@v1
+        with:
+          pr: ${{ github.event.number }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions-ecosystem/action-get-latest-tag@v1.6.0
+        id: get-latest-tag
+        with:
+          semver_only: true
+      - uses: actions-ecosystem/action-bump-semver@v1
+        id: bump-semver
+        with:
+          current_version: ${{ steps.get-latest-tag.outputs.tag }}
+          level: patch
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Download and install Trunk binary
+        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
+      - name: Prepare Build
+        run: |
+          cargo install cargo-edit -f --no-default-features -F "set-version" &&
+          cd gui &&
+          cargo set-version "$(echo "${{ steps.bump-semver.outputs.new_version }}" | cut -c2-)-pr${{ github.event.number }}" &&
+          cd assets && 
+          mv -f ./experimental/* . &&
+          rm -rf ./experimental
+      - name: Build # build
+        # "${GITHUB_REPOSITORY#*/}" evaluates into the name of the repository
+        # using --public-url something will allow trunk to modify all the href paths like from favicon.ico to repo_name/favicon.ico .
+        # this is necessary for GitHub pages where the site is deployed to username.github.io/repo_name and all files must be requested
+        # relatively as eframe_template/favicon.ico. if we skip public-url option, the href paths will instead request username.github.io/favicon.ico which
+        # will obviously return error 404 not found.
+        run: cd gui && RUSTFLAGS=--cfg=web_sys_unstable_apis ../trunk build --features experimental --release --public-url "${GITHUB_REPOSITORY#*/}"
+      - name: Setup git
+        run: |
+          git config user.name "david072"
+          git config user.email "${{ secrets.EMAIL }}"
+      - name: Deploy
+        run: |
+          git restore .
+          git checkout gh-pages
+          rm -rf pr${{ github.event.number }}
+          mkdir pr${{ github.event.number }}
+          mv ./gui/dist/* ./pr${{ github.event.number }}
+          git clean -f -d -x -e pr${{ github.event.number }}
+          sudo chgrp -R $(id -g -n $(whoami)) ./.git/objects
+          sudo chmod -R g+rws ./.git/objects
+          git add --all .
+          git commit -m "Deployment from ${{ github.repository }}@${{ github.sha }}"
+          git push --force

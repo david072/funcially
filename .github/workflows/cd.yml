@@ -27,7 +27,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
-        run: cargo build --bin cli --release && cargo build --bin gui --release && cargo build --bin discord --release
+        run: cargo build -p cli --release && cargo build -p gui --release && cargo build -p discord --release
       - name: Rename
         run: mv ./target/release/cli ./target/release/cli-linux &&  mv ./target/release/gui ./target/release/gui-linux
       - name: Upload CLI
@@ -68,10 +68,10 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build CLI
-        run: cargo build --bin cli --release
+        run: cargo build -p cli --release
       - name: Build GUI (installer)
         run: |
-          cargo build --bin gui --release
+          cargo build -p gui --release
           ./WiX.*/tools/candle.exe -nologo -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
             -out "./funcially.wixobj" "gui/installers/wix/funcially.wxs"
           ./WiX.*/tools/light.exe -nologo -ext WixUIExtension -ext WixUtilExtension \
@@ -111,10 +111,10 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build CLI
-        run: cargo build --bin cli --release
+        run: cargo build -p cli --release
       - name: Build GUI (installer)
         run: |
-          cargo build --bin gui --release
+          cargo build -p gui --release
           mkdir ./gui/installers/macos/funcially.app/Contents/MacOS
           cp ./target/release/gui ./gui/installers/macos/funcially.app/Contents/MacOS/funcially
           hdiutil create funcially-${GITHUB_REF##*/}.dmg -volname funcially -srcfolder gui/installers/macos -ov

@@ -1,4 +1,7 @@
 [workspace]
+
+default-members = ["gui"]
+
 members = [
     "calculator",
     "cli",

@@ -21,18 +21,23 @@ use crate::{
 pub struct Unit(pub String, pub Option<String>);
 
 impl Unit {
-    pub fn format(&self, plural: bool) -> String {
-        let mut result = String::new();
-        let numerator = format_unit(&self.0, plural);
-        result += &numerator;
-
-        if let Some(denom) = &self.1 {
-            let denom = format_unit(denom, false);
-            result += " per ";
-            result += &denom;
+    pub fn format(&self, full_unit: bool, plural: bool) -> String {
+        if !full_unit {
+            self.to_string()
         }
+        else {
+            let mut result = " ".to_string();
+            let numerator = format_unit(&self.0, plural);
+            result += &numerator;
 
-        result
+            if let Some(denom) = &self.1 {
+                let denom = format_unit(denom, false);
+                result += " per ";
+                result += &denom;
+            }
+
+            result
+        }
     }
 }
 

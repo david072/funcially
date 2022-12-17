@@ -22,7 +22,7 @@ use environment::{
 };
 pub use environment::{Environment, Function};
 
-use crate::engine::Format;
+pub use crate::engine::Format;
 
 mod astgen;
 mod common;
@@ -239,11 +239,7 @@ impl<'a> Calculator<'a> {
                 self.env_mut().set_ans_variable(Variable(result.result, result.unit.clone()));
 
                 let unit = result.unit.as_ref().map(|unit| {
-                    if result.is_long_unit {
-                        format!(" {}", unit.format(result.result != 1.0))
-                    } else {
-                        unit.to_string()
-                    }
+                    unit.format(result.is_long_unit, result.result != 1.0)
                 });
                 Ok(CalculatorResult::number(result.result, unit, result.format, color_segments))
             }
@@ -264,8 +260,17 @@ impl<'a> Calculator<'a> {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.env(), &self.currencies)?;
+                        let unit = res.unit.as_ref().map(|unit| {
+                            unit.format(res.is_long_unit, res.result != 1.0)
+                        });
+
                         self.env_mut().set_variable(&name, Variable(res.result, res.unit)).unwrap();
-                        Ok(CalculatorResult::nothing(color_segments))
+                        Ok(CalculatorResult::number(
+                            res.result,
+                            unit,
+                            Format::Decimal,
+                            color_segments,
+                        ))
                     }
                     None => {
                         self.env_mut().remove_variable(&name).unwrap();
@@ -337,8 +342,10 @@ impl<'a> Calculator<'a> {
                 if token.ty == TokenType::DecimalLiteral {
                     text = if text.contains('.') {
                         text.trim_matches('0').to_owned()
-                    } else {
+                    } else if text.len() > 1 {
                         text.trim_start_matches('0').to_owned()
+                    } else {
+                        text
                     };
 
                     if text.len() == 1 && text == "." {
@@ -371,6 +378,8 @@ impl<'a> Calculator<'a> {
                     } else if tokens[i - 1].ty.is_operator() || matches!(tokens[i - 1].ty,
                         TokenType::OpenBracket
                         | TokenType::Comma
+                        | TokenType::DefinitionSign
+                        | TokenType::EqualsSign
                     ) { // Check if we're a sign
                         if let Some(next) = tokens.get(i + 1) {
                             if next.ty.is_number() {

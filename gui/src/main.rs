@@ -26,13 +26,20 @@ mod widgets;
 const GITHUB_TAGS_URL: &str = "https://api.github.com/repos/david072/funcially/tags";
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const FONT_SIZE: f32 = 16.0;
+const FONT_SIZE: f32 = 14.0;
 const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
 const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
 
 const INPUT_TEXT_EDIT_ID: &str = "input-text-edit";
+
+const TOGGLE_COMMENTATION_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::N);
+const SURROUND_WITH_BRACKETS_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::B);
+const COPY_RESULT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::C);
+const FORMAT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::L);
+const LINE_PICKER_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::G);
+const SEARCH_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::F);
 
 #[cfg(feature = "experimental")]
 fn app_key() -> String {
@@ -91,11 +98,15 @@ fn main() {
     tracing_wasm::set_as_global_default();
 
     let web_options = eframe::WebOptions::default();
-    eframe::start_web(
-        "the_canvas_id",
-        web_options,
-        Box::new(|cc| Box::new(App::new(cc))),
-    ).expect("Failed to start eframe");
+    wasm_bindgen_futures::spawn_local(async {
+        eframe::start_web(
+            "the_canvas_id",
+            web_options,
+            Box::new(|cc| Box::new(App::new(cc))),
+        )
+            .await
+            .expect("Failed to start eframe");
+    });
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -510,48 +521,28 @@ impl App<'_> {
     }
 
     /// Handles shortcuts that modify what's inside the textedit => needs a cursor range
-    fn handle_text_edit_shortcuts(&mut self, ui: &Ui, cursor_range: CursorRange) {
-        let mut copied_text = None;
-        for event in &ui.input().events {
-            if let Event::Key { key, pressed, modifiers } = event {
-                if !*pressed { continue; }
-                match key {
-                    Key::N if modifiers.command && modifiers.alt => self.toggle_commentation(cursor_range),
-                    Key::B if modifiers.command => self.surround_selection_with_brackets(cursor_range),
-                    Key::C if modifiers.command && modifiers.shift => self.copy_result(cursor_range, &mut copied_text),
-                    _ => {}
-                }
-            }
+    fn handle_text_edit_shortcuts(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
+        if ui.input_mut().consume_shortcut(&TOGGLE_COMMENTATION_SHORTCUT) {
+            self.toggle_commentation(cursor_range);
         }
-
-        if let Some(copied) = copied_text {
-            ui.output().copied_text = copied;
+        if ui.input_mut().consume_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT) {
+            self.surround_selection_with_brackets(cursor_range);
+        }
+        if ui.input_mut().consume_shortcut(&COPY_RESULT_SHORTCUT) {
+            self.copy_result(ui, cursor_range);
         }
     }
 
     /// Handles shortcuts that are global => don't need a cursor range
     fn handle_shortcuts(&mut self, ui: &Ui) {
-        let mut set_line_picker_open = false;
-        for event in &ui.input().events {
-            if let Event::Key { key, pressed, modifiers } = event {
-                if !*pressed { continue; }
-                match key {
-                    Key::L if modifiers.command && modifiers.alt => self.format_source(),
-                    Key::G if modifiers.command => {
-                        self.is_ui_enabled = false;
-                        set_line_picker_open = true;
-                    }
-                    Key::F if modifiers.command => {
-                        self.search_state.open = true;
-                        self.search_state.should_have_focus = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        if set_line_picker_open {
+        if ui.input_mut().consume_shortcut(&FORMAT_SHORTCUT) { self.format_source(); }
+        if ui.input_mut().consume_shortcut(&LINE_PICKER_SHORTCUT) {
+            self.is_ui_enabled = false;
             LinePickerDialog::set_open(ui.ctx(), true);
+        }
+        if ui.input_mut().consume_shortcut(&SEARCH_SHORTCUT) {
+            self.search_state.open = true;
+            self.search_state.should_have_focus = true;
         }
     }
 
@@ -639,12 +630,10 @@ impl App<'_> {
         self.source = new_source;
     }
 
-    fn copy_result(&mut self, cursor_range: CursorRange, copied_text: &mut Option<String>) {
+    fn copy_result(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
         let line = cursor_range.primary.rcursor.row;
         if let Some(Line::Line { output_text, .. }) = self.lines.get(line) {
-            *copied_text = Some(output_text.to_owned());
-            // Taking the ui.output() lock here leads to a deadlock (if called from
-            // handle_shortcuts()), so we have to write it to the variable passed in.
+            ui.output().copied_text = output_text.to_string();
         }
     }
 
@@ -706,14 +695,7 @@ impl App<'_> {
                         });
                     });
 
-                    if ctx.input().events.iter().any(|event| {
-                        if let Event::Key { key, .. } = event {
-                            if *key == Key::Escape {
-                                return true;
-                            }
-                        }
-                        false
-                    }) {
+                    if helpers::is_key_pressed(ui, Key::Escape) {
                         *show_new_version_dialog = false;
                         self.is_ui_enabled = true;
                     }
@@ -722,58 +704,61 @@ impl App<'_> {
         }
     }
 
-    fn search_input(&mut self, ui: &mut Ui) {
-        if self.search_state.open {
-            fn is_key_pressed(ui: &Ui, k: Key) -> bool {
-                ui.input().events.iter().any(|event| {
-                    if let Event::Key { key, pressed, .. } = event {
-                        if *key == k && *pressed {
-                            return true;
-                        }
-                    }
+    fn search_ui(&mut self, ui: &mut Ui) {
+        if !self.search_state.open { return; }
+        let output = TextEdit::singleline(&mut self.search_state.text)
+            .font(FontSelection::from(FONT_ID))
+            .hint_text("Search")
+            .show(ui);
 
-                    false
-                })
-            }
+        ui.label(format!(
+            "{}/{}",
+            self.search_state.selected_range.map(|i| i + 1).unwrap_or_default(),
+            self.search_state.occurrences.len()
+        ));
 
-            let output = TextEdit::singleline(&mut self.search_state.text)
-                .font(FontSelection::from(FONT_ID))
-                .hint_text("Search")
-                .show(ui);
+        let match_case_button = if self.search_state.match_case {
+            ui.button(RichText::new("Aa").strong().underline())
+        } else {
+            ui.small_button("Aa")
+        };
+        if match_case_button.on_hover_text("Match case").clicked() {
+            self.search_state.match_case = !self.search_state.match_case;
+        }
 
-            self.search_state.update(&self.source);
+        self.search_state.update(&self.source);
 
-            ui.label(format!(
-                "{}/{}",
-                self.search_state.selected_range.map(|i| i + 1).unwrap_or_default(),
-                self.search_state.occurrences.len()
-            ));
+        if ui.small_button("X").clicked() {
+            self.search_state.open = false;
+            self.input_should_request_focus = true;
+            self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+        }
 
-            if ui.small_button("X").clicked() {
-                self.search_state.open = false;
-                self.input_should_request_focus = true;
-                self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
-            }
+        if self.search_state.should_have_focus {
+            output.response.request_focus();
+            self.search_state.should_have_focus = false;
+        }
 
-            if self.search_state.should_have_focus {
-                output.response.request_focus();
-                self.search_state.should_have_focus = false;
-            }
-
-            if is_key_pressed(ui, Key::Escape) {
-                self.search_state.open = false;
-                self.search_state.should_have_focus = false;
-                self.input_should_request_focus = true;
-                self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
-            } else if is_key_pressed(ui, Key::Enter) {
-                // TextEdit automatically looses focus when pressing enter, so we have to take it
-                // back
-                output.response.request_focus();
+        if helpers::is_key_pressed(ui, Key::Escape) {
+            self.search_state.open = false;
+            self.search_state.should_have_focus = false;
+            self.input_should_request_focus = true;
+            self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
+        } else if helpers::is_key_pressed(ui, Key::Enter) {
+            // TextEdit automatically looses focus when pressing enter, so we have to take it
+            // back
+            output.response.request_focus();
+            if helpers::is_key_pressed_fn(
+                ui,
+                |k, down, mods| *k == Key::Enter && down && mods.shift,
+            ) {
+                self.search_state.decrement_selected_range();
+            } else {
                 self.search_state.increment_selected_range();
+            }
 
-                if !self.search_state.occurrences.is_empty() {
-                    self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
-                }
+            if !self.search_state.occurrences.is_empty() {
+                self.search_state.set_range_in_text_edit_state(ui.ctx(), INPUT_TEXT_EDIT_ID);
             }
         }
     }
@@ -807,39 +792,42 @@ impl eframe::App for App<'_> {
             ui.set_enabled(self.is_ui_enabled);
 
             menu::bar(ui, |ui| {
-                let cmd_string = if matches!(std::env::consts::OS, "macos" | "ios") { "⌘" } else { "Ctrl" };
-                let shortcut = |keys: &str| { format!("{cmd_string}+{keys}") };
-
                 ui.menu_button("Edit", |ui| {
-                    if shortcut_button(ui, "Surround selection with brackets", &shortcut("B")).clicked() {
+                    let shortcut = ui.ctx().format_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT);
+                    if shortcut_button(ui, "Surround selection with brackets", &shortcut).clicked() {
                         self.surround_selection_with_brackets(self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut("Alt+N")).clicked() {
+
+                    let shortcut = ui.ctx().format_shortcut(&TOGGLE_COMMENTATION_SHORTCUT);
+                    if shortcut_button(ui, "(Un)Comment selected lines", &shortcut).clicked() {
                         self.toggle_commentation(self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "Copy result", &shortcut("Shift+C")).clicked() {
-                        let mut copied_text = None;
-                        self.copy_result(self.input_text_cursor_range, &mut copied_text);
-                        if let Some(copied) = copied_text {
-                            ui.output().copied_text = copied;
-                        }
+
+                    let shortcut = ui.ctx().format_shortcut(&COPY_RESULT_SHORTCUT);
+                    if shortcut_button(ui, "Copy result", &shortcut).clicked() {
+                        self.copy_result(ui, self.input_text_cursor_range);
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "Format input", &shortcut("Shift+L")).clicked() {
+
+                    let shortcut = ui.ctx().format_shortcut(&FORMAT_SHORTCUT);
+                    if shortcut_button(ui, "Format input", &shortcut).clicked() {
                         self.format_source();
                         ui.close_menu();
                     }
                 });
 
                 ui.menu_button("Navigate", |ui| {
-                    if shortcut_button(ui, "Search", &shortcut("F")).clicked() {
+                    let shortcut = ui.ctx().format_shortcut(&SEARCH_SHORTCUT);
+                    if shortcut_button(ui, "Search", &shortcut).clicked() {
                         self.search_state.open = true;
                         self.search_state.should_have_focus = true;
                         ui.close_menu();
                     }
-                    if shortcut_button(ui, "Go to Line", &shortcut("G")).clicked() {
+
+                    let shortcut = ui.ctx().format_shortcut(&LINE_PICKER_SHORTCUT);
+                    if shortcut_button(ui, "Go to Line", &shortcut).clicked() {
                         LinePickerDialog::set_open(ctx, true);
                         self.is_ui_enabled = false;
                         ui.close_menu();
@@ -885,7 +873,7 @@ impl eframe::App for App<'_> {
                 ui.set_enabled(self.is_ui_enabled);
 
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                    self.search_input(ui);
+                    self.search_ui(ui);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let bottom_text = RichText::new(&self.bottom_text)
                             .font(FontId::proportional(FOOTER_FONT_SIZE));
@@ -906,7 +894,8 @@ impl eframe::App for App<'_> {
         CentralPanel::default().show(ctx, |ui| {
             ui.set_enabled(self.is_ui_enabled);
 
-            let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y - FOOTER_FONT_SIZE) / FONT_SIZE) as usize;
+            // FIXME: Scroll bar is too long (potential issue in egui?)
+            let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y) / FONT_SIZE) as usize;
 
             ScrollArea::vertical().show(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
@@ -939,7 +928,7 @@ impl eframe::App for App<'_> {
                         .desired_rows(rows)
                         .layouter(&mut input_layouter(
                             lines,
-                            self.search_state.text_if_open(),
+                            if self.search_state.open { Some(self.search_state.occurrences.clone()) } else { None },
                             self.search_state.selected_range_if_open(),
                         ))
                         .show(ui);
@@ -1017,7 +1006,7 @@ impl eframe::App for App<'_> {
 
 fn input_layouter(
     lines: &[Line],
-    highlighted_text: Option<String>,
+    highlighted_ranges: Option<Vec<Range<usize>>>,
     selection_preview: Option<Range<usize>>,
 ) -> impl FnMut(&Ui, &str, f32) -> Arc<Galley> + '_ {
     // we need a Vec to chain it to the other iterators in `iter_over_all_ranges()`
@@ -1026,6 +1015,7 @@ fn input_layouter(
     } else {
         vec![]
     };
+    let highlighted_ranges = highlighted_ranges.unwrap_or_default();
 
     move |ui, string, wrap_width| {
         let mut job = text::LayoutJob {
@@ -1037,6 +1027,12 @@ fn input_layouter(
             let mut last_end = 0usize;
             let mut offset = 0usize;
             let mut line_counter = 0usize;
+
+            let verify_char_boundary = |i: usize| {
+                let mut i = i;
+                while !string.is_char_boundary(i) { i += 1; }
+                i
+            };
 
             'outer: for line in string.lines() {
                 if line_counter > lines.len() { break; }
@@ -1069,14 +1065,6 @@ fn input_layouter(
                             seg
                         })
                         .collect::<Vec<_>>();
-                    let highlighted_ranges = if let Some(highlighted_text) = &highlighted_text {
-                        line
-                            .match_indices(highlighted_text)
-                            .map(|(i, matched)| i + offset..i + matched.len() + offset)
-                            .collect::<Vec<_>>()
-                    } else {
-                        Vec::new()
-                    };
 
                     let iter_over_all_ranges = || {
                         segments.iter().map(|s| &s.range)
@@ -1084,18 +1072,12 @@ fn input_layouter(
                             .chain(selection_preview_vec.iter())
                     };
 
-                    /// Adds a section. It finds out what color it needs to have, as well as whether
-                    /// the section needs to be highlighted by checking what ranges contain the
-                    /// given index.
-                    fn add_section(
-                        ui: &Ui,
-                        i_in_string: usize,
-                        segments: &[ColorSegment],
-                        highlighted_ranges: &[Range<usize>],
-                        selection_preview: &Option<Range<usize>>,
-                        job: &mut text::LayoutJob,
-                        last_end: usize,
-                    ) {
+                    // Adds a section. It finds out what color it needs to have, as well as whether
+                    // the section needs to be highlighted by checking what ranges contain the
+                    // given index.
+                    // NOTE: We pass last_end since the clojure would otherwise borrow it, causing
+                    //       issues further down
+                    let mut add_section = |i_in_string: usize, last_end: usize| {
                         let segment = segments.iter()
                             .find(|seg| {
                                 (seg.range.start..seg.range.end)
@@ -1118,6 +1100,9 @@ fn input_layouter(
                             .map(|range| range.contains(&(i_in_string - 1)))
                             .unwrap_or(false);
 
+                        let last_end = verify_char_boundary(last_end);
+                        let i_in_string = verify_char_boundary(i_in_string);
+
                         job.sections.push(text::LayoutSection {
                             leading_space: 0.0,
                             byte_range: last_end..i_in_string,
@@ -1127,7 +1112,7 @@ fn input_layouter(
                                 underline: if highlighted {
                                     Stroke::new(3.0, Color32::GOLD)
                                 } else {
-                                    Stroke::none()
+                                    Stroke::NONE
                                 },
                                 background: if is_selection_preview {
                                     ui.visuals().selection.bg_fill
@@ -1135,7 +1120,7 @@ fn input_layouter(
                                 ..Default::default()
                             },
                         });
-                    }
+                    };
 
                     for i in 0..line.len() {
                         let i_in_string = i + offset;
@@ -1148,16 +1133,18 @@ fn input_layouter(
                         // if this that is at the end of a range, or we're at the start and have
                         // characters left to add (last_end is not here)
                         if is_end || is_start && last_end != i_in_string {
-                            add_section(ui, i_in_string, &segments, &highlighted_ranges, &selection_preview, &mut job, last_end);
+                            add_section(i_in_string, last_end);
                             last_end = i_in_string;
                         }
                     }
 
                     if last_end != line.len() {
                         let mut i_in_string = line.len() + offset;
-                        add_section(ui, i_in_string, &segments, &highlighted_ranges, &selection_preview, &mut job, last_end);
+                        add_section(i_in_string, last_end);
                         if i_in_string < string.len() {
-                            job.sections.push(helpers::section(i_in_string..i_in_string + 1, FONT_ID, Color32::GRAY));
+                            let start = verify_char_boundary(i_in_string);
+                            let end = verify_char_boundary(i_in_string + 1);
+                            job.sections.push(helpers::section(start..end, FONT_ID, Color32::GRAY));
                             i_in_string += 1;
                         }
                         last_end = i_in_string;
@@ -1169,6 +1156,7 @@ fn input_layouter(
             }
 
             if last_end != string.len() {
+                let last_end = verify_char_boundary(last_end);
                 job.sections.push(helpers::section(last_end..string.len(), FONT_ID, Color32::GRAY));
             }
         } else {

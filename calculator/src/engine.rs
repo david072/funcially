@@ -399,7 +399,7 @@ impl<'a> Engine<'a> {
                 }
             };
             let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
-            new_node.unit = unit;
+            if new_node.unit.is_none() { new_node.unit = unit; }
             let _ = replace(node, new_node);
         }
 
@@ -418,7 +418,7 @@ impl<'a> Engine<'a> {
                 Err(ty) => return Err(ty.with(node.range.clone())),
             };
             let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
-            new_node.unit = unit.clone();
+            if new_node.unit.is_none() { new_node.unit = unit.clone(); }
             let _ = replace(node, new_node);
         }
 
@@ -435,7 +435,7 @@ impl<'a> Engine<'a> {
             let group_result = Self::evaluate(group_ast.clone(), self.env, self.currencies)?;
             // Construct Literal node with the evaluated result
             let mut new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
-            new_node.unit = group_result.unit;
+            if new_node.unit.is_none() { new_node.unit = group_result.unit; }
             let _ = replace(node, new_node);
         }
 
@@ -565,13 +565,13 @@ mod tests {
     fn print_full_unit() -> Result<()> {
         let res = eval!("1min")?;
         assert!(res.is_long_unit);
-        assert_eq!(res.unit.unwrap().format(false), "Minute");
+        assert_eq!(res.unit.unwrap().format(true, false), " Minute");
         let res = eval!("3m")?;
-        assert_eq!(res.unit.unwrap().format(true), "Meters");
+        assert_eq!(res.unit.unwrap().format(true, true), " Meters");
         let res = eval!("3km")?;
-        assert_eq!(res.unit.unwrap().format(true), "Kilometers");
+        assert_eq!(res.unit.unwrap().format(true, true), " Kilometers");
         let res = eval!("3km/h")?;
-        assert_eq!(res.unit.unwrap().format(true), "Kilometers per Hour");
+        assert_eq!(res.unit.unwrap().format(true, true), " Kilometers per Hour");
         Ok(())
     }
 

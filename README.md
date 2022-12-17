@@ -24,17 +24,19 @@ To update, run `rustup update stable`.
 
 1. Clone the project with `git clone https://github.com/david072/funcially`
 2. `cd funcially`
-3. Run the CLI version with `cargo run -p cli`, the GUI version with `cargo run -p gui`
+3. Run the GUI version with `cargo run` (`cargo run -p gui`) or the CLI version with `cargo run -p cli`.
 
-For the Discord Bot:
+To pass arguments to the CLI, use `cargo run -p cli -- <args>`
+
+### Discord Bot
 
 1. Create the file `.env` in the top level, and put `DISCORD_TOKEN=<your-bot-token>` into the
    file
 2. Run `cargo run -p discord`
 
-To pass arguments to the CLI, use `cargo run -p cli -- <args>`
-
 ## Contributing
 
 You can contribute either by using the application and reporting issues and submitting feature requests,
 or by forking the project and working on it yourself.
+
+Take a look at our [Contributing Guidelines](https://github.com/david072/funcially/blob/main/CONTRIBUTING.md) for more detail about contributing!

@@ -603,6 +603,12 @@ impl<'a> Parser<'a> {
             } else if is_prefix(first) {
                 let power = get_prefix_power(first).unwrap();
                 if let Some(last) = last {
+                    if matches!(self.last_token_ty, Some(TokenType::In)) {
+                        error!(ExpectedUnit(identifier.range));
+                    } else if !last.can_have_power_modifier() {
+                        error!(ExpectedNumber(identifier.range));
+                    }
+
                     last.modifiers.push(AstNodeModifier::Power(power));
                 } else {
                     error!(ExpectedNumber(identifier.range));
@@ -716,9 +722,15 @@ impl<'a> Parser<'a> {
         let name = identifier.text.clone();
 
         let function_args_count = self.env.function_argument_count(&name).unwrap();
-        if arguments.len() != function_args_count {
+        if !function_args_count.is_valid_count(arguments.len()) {
             let range = open_bracket.range.start..self.tokens[self.index - 1].range.end;
-            error_args!(WrongNumberOfArguments(range) function_args_count);
+            {
+                use crate::environment::ArgCount::*;
+                match function_args_count {
+                    Single(count) => error_args!(WrongNumberOfArguments(range) count),
+                    Multiple(options) => error_args!(WrongNumberOfArgumentsMultiple(range) options),
+                }
+            }
         }
 
         self.push_new_node(
