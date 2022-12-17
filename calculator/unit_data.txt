@@ -54,7 +54,7 @@
   t: Tonne
   u: Atomic mass unit
   oz: Ounce
-  ct: carat
+  ct: Carat
   
 
 
@@ -109,7 +109,7 @@
   
   
 # resistance
-  Ohm: Ohm
+  Ohm: Ohm / Ohme
   
   
 # electrical conductance
@@ -149,7 +149,7 @@
   
   
 # catalytic activity
-  kat: katal
+  kat: Katal
   
   
   ----
