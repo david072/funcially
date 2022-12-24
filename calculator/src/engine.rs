@@ -464,7 +464,7 @@ impl<'a> Engine<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse, ParserResult, tokenize};
+    use crate::{Parser, ParserResult, tokenize};
     use crate::common::Result;
 
     use super::*;
@@ -472,7 +472,7 @@ mod tests {
     macro_rules! eval {
         ($str:expr) => {
             Engine::evaluate(
-                if let ParserResult::Calculation(ast) = parse(&tokenize($str)?, &Environment::new())? { ast }
+                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new())? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Environment::new(),
                 &Currencies::none(),

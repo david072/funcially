@@ -51,8 +51,7 @@ impl TokenType {
     pub fn is_literal(&self) -> bool {
         matches!(self, Self::DecimalLiteral
             | Self::HexLiteral
-            | Self::BinaryLiteral
-            | Self::QuestionMark) // '?' has the same rules a literal
+            | Self::BinaryLiteral)
     }
 
     pub fn is_number(&self) -> bool {
@@ -73,8 +72,7 @@ impl TokenType {
             | Self::BitShiftRight
             | Self::Of
             | Self::In
-            | Self::Modulo
-            | Self::EqualsSign) // '=' has the same rules as an operator
+            | Self::Modulo)
     }
 
     pub fn is_format(&self) -> bool {
@@ -82,11 +80,17 @@ impl TokenType {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Token {
     pub ty: TokenType,
     pub text: String,
-    pub range: Range<usize>,
+    range: Range<usize>,
+}
+
+impl Token {
+    pub fn range(&self) -> Range<usize> {
+        self.range.clone()
+    }
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>> {

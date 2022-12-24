@@ -90,6 +90,10 @@ pub fn is_unit(str: &str) -> bool {
     UNITS.contains(&str) || is_currency(str)
 }
 
+pub fn is_unit_with_prefix(str: &str) -> bool {
+    is_unit(str) || (is_prefix(str.chars().next().unwrap()) && is_unit(&str[1..]))
+}
+
 pub fn is_prefix(c: char) -> bool {
     for (p, _) in PREFIXES {
         if p == c { return true; }

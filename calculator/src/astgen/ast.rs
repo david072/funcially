@@ -140,13 +140,6 @@ impl AstNode {
         }
     }
 
-    pub fn can_have_power_modifier(&self) -> bool {
-        matches!(self.data, AstNodeData::Literal(_)
-            | AstNodeData::FunctionInvocation(..)
-            | AstNodeData::VariableReference(..)
-            | AstNodeData::Group(..))
-    }
-
     pub fn apply(&mut self, operator: &Self, rhs: &mut Self, currencies: &Currencies) -> Result<()> {
         self.apply_modifiers()?;
         rhs.apply_modifiers()?;

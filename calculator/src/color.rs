@@ -40,13 +40,13 @@ impl ColorSegment {
                     let b = rng.gen::<u8>();
                     let color = Color::from_rgb(r, g, b);
 
-                    result.push(ColorSegment::new(token.range.clone(), color));
+                    result.push(ColorSegment::new(token.range(), color));
                     bracket_colors.push(color);
                     nesting += 1;
                 }
                 CloseBracket => {
                     let color = bracket_colors.pop().unwrap_or(Color::WHITE);
-                    result.push(ColorSegment::new(token.range.clone(), color));
+                    result.push(ColorSegment::new(token.range(), color));
 
                     if nesting > 0 {
                         nesting -= 1;
@@ -57,15 +57,15 @@ impl ColorSegment {
                 }
                 Divide if last_token.is_some() &&
                     last_token.as_ref().unwrap().0 == Identifier &&
-                    last_token.unwrap().1.end == token.range.start => {
+                    last_token.unwrap().1.end == token.range().start => {
                     result.push(
-                        ColorSegment::new(token.range.clone(), IDENTIFIER_COLOR)
+                        ColorSegment::new(token.range(), IDENTIFIER_COLOR)
                     );
                 }
                 _ => result.push(Self::from(token)),
             }
 
-            last_token = Some((token.ty, token.range.clone()));
+            last_token = Some((token.ty, token.range()));
         }
 
         result
@@ -73,7 +73,7 @@ impl ColorSegment {
 
     fn from(token: &Token) -> Self {
         let ty = &token.ty;
-        let color = if ty.is_literal() {
+        let color = if ty.is_literal() || *ty == QuestionMark {
             Color::KHAKI
         } else if ty.is_operator() {
             if *ty == EqualsSign {
@@ -93,7 +93,7 @@ impl ColorSegment {
         };
 
         ColorSegment {
-            range: token.range.clone(),
+            range: token.range(),
             color,
         }
     }

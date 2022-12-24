@@ -379,7 +379,7 @@ pub fn format_unit(unit: &str, plural: bool) -> String {
     }
 
     if is_currency(unit) {
-        if result.len() - 1 != 0 { result.push(' '); }
+        if !result.is_empty() { result.push(' '); }
         return result + unit;
     }
 

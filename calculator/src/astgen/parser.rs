@@ -1,58 +1,48 @@
-/*
- * Copyright (c) 2022, david072
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
-use std::mem;
 use std::ops::Range;
 
-use strum::IntoEnumIterator;
-
-use crate::{
-    astgen::ast::{AstNode, AstNodeData, AstNodeModifier, Operator},
-    astgen::tokenizer::{Token, TokenType},
-    common::*,
-    environment::{
-        Environment,
-        units::{get_prefix_power, is_prefix, is_unit, Unit},
-    },
-    Format,
-};
+use crate::{Environment, Format};
+use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, Operator};
+use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
+use crate::common::{ErrorType::*, ErrorType, Result};
+use crate::environment::ArgCount;
+use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
 
 macro_rules! error {
-    ($variant:ident($range:expr)) => {
-        return Err(ErrorType::$variant.with($range.clone()))
-    }
+    ($ty:ident: $range:expr) => {
+        return Err(ErrorType::$ty.with($range))
+    };
+    ($ty:ident($($arg:expr),+): $range:expr) => {
+        return Err(ErrorType::$ty($($arg),+).with($range))
+    };
 }
 
-macro_rules! error_args {
-    ($variant:ident($range:expr) $($arg:expr),*) => {
-        return Err(ErrorType::$variant($($arg),*).with($range.clone()))
-    }
-}
-
-macro_rules! remove_elems {
-    ($vec:ident, $clojure:tt) => {
-        while let Some(i) = $vec.iter().position($clojure) {
-            $vec.remove(i);
+macro_rules! parse_f64_radix {
+    ($text:expr, $radix:expr, $range:expr) => {
+        {
+            let Ok(int) = i64::from_str_radix(&$text[2..], $radix) else {
+                error!(InvalidNumber: $range);
+            };
+            int as f64
         }
     }
 }
 
-macro_rules! parse_f64_radix {
-    ($text:expr, $range:expr, $radix:expr) => {
-        (match i64::from_str_radix(&$text[2..], $radix) {
-            Ok(number) => number,
-            Err(_) => return Err(ErrorType::InvalidNumber.with($range.clone())),
-        }) as f64
+macro_rules! operator {
+    ($ty:ident) => {
+        AstNodeData::Operator(Operator::$ty)
     }
 }
 
-macro_rules! ok_operator {
-    ($variant:ident) => {
-        Ok(AstNodeData::Operator(Operator::$variant))
-    }
+fn is(token_type: TokenType) -> impl Fn(&TokenType) -> bool {
+    move |other| *other == token_type
+}
+
+fn any(types: &[TokenType]) -> impl Fn(&TokenType) -> bool + '_ {
+    |other| types.contains(other)
+}
+
+fn all() -> impl Fn(&TokenType) -> bool {
+    |_| true
 }
 
 pub enum ParserResult {
@@ -84,406 +74,471 @@ impl std::fmt::Display for ParserResult {
     }
 }
 
-pub fn parse(tokens: &[Token], env: &Environment) -> Result<ParserResult> {
-    let definition_signs = tokens.iter()
-        .enumerate()
-        .filter(|t| t.1.ty == TokenType::DefinitionSign)
-        .collect::<Vec<_>>();
-    if !definition_signs.is_empty() {
-        if definition_signs.len() > 1 {
-            return Err(ErrorType::UnexpectedDefinition.with(definition_signs[1].1.range.clone()));
-        }
-
-        let definition_sign_index = definition_signs[0].0;
-
-        let lhs = &tokens[0..definition_sign_index];
-        let rhs = &tokens[definition_sign_index + 1..];
-
-        return match parse_definition_identifier(lhs, env)? {
-            DefinitionIdentifier::Variable(name) => {
-                if definition_sign_index + 1 == tokens.len() {
-                    return Ok(ParserResult::VariableDefinition(name, None));
-                }
-
-                let mut parser = Parser::new(rhs, 1, env);
-                parser.identifier_being_defined = Some(name.clone());
-                let variable_ast = match parser.parse()? {
-                    ParserResult::Calculation(ast) => ast,
-                    res =>
-                        error_args!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end) res.to_string()),
-                };
-
-                Ok(ParserResult::VariableDefinition(name, Some(variable_ast)))
-            }
-            DefinitionIdentifier::Function(name, args) => {
-                if definition_sign_index + 1 == tokens.len() {
-                    return Ok(ParserResult::FunctionDefinition {
-                        name,
-                        args,
-                        ast: None,
-                    });
-                }
-
-                let mut parser = Parser::new(rhs, 1, env);
-                parser.extra_allowed_variables = Some(&args);
-                parser.identifier_being_defined = Some(name.clone());
-                let function_ast = match parser.parse()? {
-                    ParserResult::Calculation(ast) => ast,
-                    res =>
-                        error_args!(ExpectedExpression(lhs[0].range.start..lhs.last().unwrap().range.end) res.to_string()),
-                };
-                Ok(ParserResult::FunctionDefinition {
-                    name,
-                    args,
-                    ast: Some(function_ast),
-                })
-            }
-        };
-    }
-
-    let mut parser = Parser::new(tokens, 0, env);
-    let result = parser.parse()?;
-    Ok(result)
+#[derive(Debug, Clone)]
+pub struct QuestionMarkInfo {
+    is_in_lhs: bool,
+    variable: Option<(String, Range<usize>)>,
 }
 
-enum DefinitionIdentifier {
-    Variable(String),
-    Function(String, Vec<String>),
-}
-
-fn parse_definition_identifier(tokens: &[Token], env: &Environment) -> Result<DefinitionIdentifier> {
-    if tokens.is_empty() {
-        error!(ExpectedElements(0..1));
-    } else if tokens[0].ty != TokenType::Identifier {
-        error!(ExpectedIdentifier(tokens[0].range));
-    }
-
-    let name = tokens[0].text.clone();
-    if env.is_standard_variable(&name) {
-        error_args!(ReservedVariable(tokens[0].range) name);
-    } else if env.is_standard_function(&name) {
-        error_args!(ReservedFunction(tokens[0].range) name);
-    }
-
-    if tokens.len() == 1 {
-        return Ok(DefinitionIdentifier::Variable(name));
-    }
-
-    // We're parsing a function!
-    if tokens[1].ty != TokenType::OpenBracket {
-        error!(ExpectedOpenBracket(tokens[1].range));
-    }
-
-    let mut args = Vec::new();
-    let mut last_token_ty: Option<TokenType> = None;
-
-    let mut i = 2usize;
-    for token in &tokens[2..] {
-        if let Some(ty) = last_token_ty {
-            match ty {
-                TokenType::Identifier => {
-                    if token.ty == TokenType::CloseBracket {
-                        break;
-                    } else if token.ty != TokenType::Comma {
-                        error!(ExpectedComma(token.range));
-                    }
-                }
-                TokenType::Comma => {
-                    if token.ty != TokenType::Identifier { error!(ExpectedIdentifier(token.range)); }
-                    if args.contains(&token.text) {
-                        error_args!(DuplicateArgument(token.range) token.text.to_owned());
-                    }
-                    args.push(token.text.clone());
-                }
-                _ => unreachable!(),
-            }
-        } else {
-            if token.ty != TokenType::Identifier {
-                error!(ExpectedIdentifier(token.range));
-            }
-
-            args.push(token.text.clone());
-        }
-
-        last_token_ty = Some(token.ty);
-        i += 1;
-    }
-
-    if i == tokens.len() || tokens[i].ty != TokenType::CloseBracket {
-        error!(MissingClosingBracket(tokens[1].range));
-    } else if i + 1 != tokens.len() {
-        error!(UnexpectedElements(tokens[i + 1].range.start..tokens.last().unwrap().range.end));
-    }
-
-    Ok(DefinitionIdentifier::Function(name, args))
-}
-
-struct Parser<'a> {
-    env: &'a Environment,
-    extra_allowed_variables: Option<&'a [String]>,
-    identifier_being_defined: Option<String>,
-
+pub struct Parser<'a> {
     tokens: &'a [Token],
-    nesting_level: usize,
-
-    equals_sign_index: Option<usize>,
-
-    question_mark_found: bool,
-    allow_question_mark: bool,
-    is_question_mark_in_lhs: bool,
-    question_mark_variable: Option<(String, Range<usize>)>,
-
     index: usize,
-    all_tokens_tys: Vec<TokenType>,
-    last_token_ty: Option<TokenType>,
-    next_token_modifiers: Vec<AstNodeModifier>,
-    result: Vec<AstNode>,
+    nesting_level: usize,
+    environment: &'a Environment,
+    extra_allowed_variables: Option<&'a [String]>,
+    allow_question_mark: bool,
+    question_mark: Option<QuestionMarkInfo>,
+    equals_sign_index: Option<usize>,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token], nesting_level: usize, env: &'a Environment) -> Parser<'a> {
-        Parser {
-            env,
-            extra_allowed_variables: None,
-            identifier_being_defined: None,
+    pub fn parse(tokens: &'a [Token], env: &'a Environment) -> Result<ParserResult> {
+        let mut parser = Parser::new(tokens, env, 0, true, None);
+        if let Some(name) = parser.try_accept_variable_definition_head() {
+            let name = name?;
+            let ast = parser.accept_definition_expression()?;
+            Ok(ParserResult::VariableDefinition(name, ast))
+        } else if let Some(result) = parser.try_accept_function_definition_head() {
+            let (name, args) = result?;
+
+            parser.set_extra_allowed_variables(&args);
+            let ast = parser.accept_definition_expression()?;
+
+            Ok(ParserResult::FunctionDefinition { name, args, ast })
+        } else {
+            parser.accept_expression()
+        }
+    }
+
+    pub fn new(
+        tokens: &'a [Token],
+        env: &'a Environment,
+        nesting_level: usize,
+        allow_question_mark: bool,
+        question_mark: Option<QuestionMarkInfo>,
+    ) -> Self {
+        Self {
             tokens,
-            nesting_level,
-            equals_sign_index: None,
-            question_mark_found: false,
-            allow_question_mark: true,
-            is_question_mark_in_lhs: true,
-            question_mark_variable: None,
             index: 0,
-            all_tokens_tys: TokenType::iter().collect(),
-            last_token_ty: None,
-            next_token_modifiers: Vec::new(),
-            result: Vec::new(),
-        }
-    }
-
-    pub fn from(other: &Parser<'a>, tokens: &'a [Token], allow_question_mark: bool) -> Parser<'a> {
-        Parser {
-            extra_allowed_variables: other.extra_allowed_variables,
-            identifier_being_defined: other.identifier_being_defined.clone(),
-            question_mark_found: other.question_mark_found,
-            question_mark_variable: other.question_mark_variable.clone(),
+            nesting_level,
+            environment: env,
+            extra_allowed_variables: None,
             allow_question_mark,
-            ..Parser::new(tokens, other.nesting_level + 1, other.env)
+            question_mark,
+            equals_sign_index: None,
         }
     }
 
-    pub fn parse(&mut self) -> Result<ParserResult> {
-        while self.next()? {}
+    pub fn set_extra_allowed_variables(&mut self, variables: &'a [String]) {
+        self.extra_allowed_variables = Some(variables);
+    }
 
-        if !self.next_token_modifiers.is_empty() {
-            return Err(ErrorType::ExpectedNumber.with(self.tokens.last().unwrap().range.clone()));
+    fn error_range_at_end(&self) -> Range<usize> {
+        let Some(last_range) = self.tokens.last().map(|token| token.range()) else {
+            return 0..1;
+        };
+        last_range.end - 1..last_range.end
+    }
+
+    fn accept<Predicate>(&mut self, predicate: Predicate, error_type: ErrorType) -> Result<&Token>
+        where Predicate: Fn(&TokenType) -> bool {
+        if self.index >= self.tokens.len() {
+            return Err(error_type.with(self.error_range_at_end()));
         }
 
-        let result = mem::take(&mut self.result);
+        let token = &self.tokens[self.index];
+        if predicate(&token.ty) {
+            self.index += 1;
+            Ok(token)
+        } else {
+            Err(error_type.with(token.range()))
+        }
+    }
+
+    fn try_accept<Predicate>(&mut self, predicate: Predicate) -> Option<&Token>
+        where Predicate: Fn(&TokenType) -> bool {
+        if self.index >= self.tokens.len() {
+            return None;
+        }
+
+        let token = &self.tokens[self.index];
+        if predicate(&token.ty) {
+            self.index += 1;
+            Some(token)
+        } else {
+            None
+        }
+    }
+
+    /// Get the next token, if it matches `predicate`
+    fn peek<Predicate>(&self, predicate: Predicate) -> Option<&Token>
+        where Predicate: Fn(&TokenType) -> bool {
+        if self.index >= self.tokens.len() {
+            return None;
+        }
+
+        let token = &self.tokens[self.index];
+        if predicate(&token.ty) {
+            Some(token)
+        } else {
+            None
+        }
+    }
+
+    fn try_accept_variable_definition_head(&mut self) -> Option<Result<String>> {
+        let identifier = self.try_accept(is(Identifier))?;
+        let identifier_range = identifier.range();
+        let name = identifier.text.clone();
+
+        if self.try_accept(is(DefinitionSign)).is_none() {
+            self.index = self.index.saturating_sub(2);
+            return None;
+        }
+
+        if self.environment.is_standard_variable(&name) {
+            return Some(Err(ReservedVariable(name).with(identifier_range)));
+        }
+
+        Some(Ok(name))
+    }
+
+    fn try_accept_function_definition_head(&mut self) -> Option<Result<(String, Vec<String>)>> {
+        // If there is no definition sign, we return immediately. This is needed, so that we can
+        // confidently emit errors in `accept_function_definition_head()`
+        self.tokens.iter().find(|token| token.ty == DefinitionSign)?;
+        Some(self.accept_function_definition_head())
+    }
+
+    fn accept_function_definition_head(&mut self) -> Result<(String, Vec<String>)> {
+        let identifier = self.accept(is(Identifier), ExpectedIdentifier)?;
+        let identifier_range = identifier.range();
+        let name = identifier.text.clone();
+
+        if self.environment.is_standard_function(&name) {
+            error!(ReservedFunction(name): identifier_range);
+        }
+
+        self.accept(is(OpenBracket), ExpectedOpenBracket)?;
+
+        let first_arg = self.accept(is(Identifier), ExpectedIdentifier)?.text.clone();
+        let mut args = vec![first_arg];
+
+        loop {
+            let next = self.accept(any(&[Comma, CloseBracket]), ExpectedComma)?;
+            match next.ty {
+                Comma => {
+                    let arg = self.accept(is(Identifier), ExpectedIdentifier)?;
+                    if args.contains(&arg.text) {
+                        error!(DuplicateArgument(arg.text.clone()): arg.range());
+                    }
+                    args.push(arg.text.clone());
+                }
+                CloseBracket => break,
+                _ => unreachable!(),
+            }
+        }
+
+        self.accept(is(DefinitionSign), UnexpectedElements)?;
+        Ok((name, args))
+    }
+
+    fn accept_definition_expression(&mut self) -> Result<Option<Vec<AstNode>>> {
+        let expr_start = self.index;
+        if expr_start >= self.tokens.len() {
+            Ok(None)
+        } else {
+            match self.accept_expression()? {
+                ParserResult::Calculation(ast) => Ok(Some(ast)),
+                res => {
+                    let range = self.tokens[expr_start].range().start..self.tokens.last().unwrap().range().end;
+                    error!(ExpectedExpression(res.to_string()): range)
+                }
+            }
+        }
+    }
+
+    fn accept_expression(&mut self) -> Result<ParserResult> {
+        let mut result = vec![];
+
+        result.push(self.accept_number()?);
+
+        while self.index < self.tokens.len() {
+            match self.accept_operator() {
+                Ok(op) => {
+                    let AstNodeData::Operator(operator) = op.data else { unreachable!(); };
+                    // RHS of `in` (unit / format)
+                    if operator == Operator::In {
+                        if let Some(unit) = self.try_accept_complex_unit() {
+                            let (unit, range) = unit?;
+                            result.push(op);
+                            result.push(AstNode::new(AstNodeData::Unit(unit), range));
+                            continue;
+                        } else if let Some(format) = self.try_accept(|ty| ty.is_format()) {
+                            let format = match format.ty {
+                                Decimal => Format::Decimal,
+                                Binary => Format::Binary,
+                                Hex => Format::Hex,
+                                Scientific => Format::Scientific,
+                                _ => unreachable!(),
+                            };
+                            result.last_mut().unwrap().format = format;
+                            continue;
+                        } else {
+                            let last = self.tokens.last().unwrap();
+                            let range = if last.ty == In {
+                                let range = last.range();
+                                range.end - 1..range.end
+                            } else {
+                                last.range()
+                            };
+                            error!(ExpectedUnit: range);
+                        };
+                    }
+
+                    result.push(op);
+                }
+                Err(error) => {
+                    // Try to infer multiplication
+                    if self.peek(any(&[OpenBracket, Identifier])).is_some() {
+                        result.push(AstNode::new(AstNodeData::Operator(Operator::Multiply), 0..1));
+                    } else if let Some(sign) = self.try_accept(is(EqualsSign)) {
+                        let range = sign.range();
+                        if self.nesting_level != 0 {
+                            error!(UnexpectedEqualsSign: range);
+                        } else if self.equals_sign_index.is_some() {
+                            error!(UnexpectedSecondEqualsSign: range);
+                        }
+
+                        self.equals_sign_index = Some(result.len());
+                    } else {
+                        return Err(error);
+                    }
+                }
+            }
+
+            result.push(self.accept_number()?);
+        }
+
         if let Some(index) = self.equals_sign_index {
             let (lhs, rhs) = result.split_at(index);
-
-            if self.question_mark_found {
+            if let Some(info) = std::mem::take(&mut self.question_mark) {
                 Ok(ParserResult::Equation {
                     lhs: lhs.to_vec(),
                     rhs: rhs.to_vec(),
-                    is_question_mark_in_lhs: self.is_question_mark_in_lhs,
-                    output_variable: self.question_mark_variable.clone(),
+                    is_question_mark_in_lhs: info.is_in_lhs,
+                    output_variable: info.variable,
                 })
             } else {
                 Ok(ParserResult::EqualityCheck(lhs.to_vec(), rhs.to_vec()))
             }
         } else {
-            if self.nesting_level == 0 && self.question_mark_found {
-                let range = &self.tokens.last().unwrap().range;
-                error!(MissingEqualsSign(range.end - 1 .. range.end));
+            if self.nesting_level == 0 && self.question_mark.is_some() {
+                let last = self.tokens.last().unwrap().range();
+                let range = last.end - 1..last.end;
+                error!(MissingEqualsSign: range);
             }
 
             Ok(ParserResult::Calculation(result))
         }
     }
 
-    pub fn next(&mut self) -> Result<bool> {
-        if self.index >= self.tokens.len() {
-            return Ok(false);
+    fn accept_number(&mut self) -> Result<AstNode> {
+        let mut modifiers = self.accept_prefix_modifiers();
+
+        let next = self.peek(all());
+        let mut number = match next.map(|token| token.ty) {
+            Some(ty) if ty.is_literal() => self.accept_literal()?,
+            Some(OpenBracket) => self.accept_group()?,
+            Some(CloseBracket) => error!(MissingOpeningBracket: next.unwrap().range()),
+            Some(Identifier) => self.accept_identifier()?,
+            Some(QuestionMark) => self.accept_question_mark()?,
+            Some(_) => error!(ExpectedNumber: next.unwrap().range()),
+            None => error!(ExpectedNumber: self.error_range_at_end()),
+        };
+
+        modifiers.append(&mut self.accept_suffix_modifiers());
+        number.modifiers.append(&mut modifiers);
+
+        if let Some(unit) = self.try_accept_complex_unit() {
+            let (unit, unit_range) = unit?;
+            number.unit = Some(unit);
+            number.range.end = unit_range.end;
+        } else if let Some(power) = self.try_accept_unit_prefix() {
+            number.modifiers.push(AstNodeModifier::Power(power));
         }
 
-        let token = &self.tokens[self.index];
-        self.index += 1;
+        if let Some(identifier) = self.peek(is(Identifier)) {
+            if identifier.text == "e" || identifier.text == "E" {
+                self.index += 1;
+                if let Ok(exponent) = self.accept_literal() {
+                    let range = number.range.clone();
+                    let group = vec![
+                        number,
+                        AstNode::new(AstNodeData::Operator(Operator::Multiply), range.clone()),
+                        AstNode::new(AstNodeData::Literal(10.0), range.clone()),
+                        AstNode::new(AstNodeData::Operator(Operator::Exponentiation), range.clone()),
+                        exponent,
+                    ];
 
-        self.verify_valid_token(token)?;
-
-        // Handle formats
-        if token.ty.is_format() {
-            self.result.remove(self.result.len() - 1);
-            self.result.last_mut().unwrap().format = Format::from(token.ty);
-            self.last_token_ty = Some(token.ty);
-            return Ok(true);
+                    return Ok(AstNode::new(AstNodeData::Group(group), range));
+                } else {
+                    // If this isn't a scientific notation (i.e. there is no exponent after the "e"),
+                    // revert back to pointing at the "e", so that it can be handled later.
+                    self.index -= 1;
+                }
+            }
         }
 
-        // Handle special tokens
-        match token.ty {
-            TokenType::ExclamationMark => {
-                return if let Some(last_ty) = self.last_token_ty {
-                    if !last_ty.is_operator() {
-                        // Exclamation mark is factorial
-                        let last_node = self.result.last_mut().unwrap();
-                        last_node.modifiers.push(AstNodeModifier::Factorial);
-                        Ok(true)
-                    } else {
-                        self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
-                        Ok(true)
-                    }
-                } else {
-                    self.next_token_modifiers.push(AstNodeModifier::BitwiseNot);
-                    Ok(true)
-                };
-            }
-            TokenType::PercentSign => {
-                let last_node = self.result.last_mut().unwrap();
-                last_node.modifiers.push(AstNodeModifier::Percent);
-                return Ok(true);
-            }
-            TokenType::Minus => {
-                if let Some(last_ty) = self.last_token_ty {
-                    if last_ty.is_operator() {
-                        self.next_token_modifiers.push(AstNodeModifier::Minus);
-                        return Ok(true);
-                    }
-                } else {
-                    self.next_token_modifiers.push(AstNodeModifier::Minus);
-                    return Ok(true);
-                }
-            }
-            TokenType::Plus => {
-                if let Some(last_ty) = self.last_token_ty {
-                    if last_ty.is_operator() {
-                        self.next_token_modifiers.push(AstNodeModifier::Plus);
-                        return Ok(true);
-                    }
-                } else {
-                    self.next_token_modifiers.push(AstNodeModifier::Plus);
-                    return Ok(true);
-                }
-            }
-            TokenType::OpenBracket => {
-                self.next_group(token)?;
-                self.last_token_ty = Some(token.ty);
-                return Ok(true);
-            }
-            TokenType::Identifier => {
-                // parse scientific notation (e.g. `1e3`)
-                if (token.text == "e" || token.text == "E") &&
-                    self.last_token_ty.map(|ty| ty.is_number()).unwrap_or(false) {
-                    if let Some(exponent) = self.tokens.get(self.index) {
-                        if exponent.ty.is_number() || matches!(exponent.ty, TokenType::Plus | TokenType::Minus) {
-                            // insert (<num1>) `* 10 ^` (<num2>)
-                            // (num1 already inserted; num2 will be handled in next iterations)
-                            let range = token.range.clone();
-                            self.push_new_node(AstNodeData::Operator(Operator::Multiply), range.clone());
-                            self.push_new_node(AstNodeData::Literal(10.0), range.clone());
-                            self.push_new_node(AstNodeData::Operator(Operator::Exponentiation), range);
-                            self.last_token_ty = Some(TokenType::Exponentiation);
-                            return Ok(true);
-                        }
-                    }
-                }
-
-                if let Some(Token { ty, .. }) = self.tokens.get(self.index) {
-                    if *ty == TokenType::QuestionMark {
-                        self.question_mark_variable = Some((token.text.clone(), token.range.clone()));
-                        return Ok(true);
-                    }
-                }
-
-                if let Some(ident) = &self.identifier_being_defined {
-                    if token.text == *ident {
-                        error!(CantUseIdentifierInDefinition(token.range));
-                    }
-                }
-
-                self.next_identifier(token)?;
-                self.last_token_ty = Some(token.ty);
-                return Ok(true);
-            }
-            TokenType::EqualsSign => {
-                if self.nesting_level != 0 {
-                    error!(UnexpectedEqualsSign(token.range));
-                } else if self.equals_sign_index.is_some() {
-                    error!(UnexpectedSecondEqualsSign(token.range));
-                }
-
-                self.equals_sign_index = Some(self.result.len());
-                self.last_token_ty = Some(token.ty);
-                return Ok(true);
-            }
-            _ => {}
-        }
-
-        self.last_token_ty = Some(token.ty);
-
-        let data = match token.ty {
-            TokenType::DecimalLiteral | TokenType::BinaryLiteral | TokenType::HexLiteral => {
-                let text = token.text.chars().filter(|c| *c != '_').collect::<String>();
-                match token.ty {
-                    TokenType::DecimalLiteral => {
-                        let number = match text.parse() {
-                            Ok(number) => number,
-                            Err(_) => error!(InvalidNumber(token.range)),
-                        };
-                        Ok(AstNodeData::Literal(number))
-                    }
-                    TokenType::HexLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(text, token.range, 16))),
-                    TokenType::BinaryLiteral => Ok(AstNodeData::Literal(parse_f64_radix!(text, token.range, 2))),
-                    _ => unreachable!(),
-                }
-            }
-            TokenType::Plus => ok_operator!(Plus),
-            TokenType::Minus => ok_operator!(Minus),
-            TokenType::Multiply => ok_operator!(Multiply),
-            TokenType::Divide => ok_operator!(Divide),
-            TokenType::Exponentiation => ok_operator!(Exponentiation),
-            TokenType::BitwiseAnd => ok_operator!(BitwiseAnd),
-            TokenType::BitwiseOr => ok_operator!(BitwiseOr),
-            TokenType::BitShiftLeft => ok_operator!(BitShiftLeft),
-            TokenType::BitShiftRight => ok_operator!(BitShiftRight),
-            TokenType::Of => ok_operator!(Of),
-            TokenType::In => ok_operator!(In),
-            TokenType::Modulo => ok_operator!(Modulo),
-            TokenType::DefinitionSign => error!(UnexpectedDefinition(token.range)),
-            TokenType::QuestionMark => {
-                if self.question_mark_found {
-                    error!(UnexpectedQuestionMark(token.range));
-                } else if !self.allow_question_mark {
-                    error!(QuestionMarkNotAllowed(token.range));
-                }
-
-                self.question_mark_found = true;
-                self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
-                Ok(AstNodeData::QuestionMark)
-            }
-            _ => unreachable!(),
-        }?;
-
-        let mut new_node = AstNode::new(data, token.range.clone());
-        new_node.modifiers = mem::take(&mut self.next_token_modifiers);
-        self.result.push(new_node);
-        Ok(true)
+        Ok(number)
     }
 
-    fn next_group(&mut self, open_bracket_token: &Token) -> Result<()> {
-        let mut nesting_level = 1usize;
+    fn accept_prefix_modifiers(&mut self) -> Vec<AstNodeModifier> {
+        let mut result = Vec::new();
+        while let Some(token) = self.try_accept(any(&[ExclamationMark, Plus, Minus])) {
+            let modifier = match token.ty {
+                ExclamationMark => AstNodeModifier::BitwiseNot,
+                Plus => AstNodeModifier::Plus,
+                Minus => AstNodeModifier::Minus,
+                _ => unreachable!(),
+            };
+            result.push(modifier);
+        }
+        result
+    }
 
-        let group_start = self.index;
-        let mut group_end: usize = 0;
-        while let Some(token) = self.tokens.get(self.index) {
+    fn accept_suffix_modifiers(&mut self) -> Vec<AstNodeModifier> {
+        let mut result = Vec::new();
+        while let Some(modifier) = self.try_accept(any(&[ExclamationMark, PercentSign])) {
+            let modifier = match modifier.ty {
+                ExclamationMark => AstNodeModifier::Factorial,
+                PercentSign => AstNodeModifier::Percent,
+                _ => unreachable!(),
+            };
+            result.push(modifier);
+        }
+        result
+    }
+
+    fn accept_literal(&mut self) -> Result<AstNode> {
+        let literal = self.accept(
+            |ty| ty.is_literal(),
+            ExpectedNumber,
+        )?;
+
+        let text = literal.text.chars().filter(|c| *c != '_').collect::<String>();
+        let data = match literal.ty {
+            DecimalLiteral => {
+                let Ok(number) = text.parse() else { error!(InvalidNumber: literal.range()); };
+                AstNodeData::Literal(number)
+            }
+            HexLiteral => AstNodeData::Literal(parse_f64_radix!(text, 16, literal.range())),
+            BinaryLiteral => AstNodeData::Literal(parse_f64_radix!(text, 2, literal.range())),
+            _ => unreachable!(),
+        };
+
+        Ok(AstNode::new(data, literal.range()))
+    }
+
+    fn accept_question_mark(&mut self) -> Result<AstNode> {
+        let token = self.accept(is(QuestionMark), ExpectedQuestionMark)?;
+        let range = token.range();
+        if self.question_mark.is_some() {
+            error!(UnexpectedQuestionMark: range);
+        } else if !self.allow_question_mark {
+            error!(QuestionMarkNotAllowed: range);
+        }
+
+        self.question_mark = Some(QuestionMarkInfo {
+            variable: None,
+            is_in_lhs: self.equals_sign_index.is_none(),
+        });
+        Ok(AstNode::new(AstNodeData::QuestionMark, range))
+    }
+
+    fn try_accept_unit_prefix(&mut self) -> Option<i32> {
+        let Some(prefix) = self.peek(is(Identifier)) else { return None; };
+        if prefix.text.len() > 1 { return None; }
+        let char = prefix.text.chars().next().unwrap();
+        if let Some(power) = get_prefix_power(char) {
             self.index += 1;
+            Some(power)
+        } else {
+            None
+        }
+    }
+
+    fn try_accept_complex_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
+        let Some(numerator) = self.accept_unit() else { return None; };
+        let (numerator, numerator_range) = match numerator {
+            Ok(v) => v,
+            Err(e) => return Some(Err(e)),
+        };
+
+        if self.peek(is(Divide)).is_some() {
+            self.index += 1;
+            if let Some(denominator) = self.accept_unit() {
+                return match denominator {
+                    Ok((denom, denominator_range)) => {
+                        Some(Ok((
+                            Unit(numerator, Some(denom)),
+                            numerator_range.start..denominator_range.end
+                        )))
+                    }
+                    Err(e) => Some(Err(e)),
+                };
+            } else {
+                self.index -= 1;
+            }
+        }
+
+        Some(Ok((Unit(numerator, None), numerator_range)))
+    }
+
+    fn accept_unit(&mut self) -> Option<Result<(String, Range<usize>)>> {
+        let Some(unit) = self.peek(is(Identifier)) else { return None; };
+        if !is_unit_with_prefix(&unit.text) { return None; }
+
+        let unit_range = unit.range();
+        let mut unit = unit.text.clone();
+        self.index += 1;
+
+        if let Some(exponentiation) = self.peek(is(Exponentiation)) {
+            if exponentiation.range().start == unit_range.end {
+                self.index += 1;
+                if let Ok(AstNode { data, range, .. }) = self.accept_literal() {
+                    unit += "^";
+                    let AstNodeData::Literal(number) = data else { unreachable!(); };
+                    unit += number.to_string().as_str();
+
+                    if !is_unit_with_prefix(&unit) {
+                        return Some(Err(UnknownIdentifier(unit).with(unit_range.start..range.end)));
+                    }
+                } else {
+                    self.index -= 1;
+                }
+            }
+        }
+
+        Some(Ok((unit, unit_range)))
+    }
+
+    fn accept_group(&mut self) -> Result<AstNode> {
+        let open_bracket_token = self.accept(is(OpenBracket), ExpectedOpenBracket)?;
+        let open_bracket_range = open_bracket_token.range();
+
+        let mut nesting_level = 1usize;
+        let group_start = self.index;
+        let mut group_end_index = 0usize;
+        let mut group_range_end = 0usize;
+        while self.index < self.tokens.len() {
+            let Some(token) = self.try_accept(all()) else { continue; };
             match token.ty {
-                TokenType::OpenBracket => nesting_level += 1,
-                TokenType::CloseBracket => {
+                OpenBracket => nesting_level += 1,
+                CloseBracket => {
                     nesting_level -= 1;
                     if nesting_level == 0 {
-                        group_end = self.index;
+                        group_range_end = token.range().end;
+                        group_end_index = self.index - 1;
                         break;
                     }
                 }
@@ -492,350 +547,189 @@ impl<'a> Parser<'a> {
         }
 
         if nesting_level != 0 {
-            error!(MissingClosingBracket(open_bracket_token.range));
+            error!(MissingClosingBracket: open_bracket_range);
         }
 
-        self.infer_multiplication(group_start..group_start + 1);
-
-        let group_range = group_start - 1..group_end;
-        if group_end - group_start <= 1 {
-            self.result.push(AstNode::new(AstNodeData::Literal(0.0), group_range));
-            return Ok(());
+        // The range of the group, including the brackets
+        let group_range = open_bracket_range.start..group_range_end;
+        if group_end_index - group_start < 1 {
+            return Ok(AstNode::new(AstNodeData::Literal(1.0), group_range));
         }
 
-        let group_tokens = &self.tokens[group_start..group_end - 1];
-
-        let mut parser = Parser::from(self, group_tokens, self.allow_question_mark);
-        let group_ast = match parser.parse()? {
+        let mut parser = Self::new(
+            &self.tokens[group_start..group_end_index],
+            self.environment,
+            self.nesting_level + 1,
+            self.allow_question_mark,
+            self.question_mark.clone(),
+        );
+        if let Some(vars) = self.extra_allowed_variables {
+            parser.set_extra_allowed_variables(vars);
+        }
+        let ast = match parser.accept_expression()? {
             ParserResult::Calculation(ast) => ast,
-            _ => unreachable!(),
+            _ => unreachable!(), // The sub-parser returns an error if there is e.g. an equals sign
         };
-
-        self.question_mark_found = parser.question_mark_found;
-        self.question_mark_variable = parser.question_mark_variable;
-        if parser.question_mark_found {
-            self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
-        }
-
-        self.push_new_node(AstNodeData::Group(group_ast), group_range);
-        Ok(())
+        Ok(AstNode::new(AstNodeData::Group(ast), group_range))
     }
 
-    fn next_identifier(&mut self, identifier: &Token) -> Result<()> {
-        match identifier.ty {
-            TokenType::Identifier => {
-                let multiplication_range = identifier.range.start..identifier.range.start + 1;
+    fn accept_identifier(&mut self) -> Result<AstNode> {
+        let identifier = self.accept(is(Identifier), ExpectedIdentifier)?;
+        let name = identifier.text.clone();
+        let range = identifier.range();
 
-                if self.env.is_valid_variable(&identifier.text) ||
-                    self.extra_allowed_variables.map_or(false, |vars| vars.contains(&identifier.text)) {
-                    self.infer_multiplication(multiplication_range);
-                    self.push_new_node(
-                        AstNodeData::VariableReference(identifier.text.clone()),
-                        identifier.range.clone(),
-                    );
-                    Ok(())
-                } else if self.env.is_valid_function(&identifier.text) {
-                    if self.index >= self.tokens.len() || !matches!(self.tokens[self.index].ty, TokenType::OpenBracket) {
-                        error!(MissingOpeningBracket(identifier.range.end - 1..identifier.range.end));
-                    }
-                    self.infer_multiplication(multiplication_range);
-                    self.next_function(identifier)?;
-                    Ok(())
-                } else {
-                    let unit = match self.parse_unit(identifier)? {
-                        Some(u) => u,
-                        None => {
-                            if matches!(self.last_token_ty, Some(TokenType::In)) {
-                                error!(ExpectedUnit(identifier.range));
-                            }
-                            return Ok(());
-                        }
-                    };
-
-                    let mut unit = Unit(unit, None);
-                    // Handle unit denominator (e.g. for "km/h")
-                    if self.tokens.len() >= 2 && self.index <= self.tokens.len() - 2 {
-                        let next = &self.tokens[self.index];
-
-                        if matches!(next.ty, TokenType::Divide) &&
-                            next.range.start == identifier.range.end {
-                            let second_unit_token = &self.tokens[self.index + 1];
-
-                            if second_unit_token.ty == TokenType::Identifier {
-                                if let Some(second_unit) = self.parse_unit(second_unit_token)? {
-                                    unit.1 = Some(second_unit);
-                                    self.index += 2;
-                                }
-                            }
-                        }
-                    }
-
-                    if matches!(self.last_token_ty, Some(TokenType::In)) {
-                        self.push_new_node(AstNodeData::Unit(unit), identifier.range.clone());
-                        return Ok(());
-                    }
-
-                    if !matches!(self.last_token_ty, Some(_)) || !self.last_token_ty.unwrap().is_number() {
-                        error!(ExpectedNumber(identifier.range));
-                    }
-
-                    let last = self.result.last_mut().unwrap();
-                    if last.unit.is_some() {
-                        error!(UnexpectedUnit(identifier.range));
-                    }
-
-                    last.unit = Some(unit);
-                    last.range.end = identifier.range.end;
-                    Ok(())
-                }
+        if self.environment.is_valid_variable(&name) ||
+            self.extra_allowed_variables.map_or(false, |vars| vars.contains(&name)) {
+            if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
+                return question_mark;
             }
-            _ => panic!("Must pass TokenType::Identifier to Parser::next_identifier()!"),
+            return Ok(AstNode::new(AstNodeData::VariableReference(name), range));
+        } else if self.environment.is_valid_function(&name) {
+            let arguments = self.accept_function_arguments(&name)?;
+            let close_bracket_range = self.tokens[self.index - 1].range();
+
+            return Ok(AstNode::new(
+                AstNodeData::FunctionInvocation(name, arguments),
+                range.start..close_bracket_range.end),
+            );
         }
+
+        if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
+            return question_mark;
+        }
+
+        error!(UnknownIdentifier(name): range)
     }
 
-    fn parse_unit(&mut self, identifier: &Token) -> Result<Option<String>> {
-        let last = self.result.last_mut();
-
-        let first = identifier.text.chars().next().unwrap();
-        let (mut unit, has_prefix) = if identifier.text.len() == 1 {
-            if is_unit(&identifier.text) {
-                (identifier.text.clone(), false)
-            } else if is_prefix(first) {
-                let power = get_prefix_power(first).unwrap();
-                if let Some(last) = last {
-                    if matches!(self.last_token_ty, Some(TokenType::In)) {
-                        error!(ExpectedUnit(identifier.range));
-                    } else if !last.can_have_power_modifier() {
-                        error!(ExpectedNumber(identifier.range));
-                    }
-
-                    last.modifiers.push(AstNodeModifier::Power(power));
-                } else {
-                    error!(ExpectedNumber(identifier.range));
-                }
-                return Ok(None);
-            } else {
-                error_args!(UnknownIdentifier(identifier.range) identifier.text.to_owned());
-            }
-        } else if is_unit(&identifier.text) {
-            (identifier.text.clone(), false)
-        } else if is_prefix(first) {
-            if !is_unit(&identifier.text[1..]) {
-                error_args!(UnknownIdentifier(identifier.range) identifier.text.to_owned());
-            }
-            (identifier.text.clone(), true)
-        } else {
-            error_args!(UnknownIdentifier(identifier.range) identifier.text.to_owned());
+    fn try_accept_question_mark_after_identifier(&mut self, identifier: &str, range: &Range<usize>) -> Option<Result<AstNode>> {
+        self.peek(is(QuestionMark))?;
+        let question_mark = match self.accept_question_mark() {
+            Ok(v) => v,
+            Err(e) => return Some(Err(e)),
         };
-
-        // Handle units with exponentiation (e.g. m^2 (square meters))
-        if self.tokens.len() >= 2 && self.index <= self.tokens.len() - 2 {
-            let next = &self.tokens[self.index];
-
-            if matches!(next.ty, TokenType::Exponentiation) &&
-                next.range.start == identifier.range.end {
-                let literal = &self.tokens[self.index + 1];
-                if !literal.ty.is_literal() {
-                    error_args!(UnknownIdentifier(identifier.range.start..next.range.end) format!("{}{}", identifier.text, next.text));
-                }
-
-                unit += &next.text;
-                unit += &literal.text;
-                if !is_unit(if has_prefix { &unit[1..] } else { &unit }) {
-                    error_args!(UnknownIdentifier(identifier.range.start..literal.range.end) unit);
-                }
-
-                self.index += 2;
-            }
+        if let Some(info) = self.question_mark.as_mut() {
+            info.variable = Some((identifier.to_string(), range.clone()));
         }
-
-        Ok(Some(unit))
+        Some(Ok(question_mark))
     }
 
-    fn next_function(&mut self, identifier: &Token) -> Result<()> {
-        if !self.env.is_valid_function(&identifier.text) {
-            error_args!(UnknownFunction(identifier.range) identifier.text.to_owned());
-        }
+    fn accept_function_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {
+        let open_bracket_token = self.accept(is(OpenBracket), MissingOpeningBracket)?;
+        let open_bracket_range = open_bracket_token.range();
 
-        let allow_question_mark_in_args = !self.env.is_standard_function(&identifier.text);
+        let mut arguments: Vec<&[Token]> = vec![];
 
-        let open_bracket = &self.tokens[self.index];
-        self.index += 1;
+        let mut range_end = 0usize;
 
-        let mut arguments: Vec<Vec<AstNode>> = Vec::new();
-        let mut argument_start = self.index;
-
-        let mut finished = false;
         let mut nesting_level = 1usize;
-
-        while let Some(token) = self.tokens.get(self.index) {
-            self.index += 1;
+        let mut argument_start = self.index;
+        while self.index < self.tokens.len() {
+            let Some(token) = self.try_accept(all()) else { continue; };
             match token.ty {
-                TokenType::Comma | TokenType::CloseBracket => {
-                    if token.ty == TokenType::Comma {
-                        if argument_start == self.index - 1 {
-                            error!(ExpectedElements(self.tokens[self.index - 1].range));
-                        }
+                OpenBracket => nesting_level += 1,
+                CloseBracket => {
+                    // Set range_end here, because otherwise the borrow checker complains because
+                    // we immutably borrowed `token`, and are now trying to mutably borrow
+                    // `self.index` and `self.tokens`.
+                    range_end = token.range().end;
 
-                        // Ignore commas if they're not on the base level
-                        if nesting_level != 1 { continue; }
-                    } else if token.ty == TokenType::CloseBracket {
-                        nesting_level -= 1;
-                        if nesting_level == 0 {
-                            finished = true;
-                            if argument_start == self.index - 1 { break; }
-                        } else if nesting_level != 0 {
-                            // Ignore brackets if they're not on the base level
-                            continue;
-                        }
+                    if argument_start == self.index - 1 {
+                        let range = self.tokens[argument_start].range().start..self.tokens[self.index - 1].range().end;
+                        error!(ExpectedElements: range);
                     }
-
                     let argument = &self.tokens[argument_start..self.index - 1];
+                    arguments.push(argument);
 
-                    let mut parser = Parser::from(self, argument, allow_question_mark_in_args);
-                    match parser.parse()? {
-                        ParserResult::Calculation(ast) => arguments.push(ast),
-                        res => error_args!(ExpectedExpression(argument[0].range.start..argument.last().unwrap().range.end) res.to_string()),
+                    nesting_level -= 1;
+                    if nesting_level == 0 {
+                        break;
                     }
-
-                    if allow_question_mark_in_args {
-                        self.question_mark_found = parser.question_mark_found;
-                        self.question_mark_variable = parser.question_mark_variable;
-                        if parser.question_mark_found {
-                            self.is_question_mark_in_lhs = self.equals_sign_index.is_none();
-                        }
-                    }
-
-                    if finished { break; }
-                    argument_start = self.index;
                 }
-                TokenType::OpenBracket => nesting_level += 1,
+                Comma => {
+                    if nesting_level == 1 {
+                        if argument_start == self.index - 1 {
+                            let range = self.tokens[argument_start].range().start..self.tokens[self.index - 1].range().end;
+                            error!(ExpectedElements: range);
+                        }
+                        let argument = &self.tokens[argument_start..self.index - 1];
+                        arguments.push(argument);
+                        argument_start = self.index;
+                    }
+                }
                 _ => {}
             }
         }
 
-        if !finished {
-            error!(MissingClosingBracket(open_bracket.range));
+        if nesting_level != 0 {
+            error!(MissingClosingBracket: open_bracket_range);
         }
 
-        let range = identifier.range.start..self.tokens[self.index - 1].range.end;
-        let name = identifier.text.clone();
+        let full_range = open_bracket_range.start..range_end;
 
-        let function_args_count = self.env.function_argument_count(&name).unwrap();
+        let function_args_count = self.environment.function_argument_count(function_name).unwrap();
         if !function_args_count.is_valid_count(arguments.len()) {
-            let range = open_bracket.range.start..self.tokens[self.index - 1].range.end;
-            {
-                use crate::environment::ArgCount::*;
-                match function_args_count {
-                    Single(count) => error_args!(WrongNumberOfArguments(range) count),
-                    Multiple(options) => error_args!(WrongNumberOfArgumentsMultiple(range) options),
-                }
+            match function_args_count {
+                ArgCount::Single(count) => error!(WrongNumberOfArguments(count): full_range),
+                ArgCount::Multiple(options) => error!(WrongNumberOfArgumentsMultiple(options): full_range),
             }
         }
 
-        self.push_new_node(
-            AstNodeData::FunctionInvocation(name, arguments),
-            range,
-        );
-        Ok(())
-    }
+        let allow_question_mark = !self.environment.is_standard_function(function_name);
 
-    fn push_new_node(&mut self, data: AstNodeData, range: Range<usize>) {
-        let mut new_node = AstNode::new(data, range);
-        new_node.modifiers = mem::take(&mut self.next_token_modifiers);
-        self.result.push(new_node);
-    }
-
-    fn infer_multiplication(&mut self, range: Range<usize>) {
-        if let Some(last_ty) = self.last_token_ty {
-            if last_ty.is_number() {
-                self.result.push(AstNode::new(
-                    AstNodeData::Operator(Operator::Multiply),
-                    range,
-                ));
+        let mut result = Vec::new();
+        for tokens in arguments {
+            let mut parser = Self::new(
+                tokens,
+                self.environment,
+                self.nesting_level + 1,
+                allow_question_mark,
+                self.question_mark.clone(),
+            );
+            if let Some(vars) = self.extra_allowed_variables {
+                parser.set_extra_allowed_variables(vars);
             }
-        }
-    }
-
-    fn verify_valid_token(&self, token: &Token) -> Result<()> {
-        if token.ty == TokenType::CloseBracket {
-            error!(MissingOpeningBracket(token.range));
-        } else if token.ty == TokenType::Comma {
-            error!(UnexpectedComma(token.range));
+            let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+            result.push(ast);
         }
 
-        let mut allowed_tokens = self.all_tokens_tys.clone();
+        Ok(result)
+    }
 
-        #[allow(unused_parens)]
-            let mut error_type = match self.last_token_ty {
-            Some(ty) => {
-                if ty != TokenType::In {
-                    remove_elems!(allowed_tokens, (|i| i.is_format()));
-                }
+    fn accept_operator(&mut self) -> Result<AstNode> {
+        let operator = self.accept(
+            |ty| ty.is_operator(),
+            ExpectedOperator,
+        )?;
 
-                if ty.is_number() {
-                    remove_elems!(allowed_tokens, (|i| i.is_literal()));
-                    ErrorType::ExpectedOperator
-                } else if ty.is_operator() {
-                    if ty == TokenType::In {
-                        remove_elems!(allowed_tokens, (|i| !i.is_format()));
-                        allowed_tokens.push(TokenType::Identifier);
-                        ErrorType::ExpectedFormat
-                    } else {
-                        remove_elems!(allowed_tokens, (|i| {
-                            (i.is_operator() && *i != TokenType::Minus && *i != TokenType::Plus)
-                            || *i == TokenType::PercentSign
-                        }));
-                        ErrorType::ExpectedNumber
-                    }
-                } else if ty.is_format() {
-                    remove_elems!(allowed_tokens, (|i| i.is_format() || !i.is_operator()));
-                    ErrorType::ExpectedOperator
-                } else {
-                    unreachable!()
-                }
-            }
-            None => {
-                remove_elems!(allowed_tokens, (|i| {
-                    (i.is_operator() && *i != TokenType::Minus && *i != TokenType::Plus) ||
-                    *i == TokenType::PercentSign || i.is_format()
-                }));
-                if token.ty.is_operator() || token.ty == TokenType::PercentSign {
-                    ErrorType::ExpectedNumber
-                } else if token.ty.is_format() {
-                    ErrorType::ExpectedIn
-                } else {
-                    ErrorType::Nothing
-                }
-            }
+        let data = match operator.ty {
+            Plus => operator!(Plus),
+            Minus => operator!(Minus),
+            Multiply => operator!(Multiply),
+            Divide => operator!(Divide),
+            Exponentiation => operator!(Exponentiation),
+            BitwiseAnd => operator!(BitwiseAnd),
+            BitwiseOr => operator!(BitwiseOr),
+            BitShiftLeft => operator!(BitShiftLeft),
+            BitShiftRight => operator!(BitShiftRight),
+            Of => operator!(Of),
+            In => operator!(In),
+            Modulo => operator!(Modulo),
+            _ => unreachable!(),
         };
 
-        #[allow(unused_parens)]
-        if self.last_token_ty.is_some() && self.index == self.tokens.len() {
-            remove_elems!(allowed_tokens, (|i| i.is_operator()));
-            if !token.ty.is_number() {
-                error_type = ErrorType::ExpectedNumber;
-            }
-        }
-
-        if !allowed_tokens.contains(&token.ty) {
-            return Err(error_type.with(token.range.clone()));
-        }
-
-        Ok(())
+        Ok(AstNode::new(data, operator.range()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::astgen::tokenizer::tokenize;
-    use crate::common::ErrorType::*;
 
     use super::*;
 
     macro_rules! parse {
         ($input:expr) => {
-            parse(&tokenize($input)?, &Environment::new())
+            Parser::parse(&tokenize($input)?, &Environment::new())
         }
     }
 
@@ -1083,6 +977,9 @@ mod tests {
     #[test]
     fn scientific_notation() -> Result<()> {
         let ast = calculation!("1e2");
+        assert_eq!(ast.len(), 1);
+        assert!(matches!(ast[0].data, AstNodeData::Group(_)));
+        let AstNodeData::Group(ast) = &ast[0].data else { unreachable!(); };
         assert_eq!(ast.len(), 5); // 1 * 10 ^ 2
         assert!(matches!(ast[0].data, AstNodeData::Literal(_)));
         assert!(matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));

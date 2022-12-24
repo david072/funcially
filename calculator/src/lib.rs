@@ -9,7 +9,7 @@ use std::fmt::Write;
 use rust_decimal::prelude::*;
 
 use astgen::{
-    parser::{parse, ParserResult},
+    parser::Parser,
     tokenizer::{tokenize, TokenType},
 };
 pub use color::{Color, ColorSegment};
@@ -21,6 +21,7 @@ use environment::{
     Variable,
 };
 pub use environment::{Environment, Function};
+use crate::astgen::parser::ParserResult;
 
 pub use crate::engine::Format;
 
@@ -227,7 +228,7 @@ impl<'a> Calculator<'a> {
 
         let color_segments = ColorSegment::all(&tokens);
 
-        match parse(&tokens, self.env_mut())? {
+        match Parser::parse(&tokens, self.env())? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
@@ -436,7 +437,7 @@ impl<'a> Calculator<'a> {
         let environment = self.env();
 
         if verbosity == Verbosity::Ast {
-            match parse(&tokens, environment) {
+            match Parser::parse(&tokens, environment) {
                 Ok(parser_result) => match parser_result {
                     ParserResult::Calculation(ast) => {
                         writeln_or_err!(&mut output, "AST:");
