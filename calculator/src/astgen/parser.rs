@@ -258,11 +258,57 @@ impl<'a> Parser<'a> {
     }
 
     fn accept_expression(&mut self) -> Result<ParserResult> {
-        let mut result = vec![];
+        let mut group_stack: Vec<(Vec<AstNode>, Range<usize>)> = vec![(vec![], Range::default())];
 
-        result.push(self.accept_number()?);
+        /// Helper to get the current AST
+        macro_rules! ast {
+            () => { group_stack.last_mut().unwrap().0 }
+        }
+
+        // If there is a close bracket at the beginning of the line, it is an error
+        if let Some(close_bracket) = self.try_accept(is(CloseBracket)) {
+            error!(MissingOpeningBracket: close_bracket.range());
+        }
+
+        // Accept opening brackets at the beginning of the line
+        while self.index < self.tokens.len() {
+            if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
+                group_stack.push((vec![], open_bracket.range()));
+                self.nesting_level += 1;
+            } else {
+                break;
+            }
+        }
+
+        if self.index >= self.tokens.len() && group_stack.len() > 1 {
+            error!(MissingClosingBracket: group_stack.last().unwrap().1.clone());
+        }
+
+        ast!().push(self.accept_number()?);
 
         while self.index < self.tokens.len() {
+            while self.index < self.tokens.len() {
+                if let Some(close_bracket) = self.try_accept(is(CloseBracket)) {
+                    if group_stack.len() == 1 {
+                        error!(MissingOpeningBracket: close_bracket.range());
+                    }
+
+                    let (group, open_bracket_range) = group_stack.pop().unwrap();
+                    let range = open_bracket_range.start..close_bracket.range().end;
+                    let node = if group.is_empty() {
+                        AstNode::new(AstNodeData::Literal(1.0), range)
+                    } else {
+                        AstNode::new(AstNodeData::Group(group), range)
+                    };
+                    ast!().push(node);
+                    self.nesting_level -= 1;
+                } else {
+                    break;
+                }
+            }
+
+            if self.index >= self.tokens.len() { break; }
+
             match self.accept_operator() {
                 Ok(op) => {
                     let AstNodeData::Operator(operator) = op.data else { unreachable!(); };
@@ -270,8 +316,8 @@ impl<'a> Parser<'a> {
                     if operator == Operator::In {
                         if let Some(unit) = self.try_accept_complex_unit() {
                             let (unit, range) = unit?;
-                            result.push(op);
-                            result.push(AstNode::new(AstNodeData::Unit(unit), range));
+                            ast!().push(op);
+                            ast!().push(AstNode::new(AstNodeData::Unit(unit), range));
                             continue;
                         } else if let Some(format) = self.try_accept(|ty| ty.is_format()) {
                             let format = match format.ty {
@@ -281,7 +327,7 @@ impl<'a> Parser<'a> {
                                 Scientific => Format::Scientific,
                                 _ => unreachable!(),
                             };
-                            result.last_mut().unwrap().format = format;
+                            ast!().last_mut().unwrap().format = format;
                             continue;
                         } else {
                             let last = self.tokens.last().unwrap();
@@ -295,12 +341,12 @@ impl<'a> Parser<'a> {
                         };
                     }
 
-                    result.push(op);
+                    ast!().push(op);
                 }
                 Err(error) => {
                     // Try to infer multiplication
                     if self.peek(any(&[OpenBracket, Identifier])).is_some() {
-                        result.push(AstNode::new(AstNodeData::Operator(Operator::Multiply), 0..1));
+                        ast!().push(AstNode::new(AstNodeData::Operator(Operator::Multiply), 0..1));
                     } else if let Some(sign) = self.try_accept(is(EqualsSign)) {
                         let range = sign.range();
                         if self.nesting_level != 0 {
@@ -309,15 +355,34 @@ impl<'a> Parser<'a> {
                             error!(UnexpectedSecondEqualsSign: range);
                         }
 
-                        self.equals_sign_index = Some(result.len());
+                        self.equals_sign_index = Some(ast!().len());
                     } else {
                         return Err(error);
                     }
                 }
             }
 
-            result.push(self.accept_number()?);
+            while self.index < self.tokens.len() {
+                if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
+                    group_stack.push((vec![], open_bracket.range()));
+                    self.nesting_level += 1;
+                } else {
+                    break;
+                }
+            }
+
+            // Allow empty groups. This will be handled at the start of this loop.
+            // NOTE: () = 1
+            if self.peek(is(CloseBracket)).is_some() &&
+                self.tokens[self.index - 1].ty == OpenBracket { continue; }
+            ast!().push(self.accept_number()?);
         }
+
+        if group_stack.len() > 1 {
+            error!(MissingClosingBracket: group_stack.last().unwrap().1.clone());
+        }
+
+        let (result, _) = group_stack.pop().unwrap();
 
         if let Some(index) = self.equals_sign_index {
             let (lhs, rhs) = result.split_at(index);
@@ -348,8 +413,6 @@ impl<'a> Parser<'a> {
         let next = self.peek(all());
         let mut number = match next.map(|token| token.ty) {
             Some(ty) if ty.is_literal() => self.accept_literal()?,
-            Some(OpenBracket) => self.accept_group()?,
-            Some(CloseBracket) => error!(MissingOpeningBracket: next.unwrap().range()),
             Some(Identifier) => self.accept_identifier()?,
             Some(QuestionMark) => self.accept_question_mark()?,
             Some(_) => error!(ExpectedNumber: next.unwrap().range()),
@@ -520,57 +583,6 @@ impl<'a> Parser<'a> {
         }
 
         Some(Ok((unit, unit_range)))
-    }
-
-    fn accept_group(&mut self) -> Result<AstNode> {
-        let open_bracket_token = self.accept(is(OpenBracket), ExpectedOpenBracket)?;
-        let open_bracket_range = open_bracket_token.range();
-
-        let mut nesting_level = 1usize;
-        let group_start = self.index;
-        let mut group_end_index = 0usize;
-        let mut group_range_end = 0usize;
-        while self.index < self.tokens.len() {
-            let Some(token) = self.try_accept(all()) else { continue; };
-            match token.ty {
-                OpenBracket => nesting_level += 1,
-                CloseBracket => {
-                    nesting_level -= 1;
-                    if nesting_level == 0 {
-                        group_range_end = token.range().end;
-                        group_end_index = self.index - 1;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        if nesting_level != 0 {
-            error!(MissingClosingBracket: open_bracket_range);
-        }
-
-        // The range of the group, including the brackets
-        let group_range = open_bracket_range.start..group_range_end;
-        if group_end_index - group_start < 1 {
-            return Ok(AstNode::new(AstNodeData::Literal(1.0), group_range));
-        }
-
-        let mut parser = Self::new(
-            &self.tokens[group_start..group_end_index],
-            self.environment,
-            self.nesting_level + 1,
-            self.allow_question_mark,
-            self.question_mark.clone(),
-        );
-        if let Some(vars) = self.extra_allowed_variables {
-            parser.set_extra_allowed_variables(vars);
-        }
-        let ast = match parser.accept_expression()? {
-            ParserResult::Calculation(ast) => ast,
-            _ => unreachable!(), // The sub-parser returns an error if there is e.g. an equals sign
-        };
-        Ok(AstNode::new(AstNodeData::Group(ast), group_range))
     }
 
     fn accept_identifier(&mut self) -> Result<AstNode> {
@@ -1015,7 +1027,6 @@ mod tests {
         assert_error_type!(ast, ExpectedNumber);
         Ok(())
     }
-
 
     #[test]
     fn missing_closing_bracket() -> Result<()> {
