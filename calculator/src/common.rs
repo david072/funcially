@@ -6,9 +6,7 @@
 
 use std::ops::Range;
 use std::path::PathBuf;
-use rust_decimal::Decimal;
 use thiserror::Error;
-use crate::FromPrimitive;
 
 const CRATE_NAME: &str = "funcially";
 
@@ -133,13 +131,12 @@ pub struct Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub fn round_dp(n: f64, dp: u32) -> String {
+pub fn round_dp(n: f64, dp: i32) -> String {
     if n.is_nan() { return "NaN".to_owned(); }
     if !n.is_finite() { return "infinity".to_owned(); }
-    match Decimal::from_f64(n) {
-        Some(decimal) => decimal.round_dp(dp).to_string(),
-        None => n.to_string(),
-    }
+
+    let multiplier = 10f64.powi(dp);
+    ((n * multiplier).round() / multiplier).to_string()
 }
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -5,8 +5,7 @@
  */
 
 use std::fmt::Write;
-
-use rust_decimal::prelude::*;
+use std::str::FromStr;
 
 use astgen::{
     parser::Parser,

@@ -5,10 +5,9 @@
  */
 
 use crate::common::*;
-use strum::EnumIter;
 use std::ops::Range;
 
-#[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Whitespace,
     // Literals
