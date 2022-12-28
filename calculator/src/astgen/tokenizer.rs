@@ -229,7 +229,7 @@ impl<'a> Tokenizer<'a> {
         false
     }
 
-    fn is_next(&mut self, char: u8) -> bool {
+    fn try_accept(&mut self, char: u8) -> bool {
         if let Some(c) = self.string.get(self.index) {
             if *c == char {
                 self.index += 1;
@@ -339,7 +339,7 @@ impl<'a> Tokenizer<'a> {
             b'}' => Some(TokenType::CloseCurlyBracket),
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),
-            b':' if self.is_next(b'=') => Some(TokenType::DefinitionSign),
+            b':' if self.try_accept(b'=') => Some(TokenType::DefinitionSign),
             b'?' => Some(TokenType::QuestionMark),
             _ => None
         };
@@ -347,7 +347,7 @@ impl<'a> Tokenizer<'a> {
         if res.is_some() { return res; }
 
         if c == 0xC2 { // First byte of "°"
-            if self.is_next(0xB0) { // Second byte of "°"
+            if self.try_accept(0xB0) { // Second byte of "°"
                 while self.accept(any_of(LETTERS)) {}
                 Some(TokenType::Identifier)
             } else {
