@@ -48,7 +48,7 @@ impl Display for CalculatorObject {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct DateObject {
-    date: NaiveDate,
+    pub(crate) date: NaiveDate,
 }
 
 impl Display for DateObject {

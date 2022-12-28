@@ -1151,4 +1151,22 @@ mod tests {
         assert_error_type!(err, ExpectedUnit);
         Ok(())
     }
+
+    #[test]
+    fn date_object() -> Result<()> {
+        let result = calculation!("{date now}");
+        assert_eq!(result.len(), 1);
+        assert!(matches!(result[0].data, AstNodeData::Object(CalculatorObject::Date(_))));
+        let result = calculation!("{date 01.01.2023}");
+        assert_eq!(result.len(), 1);
+        assert!(matches!(result[0].data, AstNodeData::Object(CalculatorObject::Date(_))));
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_object() -> Result<()> {
+        let err = parse!("{asdf}");
+        assert_error_type!(err, UnknownObject(_));
+        Ok(())
+    }
 }

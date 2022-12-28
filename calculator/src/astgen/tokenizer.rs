@@ -433,4 +433,20 @@ mod tests {
         assert_eq!(tokens, vec![Token::new(TokenType::Identifier, "°", 0..2)]);
         Ok(())
     }
+
+    #[test]
+    fn boolean_operators() -> Result<()> {
+        let tokens = tokenize("= != < > <= >= > =")?;
+        assert_eq!(tokens.iter().map(|t| t.ty).collect::<Vec<_>>(), vec![
+            TokenType::EqualsSign,
+            TokenType::NotEqualsSign,
+            TokenType::LessThan,
+            TokenType::GreaterThan,
+            TokenType::LessThanEqual,
+            TokenType::GreaterThanEqual,
+            TokenType::GreaterThan,
+            TokenType::EqualsSign,
+        ]);
+        Ok(())
+    }
 }

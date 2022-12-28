@@ -151,6 +151,13 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn to_object(&self) -> Option<&CalculatorObject> {
+        match self {
+            Value::Object(result) => Some(result),
+            _ => None,
+        }
+    }
 }
 
 pub struct Engine<'a> {
@@ -555,7 +562,9 @@ fn full_range(ast: &[AstNode]) -> Range<usize> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::NaiveDate;
     use crate::{Parser, ParserResult, tokenize};
+    use crate::astgen::objects::DateObject;
     use crate::common::Result;
 
     use super::*;
@@ -571,9 +580,26 @@ mod tests {
         }
     }
 
+    macro_rules! eval_obj {
+        ($str:expr) => {
+            Engine::evaluate(
+                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new())? { ast }
+                else { panic!("Expected ParserResult::Calculation"); },
+                &Environment::new(),
+                &Currencies::none(),
+            ).and_then(|res| res.to_object().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))
+        }
+    }
+
     macro_rules! expect {
         ($str:expr, $res:expr) => {
             assert_eq!(eval!($str)?.number, $res)
+        }
+    }
+
+    macro_rules! expect_obj {
+        ($str:expr, $res:expr) => {
+            assert_eq!(eval_obj!($str)?, $res)
         }
     }
 
@@ -680,10 +706,17 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn divide_by_zero() -> Result<()> {
         expect_error!("3 / 0", DivideByZero);
+        Ok(())
+    }
+
+    #[test]
+    fn date_object() -> Result<()> {
+        expect_obj!("{date 01.01.2023}", CalculatorObject::Date(DateObject { date: NaiveDate::from_ymd_opt(2023, 1, 1).unwrap() }));
+        expect_obj!("{date 01.01.2023} + 3d", CalculatorObject::Date(DateObject { date: NaiveDate::from_ymd_opt(2023, 1, 4).unwrap() }));
+        expect!("{date 05.01.2023} - {date 01.01.2023}", 4.0);
         Ok(())
     }
 }
