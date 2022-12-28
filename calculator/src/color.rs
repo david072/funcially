@@ -5,8 +5,11 @@
  */
 
 use std::ops::Range;
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+
+use rand::{Rng, rngs::SmallRng, SeedableRng};
+
 use crate::astgen::tokenizer::{Token, TokenType};
+
 use self::TokenType::*;
 
 const IDENTIFIER_COLOR: Color = Color::from_rgb(0xAD, 0xD8, 0xE6);
@@ -73,7 +76,7 @@ impl ColorSegment {
 
     fn from(token: &Token) -> Self {
         let ty = &token.ty;
-        let color = if ty.is_literal() || *ty == QuestionMark {
+        let color = if ty.is_literal() || matches!(ty, QuestionMark | Dot) {
             Color::KHAKI
         } else if ty.is_operator() {
             if *ty == EqualsSign {
@@ -86,7 +89,8 @@ impl ColorSegment {
         } else {
             match token.ty {
                 Whitespace => Color::TRANSPARENT,
-                OpenBracket | CloseBracket | ExclamationMark | PercentSign |
+                OpenBracket | OpenCurlyBracket | CloseBracket | CloseCurlyBracket |
+                ExclamationMark | PercentSign |
                 Comma | EqualsSign | DefinitionSign => Color::WHITE,
                 _ => unreachable!(),
             }

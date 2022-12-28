@@ -643,9 +643,10 @@ impl<'a> Parser<'a> {
         }
 
         let close_bracket = self.accept(is(CloseCurlyBracket), ExpectedCloseCurlyBracket)?;
-        let full_range_end = close_bracket.range().end;
+        let close_bracket_range = close_bracket.range();
+        let full_range_end = close_bracket_range.end;
 
-        let object = CalculatorObject::parse(name, &self.tokens[start..end])?;
+        let object = CalculatorObject::parse(name, &self.tokens[start..end], close_bracket_range)?;
         Ok(AstNode::new(AstNodeData::Object(object), full_range_start..full_range_end))
     }
 

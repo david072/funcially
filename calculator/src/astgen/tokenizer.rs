@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use crate::common::*;
 use std::ops::Range;
+
+use crate::common::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Whitespace,
+    Dot,
     // Literals
     DecimalLiteral,
     HexLiteral,
@@ -249,8 +251,12 @@ impl<'a> Tokenizer<'a> {
                 Some(TokenType::DecimalLiteral)
             }
             b'.' => {
-                while self.accept(any_of(NUMBERS)) {}
-                Some(TokenType::DecimalLiteral)
+                if self.accept(any_of(NUMBERS)) {
+                    while self.accept(any_of(NUMBERS)) {}
+                    Some(TokenType::DecimalLiteral)
+                } else {
+                    Some(TokenType::Dot)
+                }
             }
             b'+' => Some(TokenType::Plus),
             b'-' => Some(TokenType::Minus),

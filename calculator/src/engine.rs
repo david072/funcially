@@ -527,10 +527,10 @@ impl<'a> Engine<'a> {
 
             if operators.contains(&op) {
                 if let AstNodeData::Object(object) = &lhs.data {
-                    let new_lhs = object.apply((op, operator.range.clone()), rhs, false)?;
+                    let new_lhs = object.apply(lhs.range.clone(), (op, operator.range.clone()), rhs, false)?;
                     let _ = replace(lhs, new_lhs);
                 } else if let AstNodeData::Object(object) = &rhs.data {
-                    let new_lhs = object.apply((op, operator.range.clone()), lhs, true)?;
+                    let new_lhs = object.apply(rhs.range.clone(), (op, operator.range.clone()), lhs, true)?;
                     let _ = replace(lhs, new_lhs);
                 } else {
                     lhs.apply(operator, rhs, self.currencies)?;

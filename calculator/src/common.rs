@@ -93,6 +93,8 @@ pub enum ErrorType {
     UnknownObject(String),
     #[error("Expected the name of the object")]
     ExpectedObjectName,
+    #[error("Invalid date ({0})")]
+    InvalidDate(chrono::ParseError),
 
     // engine
     #[error("Cannot divide by zero")]
@@ -119,6 +121,14 @@ pub enum ErrorType {
     UnsupportedOperation,
     #[error("Invalid side")]
     InvalidSide,
+    #[error("Expected a value with a time unit")]
+    ExpectedTimeValue,
+    #[error("This date is too big")]
+    DateTooBig,
+    #[error("This date is too small")]
+    DateTooSmall,
+    #[error("The operands are in the wrong order")]
+    WrongOrder,
     /// This should never happen
     #[error("")]
     InvalidAst,
