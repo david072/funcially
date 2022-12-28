@@ -7,7 +7,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Range;
 
-use chrono::{Days, Duration, Local, NaiveDate};
+use chrono::{Duration, Local, NaiveDate};
 
 use crate::astgen::ast::{AstNode, AstNodeData, Operator};
 use crate::astgen::tokenizer::{Token, TokenType};
@@ -109,7 +109,7 @@ impl DateObject {
 
                     let n = as_nanoseconds(other.unit.as_ref(), n, other.range.clone())? as i64;
                     let Some(new_date) = self.date.checked_sub_signed(Duration::nanoseconds(n)) else {
-                        return Err(ErrorType::DateTooSmall.with(self_range.start..other.range.end));
+                        return Err(ErrorType::DateTooBig.with(self_range.start..other.range.end));
                     };
                     Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Date(DateObject { date: new_date })), self_range))
                 }

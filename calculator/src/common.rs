@@ -125,8 +125,6 @@ pub enum ErrorType {
     ExpectedTimeValue,
     #[error("This date is too big")]
     DateTooBig,
-    #[error("This date is too small")]
-    DateTooSmall,
     #[error("The operands are in the wrong order")]
     WrongOrder,
     /// This should never happen

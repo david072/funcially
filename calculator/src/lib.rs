@@ -360,6 +360,10 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
+                if i != 0 && token.ty.is_literal() && tokens[i - 1].ty == TokenType::Identifier {
+                    new_line.push(' ');
+                }
+
                 new_line += &text;
             } else if token.ty.is_operator() || token.ty.is_format() ||
                 token.ty == TokenType::DefinitionSign {
