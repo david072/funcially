@@ -1,6 +1,6 @@
 # funcially
 
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/david072/funcially/CI?label=CI&style=for-the-badge)](https://github.com/david072/funcially/actions/workflows/ci.yml)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/david072/funcially/ci.yml?label=CI&style=for-the-badge)](https://github.com/david072/funcially/actions/workflows/ci.yml)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/david072/funcially?label=latest%20release&style=for-the-badge)](https://github.com/david072/funcially/releases/latest)
 [![GitHub](https://img.shields.io/github/license/david072/funcially?style=for-the-badge)](https://github.com/david072/funcially/blob/main/LICENSE)
 
