@@ -43,10 +43,10 @@ pub enum ErrorType {
     UnknownVariable(String),
     #[error("Missing equals sign")]
     MissingEqualsSign,
-    #[error("Equals signs are only allowed at the top level")]
-    UnexpectedEqualsSign,
-    #[error("Second equals sign")]
-    UnexpectedSecondEqualsSign,
+    #[error("Boolean operators are only allowed at the top level")]
+    UnexpectedBooleanOperator,
+    #[error("Second boolean operator")]
+    UnexpectedSecondBooleanOperator,
     #[error("Unknown function \"{0}\"")]
     UnknownFunction(String),
     #[error("Wrong number of arguments (expected {0} arguments)")]

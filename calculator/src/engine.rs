@@ -16,6 +16,7 @@ use crate::{
     environment::{Environment, units::{convert as convert_units, Unit}, Variable},
     match_ast_node,
 };
+use crate::astgen::ast::BooleanOperator;
 use crate::astgen::objects::CalculatorObject;
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
@@ -413,7 +414,7 @@ impl<'a> Engine<'a> {
         Ok(Value::number(result, question_mark_unit, false, format))
     }
 
-    pub fn equals(lhs: &Value, rhs: &Value, currencies: &Currencies) -> bool {
+    pub fn check_boolean_operator(lhs: &Value, rhs: &Value, operator: BooleanOperator, currencies: &Currencies) -> bool {
         match (lhs, rhs) {
             (Value::Number(lhs), Value::Number(rhs)) => {
                 let lhs_unit = &lhs.unit;
@@ -430,14 +431,14 @@ impl<'a> Engine<'a> {
                         currencies,
                         &range,
                     ) {
-                        Ok(rhs) => lhs.number == rhs,
+                        Ok(rhs) => operator.check(lhs.number, rhs),
                         Err(_) => false,
                     }
                 } else {
-                    lhs.number == rhs.number
+                    operator.check(lhs.number, rhs.number)
                 }
             }
-            (Value::Object(lhs), Value::Object(rhs)) => lhs == rhs,
+            (Value::Object(lhs), Value::Object(rhs)) => operator.check(lhs, rhs),
             _ => false,
         }
     }

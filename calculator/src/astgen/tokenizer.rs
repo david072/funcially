@@ -45,9 +45,15 @@ pub enum TokenType {
     // Identifier
     Identifier,
     Comma,
-    EqualsSign,
     DefinitionSign,
     QuestionMark,
+    // Boolean operators
+    EqualsSign,
+    NotEqualsSign,
+    GreaterThan,
+    GreaterThanEqual,
+    LessThan,
+    LessThanEqual,
 }
 
 impl TokenType {
@@ -78,6 +84,15 @@ impl TokenType {
             | Self::Of
             | Self::In
             | Self::Modulo)
+    }
+
+    pub fn is_boolean_operator(&self) -> bool {
+        matches!(self, Self::EqualsSign
+            | Self::NotEqualsSign
+            | Self::GreaterThan
+            | Self::GreaterThanEqual
+            | Self::LessThan
+            | Self::LessThanEqual)
     }
 
     pub fn is_format(&self) -> bool {
@@ -267,9 +282,31 @@ impl<'a> Tokenizer<'a> {
             b'^' => Some(TokenType::Exponentiation),
             b'&' => Some(TokenType::BitwiseAnd),
             b'|' => Some(TokenType::BitwiseOr),
-            b'<' if self.is_next(b'<') => Some(TokenType::BitShiftLeft),
-            b'>' if self.is_next(b'>') => Some(TokenType::BitShiftRight),
-            b'!' => Some(TokenType::ExclamationMark),
+            b'<' => {
+                if self.accept(any_of("<")) {
+                    Some(TokenType::BitShiftLeft)
+                } else if self.accept(any_of("=")) {
+                    Some(TokenType::LessThanEqual)
+                } else {
+                    Some(TokenType::LessThan)
+                }
+            }
+            b'>' => {
+                if self.accept(any_of(">")) {
+                    Some(TokenType::BitShiftRight)
+                } else if self.accept(any_of("=")) {
+                    Some(TokenType::GreaterThanEqual)
+                } else {
+                    Some(TokenType::GreaterThan)
+                }
+            }
+            b'!' => {
+                if self.accept(any_of("=")) {
+                    Some(TokenType::NotEqualsSign)
+                } else {
+                    Some(TokenType::ExclamationMark)
+                }
+            }
             b'%' => Some(TokenType::PercentSign),
             b'(' => Some(TokenType::OpenBracket),
             b')' => Some(TokenType::CloseBracket),

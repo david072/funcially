@@ -16,7 +16,7 @@ use crate::environment::currencies::Currencies;
 use crate::environment::units;
 use crate::environment::units::Unit;
 
-#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
 pub enum CalculatorObject {
     Date(DateObject),
 }
@@ -46,7 +46,7 @@ impl Display for CalculatorObject {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct DateObject {
     date: NaiveDate,
 }

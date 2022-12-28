@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::{Environment, Format};
-use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, Operator};
+use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
 use crate::astgen::objects::CalculatorObject;
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{ErrorType::*, ErrorType, Result};
@@ -48,7 +48,11 @@ fn all() -> impl Fn(&TokenType) -> bool {
 
 pub enum ParserResult {
     Calculation(Vec<AstNode>),
-    EqualityCheck(Vec<AstNode>, Vec<AstNode>),
+    BooleanExpression {
+        lhs: Vec<AstNode>,
+        rhs: Vec<AstNode>,
+        operator: BooleanOperator,
+    },
     VariableDefinition(String, Option<Vec<AstNode>>),
     FunctionDefinition {
         name: String,
@@ -67,7 +71,7 @@ impl std::fmt::Display for ParserResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParserResult::Calculation(_) => write!(f, "Calculation"),
-            ParserResult::EqualityCheck(..) => write!(f, "Equality Check"),
+            ParserResult::BooleanExpression { .. } => write!(f, "Boolean Expression"),
             ParserResult::VariableDefinition(..) => write!(f, "Variable Definition"),
             ParserResult::FunctionDefinition { .. } => write!(f, "Function Definition"),
             ParserResult::Equation { .. } => write!(f, "Equation"),
@@ -89,7 +93,7 @@ pub struct Parser<'a> {
     extra_allowed_variables: Option<&'a [String]>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
-    equals_sign_index: Option<usize>,
+    did_find_equals_sign: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -126,7 +130,7 @@ impl<'a> Parser<'a> {
             extra_allowed_variables: None,
             allow_question_mark,
             question_mark,
-            equals_sign_index: None,
+            did_find_equals_sign: false,
         }
     }
 
@@ -260,6 +264,7 @@ impl<'a> Parser<'a> {
 
     fn accept_expression(&mut self) -> Result<ParserResult> {
         let mut group_stack: Vec<(Vec<AstNode>, Range<usize>)> = vec![(vec![], Range::default())];
+        let mut boolean_operator: Option<(BooleanOperator, usize)> = None;
 
         /// Helper to get the current AST
         macro_rules! ast {
@@ -348,15 +353,18 @@ impl<'a> Parser<'a> {
                     // Try to infer multiplication
                     if self.peek(any(&[OpenBracket, Identifier])).is_some() {
                         ast!().push(AstNode::new(AstNodeData::Operator(Operator::Multiply), 0..1));
-                    } else if let Some(sign) = self.try_accept(is(EqualsSign)) {
-                        let range = sign.range();
+                    } else if let Some((op, range)) = self.try_accept_boolean_operator() {
                         if self.nesting_level != 0 {
-                            error!(UnexpectedEqualsSign: range);
-                        } else if self.equals_sign_index.is_some() {
-                            error!(UnexpectedSecondEqualsSign: range);
+                            error!(UnexpectedBooleanOperator: range);
+                        } else if boolean_operator.is_some() {
+                            error!(UnexpectedSecondBooleanOperator: range);
                         }
 
-                        self.equals_sign_index = Some(ast!().len());
+                        if op == BooleanOperator::Equal {
+                            self.did_find_equals_sign = true;
+                        }
+
+                        boolean_operator = Some((op, ast!().len()));
                     } else {
                         return Err(error);
                     }
@@ -385,7 +393,7 @@ impl<'a> Parser<'a> {
 
         let (result, _) = group_stack.pop().unwrap();
 
-        if let Some(index) = self.equals_sign_index {
+        if let Some((op, index)) = boolean_operator {
             let (lhs, rhs) = result.split_at(index);
             if let Some(info) = std::mem::take(&mut self.question_mark) {
                 Ok(ParserResult::Equation {
@@ -395,7 +403,11 @@ impl<'a> Parser<'a> {
                     output_variable: info.variable,
                 })
             } else {
-                Ok(ParserResult::EqualityCheck(lhs.to_vec(), rhs.to_vec()))
+                Ok(ParserResult::BooleanExpression {
+                    lhs: lhs.to_vec(),
+                    rhs: rhs.to_vec(),
+                    operator: op,
+                })
             }
         } else {
             if self.nesting_level == 0 && self.question_mark.is_some() {
@@ -406,6 +418,23 @@ impl<'a> Parser<'a> {
 
             Ok(ParserResult::Calculation(result))
         }
+    }
+
+    fn try_accept_boolean_operator(&mut self) -> Option<(BooleanOperator, Range<usize>)> {
+        let op = self.try_accept(|ty| ty.is_boolean_operator())?;
+
+        let range = op.range();
+        let op = match op.ty {
+            EqualsSign => BooleanOperator::Equal,
+            NotEqualsSign => BooleanOperator::NotEqual,
+            GreaterThan => BooleanOperator::GreaterThan,
+            GreaterThanEqual => BooleanOperator::GreaterThanEqual,
+            LessThan => BooleanOperator::LessThan,
+            LessThanEqual => BooleanOperator::LessThanEqual,
+            _ => unreachable!(),
+        };
+
+        Some((op, range))
     }
 
     fn accept_number(&mut self) -> Result<AstNode> {
@@ -518,7 +547,7 @@ impl<'a> Parser<'a> {
 
         self.question_mark = Some(QuestionMarkInfo {
             variable: None,
-            is_in_lhs: self.equals_sign_index.is_none(),
+            is_in_lhs: !self.did_find_equals_sign,
         });
         Ok(AstNode::new(AstNodeData::QuestionMark, range))
     }
@@ -767,7 +796,7 @@ mod tests {
     macro_rules! parse {
         ($input:expr) => {
             Parser::parse(&tokenize($input)?, &Environment::new())
-        }
+        };
     }
 
     macro_rules! assert_error_type {
@@ -782,6 +811,16 @@ mod tests {
                 ast
             } else {
                 panic!("Expected ParserResult::Calculation");
+            }
+        }
+    }
+
+    macro_rules! boolean_expression {
+        ($input:expr) => {
+            if let ParserResult::BooleanExpression { lhs, rhs, operator } = parse!($input)? {
+                (lhs, rhs, operator)
+            } else {
+                panic!("Expected ParserResult::BooleanExpression");
             }
         }
     }
@@ -869,15 +908,22 @@ mod tests {
     }
 
     #[test]
-    fn equality_check() -> Result<()> {
-        let res = parse!("3 = 3")?;
-        match res {
-            ParserResult::EqualityCheck(lhs, rhs) => {
-                assert!(matches!(lhs[0].data, AstNodeData::Literal(_)));
-                assert!(matches!(rhs[0].data, AstNodeData::Literal(_)));
-            }
-            _ => unreachable!(),
-        }
+    fn boolean_expression() -> Result<()> {
+        let (lhs, rhs, operator) = boolean_expression!("3 = 3");
+        assert!(matches!(lhs[0].data, AstNodeData::Literal(_)));
+        assert!(matches!(rhs[0].data, AstNodeData::Literal(_)));
+        assert_eq!(operator, BooleanOperator::Equal);
+
+        let (.., operator) = boolean_expression!("3 != 3");
+        assert_eq!(operator, BooleanOperator::NotEqual);
+        let (.., operator) = boolean_expression!("3 > 3");
+        assert_eq!(operator, BooleanOperator::GreaterThan);
+        let (.., operator) = boolean_expression!("3 >= 3");
+        assert_eq!(operator, BooleanOperator::GreaterThanEqual);
+        let (.., operator) = boolean_expression!("3 < 3");
+        assert_eq!(operator, BooleanOperator::LessThan);
+        let (.., operator) = boolean_expression!("3 <= 3");
+        assert_eq!(operator, BooleanOperator::LessThanEqual);
         Ok(())
     }
 

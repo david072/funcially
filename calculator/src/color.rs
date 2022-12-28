@@ -79,11 +79,9 @@ impl ColorSegment {
         let color = if ty.is_literal() || matches!(ty, QuestionMark | Dot) {
             Color::KHAKI
         } else if ty.is_operator() {
-            if *ty == EqualsSign {
-                Color::WHITE
-            } else {
-                Color::GOLD
-            }
+            Color::GOLD
+        } else if ty.is_boolean_operator() {
+            Color::WHITE
         } else if ty.is_format() || *ty == Identifier {
             IDENTIFIER_COLOR
         } else {

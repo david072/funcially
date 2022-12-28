@@ -18,6 +18,30 @@ use crate::{
 use crate::astgen::objects::CalculatorObject;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
+pub enum BooleanOperator {
+    Equal,
+    NotEqual,
+    GreaterThan,
+    GreaterThanEqual,
+    LessThan,
+    LessThanEqual,
+}
+
+impl BooleanOperator {
+    pub fn check<T: PartialEq + PartialOrd>(&self, lhs: T, rhs: T) -> bool {
+        use BooleanOperator::*;
+        match self {
+            Equal => lhs == rhs,
+            NotEqual => lhs != rhs,
+            GreaterThan => lhs > rhs,
+            GreaterThanEqual => lhs >= rhs,
+            LessThan => lhs < rhs,
+            LessThanEqual => lhs <= rhs,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Operator {
     Plus,
     Minus,
@@ -337,11 +361,11 @@ impl Display for AstNode {
                 Ok(())
             }
             AstNodeData::VariableReference(name) => write!(f, "VariableRef: {p}{name}{s} {unit} ({fmt})",
-                                                               p = self.prefix_modifiers(),
-                                                               name = name,
-                                                               s = self.suffix_modifiers(),
-                                                               unit = self.unit(),
-                                                               fmt = self.format),
+                                                           p = self.prefix_modifiers(),
+                                                           name = name,
+                                                           s = self.suffix_modifiers(),
+                                                           unit = self.unit(),
+                                                           fmt = self.format),
             AstNodeData::FunctionInvocation(name, args) => {
                 writeln!(f, "FunctionInv: {p}{name}{s} {unit} ({fmt}):",
                          p = self.prefix_modifiers(),

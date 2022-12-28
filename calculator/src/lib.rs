@@ -240,7 +240,7 @@ impl<'a> Calculator<'a> {
                 // });
                 Ok(CalculatorResult::value(result, color_segments))
             }
-            ParserResult::EqualityCheck(lhs, rhs) => {
+            ParserResult::BooleanExpression { lhs, rhs, operator } => {
                 if self.verbosity == Verbosity::Ast {
                     println!("Equality check:\nLHS:");
                     for node in &lhs { println!("{}", node); }
@@ -251,7 +251,7 @@ impl<'a> Calculator<'a> {
 
                 let lhs = Engine::evaluate(lhs, self.env(), &self.currencies)?;
                 let rhs = Engine::evaluate(rhs, self.env(), &self.currencies)?;
-                Ok(CalculatorResult::bool(Engine::equals(&lhs, &rhs, &self.currencies), color_segments))
+                Ok(CalculatorResult::bool(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies), color_segments))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
@@ -365,7 +365,7 @@ impl<'a> Calculator<'a> {
                 }
 
                 new_line += &text;
-            } else if token.ty.is_operator() || token.ty.is_format() ||
+            } else if token.ty.is_operator() || token.ty.is_boolean_operator() || token.ty.is_format() ||
                 token.ty == TokenType::DefinitionSign {
                 if token.ty == TokenType::Plus || token.ty == TokenType::Minus {
                     if i == 0 {
@@ -439,8 +439,8 @@ impl<'a> Calculator<'a> {
                         for node in &ast { writeln_or_err!(&mut output, "{}", node); }
                         writeln_or_err!(&mut output);
                     }
-                    ParserResult::EqualityCheck(lhs, rhs) => {
-                        writeln_or_err!(&mut output, "Equality check:\nLHS:");
+                    ParserResult::BooleanExpression { lhs, rhs, operator } => {
+                        writeln_or_err!(&mut output, "Boolean expression:\nOperator: {operator:?}\nLHS:");
                         for node in &lhs { writeln_or_err!(&mut output, "{}", node); }
                         writeln_or_err!(&mut output, "RHS:");
                         for node in &rhs { writeln_or_err!(&mut output, "{}", node); }
