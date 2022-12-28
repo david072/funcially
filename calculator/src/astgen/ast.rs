@@ -15,6 +15,7 @@ use crate::{
     },
     Format,
 };
+use crate::astgen::objects::CalculatorObject;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Operator {
@@ -41,6 +42,7 @@ pub enum AstNodeData {
     FunctionInvocation(String, Vec<Vec<AstNode>>),
     Unit(Unit),
     QuestionMark,
+    Object(CalculatorObject),
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
@@ -310,15 +312,15 @@ impl Debug for AstNode {
 
 impl Display for AstNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.data {
+        match &self.data {
             AstNodeData::Literal(number) => write!(f, "Number: {p}{n}{s} {unit} ({fmt})",
                                                    p = self.prefix_modifiers(),
                                                    n = number,
                                                    s = self.suffix_modifiers(),
                                                    unit = self.unit(),
                                                    fmt = self.format),
-            AstNodeData::Operator(ref operator) => write!(f, "Operator: {:?}", operator),
-            AstNodeData::Group(ref ast) => {
+            AstNodeData::Operator(operator) => write!(f, "Operator: {:?}", operator),
+            AstNodeData::Group(ast) => {
                 writeln!(f, "{p}Group{s} {unit} ({fmt}):",
                          p = self.prefix_modifiers(),
                          s = self.suffix_modifiers(),
@@ -334,13 +336,13 @@ impl Display for AstNode {
                 }
                 Ok(())
             }
-            AstNodeData::VariableReference(ref name) => write!(f, "VariableRef: {p}{name}{s} {unit} ({fmt})",
+            AstNodeData::VariableReference(name) => write!(f, "VariableRef: {p}{name}{s} {unit} ({fmt})",
                                                                p = self.prefix_modifiers(),
                                                                name = name,
                                                                s = self.suffix_modifiers(),
                                                                unit = self.unit(),
                                                                fmt = self.format),
-            AstNodeData::FunctionInvocation(ref name, ref args) => {
+            AstNodeData::FunctionInvocation(name, args) => {
                 writeln!(f, "FunctionInv: {p}{name}{s} {unit} ({fmt}):",
                          p = self.prefix_modifiers(),
                          name = name,
@@ -358,8 +360,9 @@ impl Display for AstNode {
 
                 Ok(())
             }
-            AstNodeData::Unit(ref name) => write!(f, "Unit: {}", name),
+            AstNodeData::Unit(name) => write!(f, "Unit: {}", name),
             AstNodeData::QuestionMark => write!(f, "QuestionMark"),
+            AstNodeData::Object(object) => write!(f, "Object: {object:?}"),
         }
     }
 }

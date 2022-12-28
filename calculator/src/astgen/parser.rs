@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use crate::{Environment, Format};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, Operator};
+use crate::astgen::objects::CalculatorObject;
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{ErrorType::*, ErrorType, Result};
 use crate::environment::ArgCount;
@@ -408,51 +409,55 @@ impl<'a> Parser<'a> {
     }
 
     fn accept_number(&mut self) -> Result<AstNode> {
-        let mut modifiers = self.accept_prefix_modifiers();
+        if self.peek(is(OpenCurlyBracket)).is_some() {
+            self.accept_object()
+        } else {
+            let mut modifiers = self.accept_prefix_modifiers();
 
-        let next = self.peek(all());
-        let mut number = match next.map(|token| token.ty) {
-            Some(ty) if ty.is_literal() => self.accept_literal()?,
-            Some(Identifier) => self.accept_identifier()?,
-            Some(QuestionMark) => self.accept_question_mark()?,
-            Some(_) => error!(ExpectedNumber: next.unwrap().range()),
-            None => error!(ExpectedNumber: self.error_range_at_end()),
-        };
+            let next = self.peek(all());
+            let mut number = match next.map(|token| token.ty) {
+                Some(ty) if ty.is_literal() => self.accept_literal()?,
+                Some(Identifier) => self.accept_identifier()?,
+                Some(QuestionMark) => self.accept_question_mark()?,
+                Some(_) => error!(ExpectedNumber: next.unwrap().range()),
+                None => error!(ExpectedNumber: self.error_range_at_end()),
+            };
 
-        modifiers.append(&mut self.accept_suffix_modifiers());
-        number.modifiers.append(&mut modifiers);
+            modifiers.append(&mut self.accept_suffix_modifiers());
+            number.modifiers.append(&mut modifiers);
 
-        if let Some(unit) = self.try_accept_complex_unit() {
-            let (unit, unit_range) = unit?;
-            number.unit = Some(unit);
-            number.range.end = unit_range.end;
-        } else if let Some(power) = self.try_accept_unit_prefix() {
-            number.modifiers.push(AstNodeModifier::Power(power));
-        }
+            if let Some(unit) = self.try_accept_complex_unit() {
+                let (unit, unit_range) = unit?;
+                number.unit = Some(unit);
+                number.range.end = unit_range.end;
+            } else if let Some(power) = self.try_accept_unit_prefix() {
+                number.modifiers.push(AstNodeModifier::Power(power));
+            }
 
-        if let Some(identifier) = self.peek(is(Identifier)) {
-            if identifier.text == "e" || identifier.text == "E" {
-                self.index += 1;
-                if let Ok(exponent) = self.accept_literal() {
-                    let range = number.range.clone();
-                    let group = vec![
-                        number,
-                        AstNode::new(AstNodeData::Operator(Operator::Multiply), range.clone()),
-                        AstNode::new(AstNodeData::Literal(10.0), range.clone()),
-                        AstNode::new(AstNodeData::Operator(Operator::Exponentiation), range.clone()),
-                        exponent,
-                    ];
+            if let Some(identifier) = self.peek(is(Identifier)) {
+                if identifier.text == "e" || identifier.text == "E" {
+                    self.index += 1;
+                    if let Ok(exponent) = self.accept_literal() {
+                        let range = number.range.clone();
+                        let group = vec![
+                            number,
+                            AstNode::new(AstNodeData::Operator(Operator::Multiply), range.clone()),
+                            AstNode::new(AstNodeData::Literal(10.0), range.clone()),
+                            AstNode::new(AstNodeData::Operator(Operator::Exponentiation), range.clone()),
+                            exponent,
+                        ];
 
-                    return Ok(AstNode::new(AstNodeData::Group(group), range));
-                } else {
-                    // If this isn't a scientific notation (i.e. there is no exponent after the "e"),
-                    // revert back to pointing at the "e", so that it can be handled later.
-                    self.index -= 1;
+                        return Ok(AstNode::new(AstNodeData::Group(group), range));
+                    } else {
+                        // If this isn't a scientific notation (i.e. there is no exponent after the "e"),
+                        // revert back to pointing at the "e", so that it can be handled later.
+                        self.index -= 1;
+                    }
                 }
             }
-        }
 
-        Ok(number)
+            Ok(number)
+        }
     }
 
     fn accept_prefix_modifiers(&mut self) -> Vec<AstNodeModifier> {
@@ -623,6 +628,25 @@ impl<'a> Parser<'a> {
             info.variable = Some((identifier.to_string(), range.clone()));
         }
         Some(Ok(question_mark))
+    }
+
+    fn accept_object(&mut self) -> Result<AstNode> {
+        let open_bracket = self.accept(is(OpenCurlyBracket), ExpectedOpenCurlyBracket)?;
+        let full_range_start = open_bracket.range().start;
+        let name = self.accept(is(Identifier), ExpectedObjectName)?;
+        let name = (name.text.to_owned(), name.range());
+
+        let start = self.index;
+        let mut end = start;
+        while self.try_accept(|t| *t != CloseCurlyBracket).is_some() {
+            end += 1;
+        }
+
+        let close_bracket = self.accept(is(CloseCurlyBracket), ExpectedCloseCurlyBracket)?;
+        let full_range_end = close_bracket.range().end;
+
+        let object = CalculatorObject::parse(name, &self.tokens[start..end])?;
+        Ok(AstNode::new(AstNodeData::Object(object), full_range_start..full_range_end))
     }
 
     fn accept_function_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {

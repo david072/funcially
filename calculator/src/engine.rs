@@ -6,6 +6,7 @@
 
 use std::fmt::{Display, Formatter};
 use std::mem::{replace, take};
+use std::ops::Range;
 
 use crate::{
     astgen::ast::{AstNode, AstNodeData, Operator},
@@ -15,6 +16,7 @@ use crate::{
     environment::{Environment, units::{convert as convert_units, Unit}, Variable},
     match_ast_node,
 };
+use crate::astgen::objects::CalculatorObject;
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Format { Decimal, Hex, Binary, Scientific }
@@ -88,19 +90,67 @@ impl From<TokenType> for Format {
     }
 }
 
-pub struct CalculationResult {
-    pub result: f64,
-    pub unit: Option<Unit>,
-    pub is_long_unit: bool,
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NumberValue {
+    pub number: f64,
+    pub(crate) unit: Option<Unit>,
+    pub(crate) is_long_unit: bool,
     pub format: Format,
 }
 
-impl CalculationResult {
-    pub fn new(result: f64, unit: Option<Unit>, is_long_unit: bool, format: Format) -> CalculationResult {
-        CalculationResult { result, unit, is_long_unit, format }
+impl NumberValue {
+    pub fn unit_string(&self) -> String {
+        self.unit.as_ref()
+            .map(|unit| unit.format(self.is_long_unit, self.number != 1.0))
+            .unwrap_or_default()
     }
 }
 
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
+pub enum Value {
+    Number(NumberValue),
+    Object(CalculatorObject),
+}
+
+impl Value {
+    pub fn number(number: f64, unit: Option<Unit>, is_long_unit: bool, format: Format) -> Value {
+        Value::Number(NumberValue { number, unit, is_long_unit, format })
+    }
+
+    pub const fn only_number(number: f64) -> Value {
+        Value::Number(NumberValue {
+            number,
+            unit: None,
+            is_long_unit: false,
+            format: Format::Decimal,
+        })
+    }
+
+    pub fn format(&self, use_thousands_separator: bool) -> String {
+        match self {
+            Value::Number(number) => format!("{}{}", number.format.format(number.number, use_thousands_separator), number.unit_string()),
+            Value::Object(object) => object.to_string(),
+        }
+    }
+
+    pub fn to_ast_node_from(&self, src: &AstNode) -> AstNode {
+        match self {
+            Value::Number(NumberValue { number, unit, .. }) => {
+                let mut new_node = AstNode::from(src, AstNodeData::Literal(*number));
+                if new_node.unit.is_none() { new_node.unit = unit.clone(); }
+                new_node
+            }
+            Value::Object(object) => AstNode::from(src, AstNodeData::Object(object.clone())),
+        }
+    }
+
+    pub fn to_number(&self) -> Option<&NumberValue> {
+        match self {
+            Value::Number(result) => Some(result),
+            _ => None,
+        }
+    }
+}
 
 pub struct Engine<'a> {
     ast: &'a mut Vec<AstNode>,
@@ -109,12 +159,25 @@ pub struct Engine<'a> {
 }
 
 impl<'a> Engine<'a> {
-    pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<CalculationResult> {
-        if ast.len() == 1 && matches!(&ast[0].data, AstNodeData::Literal(_)) {
-            ast[0].apply_modifiers()?;
-            let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-            let unit = take(&mut ast[0].unit);
-            return Ok(CalculationResult::new(result, unit, true, ast[0].format));
+    pub fn evaluate_to_number(ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<NumberValue> {
+        let full_range = full_range(&ast);
+        let result = Engine::evaluate(ast, env, currencies)?;
+        let Some(result) = result.to_number() else {
+            return Err(ErrorType::ExpectedNumber.with(full_range));
+        };
+        Ok(result.clone())
+    }
+
+    pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<Value> {
+        if ast.len() == 1 {
+            if matches!(ast[0].data, AstNodeData::Literal(_)) {
+                ast[0].apply_modifiers()?;
+                let result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
+                let unit = take(&mut ast[0].unit);
+                return Ok(Value::number(result, unit, true, ast[0].format));
+            } else if let AstNodeData::Object(object) = &ast[0].data {
+                return Ok(Value::Object(object.clone()));
+            }
         }
 
         let mut engine = Engine::new(&mut ast, env, currencies);
@@ -130,12 +193,19 @@ impl<'a> Engine<'a> {
         engine.eval_operators(&[Operator::Plus, Operator::Minus])?;
         engine.eval_operators(&[Operator::Of, Operator::In])?;
 
-        ast[0].apply_modifiers()?;
-        let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
-        let format = ast[0].format;
-        if format != Format::Decimal { result = result.trunc(); }
+        if matches!(ast[0].data, AstNodeData::Literal(_)) {
+            ast[0].apply_modifiers()?;
+            let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
+            let format = ast[0].format;
+            if format != Format::Decimal { result = result.trunc(); }
 
-        Ok(CalculationResult::new(result, take(&mut ast[0].unit), false, format))
+            Ok(Value::number(result, take(&mut ast[0].unit), false, format))
+        } else if let AstNodeData::Object(object) = &ast[0].data {
+            Ok(Value::Object(object.clone()))
+        } else {
+            // We should never get here!
+            Err(ErrorType::InvalidAst.with(ast[0].range.clone()))
+        }
     }
 
     /// Solves a linear equation
@@ -145,22 +215,22 @@ impl<'a> Engine<'a> {
         is_question_mark_in_lhs: bool,
         env: &Environment,
         currencies: &Currencies,
-    ) -> Result<CalculationResult> {
+    ) -> Result<Value> {
         if lhs.is_empty() || rhs.is_empty() {
             return Err(ErrorType::InvalidAst.with(0..1));
         }
 
-        let rhs_range = rhs.first().unwrap().range.start..rhs.last().unwrap().range.end;
+        let rhs_range = full_range(&rhs);
         let (unknown_side, result_side) = if is_question_mark_in_lhs {
             (lhs, rhs)
         } else {
             (rhs, lhs)
         };
-        let target_result = Self::evaluate(result_side, env, currencies)?;
-        let mut target_value = target_result.result;
+        let target_result = Self::evaluate_to_number(result_side, env, currencies)?;
+        let mut target_value = target_result.number;
 
         if unknown_side.len() == 1 && matches!(unknown_side[0].data, AstNodeData::Literal(_)) {
-            return Ok(target_result);
+            return Ok(Value::Number(target_result));
         }
 
         /// Validates that the question mark or its enclosing groups are not surrounded by a
@@ -217,11 +287,11 @@ impl<'a> Engine<'a> {
                         let f = env.get_function(name).unwrap();
 
                         let mut question_mark_arg_name: Option<&str> = None;
-                        let mut question_mark_range: Option<std::ops::Range<usize>> = None;
+                        let mut question_mark_range: Option<Range<usize>> = None;
 
                         for (i, arg) in args.iter().enumerate() {
                             if validate_and_get_unit(arg, env, is_surrounded_by_exponentiation, None)?.is_some() {
-                                let range = arg.first().unwrap().range.start..arg.last().unwrap().range.end;
+                                let range = full_range(arg);
                                 if question_mark_arg_name.is_some() {
                                     return Err(ErrorType::UnexpectedQuestionMark.with(range));
                                 }
@@ -284,9 +354,7 @@ impl<'a> Engine<'a> {
 
         let question_mark_unit = match validate_and_get_unit(&unknown_side, env, false, None)? {
             Some(unit) => unit,
-            None => return Err(ErrorType::ExpectedQuestionMark.with(
-                unknown_side.first().unwrap().range.start..unknown_side.last().unwrap().range.end
-            )),
+            None => return Err(ErrorType::ExpectedQuestionMark.with(full_range(&unknown_side))),
         };
 
         // NOTE: General equation (if ? is a variable): f(?) = a
@@ -300,7 +368,8 @@ impl<'a> Engine<'a> {
 
         let first_ast = replace_question_mark(unknown_side.clone(), X1);
 
-        let y1_result = Self::evaluate(first_ast, env, currencies)?;
+        let y1_result = Self::evaluate_to_number(first_ast, env, currencies)?;
+
         if y1_result.unit.is_some() && target_result.unit.is_none() {
             return Err(ErrorType::WrongUnit(y1_result.unit.unwrap().to_string()).with(rhs_range));
         } else if y1_result.unit.is_none() && target_result.unit.is_some() {
@@ -320,10 +389,10 @@ impl<'a> Engine<'a> {
             };
         }
 
-        let y1 = y1_result.result - target_value;
+        let y1 = y1_result.number - target_value;
 
         let second_ast = replace_question_mark(unknown_side, X2);
-        let y2 = Self::evaluate(second_ast, env, currencies)?.result - target_value;
+        let y2 = Self::evaluate_to_number(second_ast, env, currencies)?.number - target_value;
 
         // Calculate the variables for formula y = mx + c
         let m = (y2 - y1) / (X2 - X1);
@@ -341,29 +410,35 @@ impl<'a> Engine<'a> {
             y1_result.format
         };
 
-        Ok(CalculationResult::new(result, question_mark_unit, false, format))
+        Ok(Value::number(result, question_mark_unit, false, format))
     }
 
-    pub fn equals(lhs: &CalculationResult, rhs: &CalculationResult, currencies: &Currencies) -> bool {
-        let lhs_unit = &lhs.unit;
-        let rhs_unit = &rhs.unit;
+    pub fn equals(lhs: &Value, rhs: &Value, currencies: &Currencies) -> bool {
+        match (lhs, rhs) {
+            (Value::Number(lhs), Value::Number(rhs)) => {
+                let lhs_unit = &lhs.unit;
+                let rhs_unit = &rhs.unit;
 
-        if (lhs_unit.is_some() && rhs_unit.is_none()) || (lhs_unit.is_none() && rhs_unit.is_some()) {
-            false
-        } else if lhs_unit.is_some() && rhs_unit.is_some() {
-            let range: std::ops::Range<usize> = 0..1; // this doesn't matter since we discard the error
-            match convert_units(
-                rhs_unit.as_ref().unwrap(),
-                lhs_unit.as_ref().unwrap(),
-                rhs.result,
-                currencies,
-                &range,
-            ) {
-                Ok(rhs) => lhs.result == rhs,
-                Err(_) => false,
+                if (lhs_unit.is_some() && rhs_unit.is_none()) || (lhs_unit.is_none() && rhs_unit.is_some()) {
+                    false
+                } else if lhs_unit.is_some() && rhs_unit.is_some() {
+                    let range: Range<usize> = 0..1; // this doesn't matter since we discard the error
+                    match convert_units(
+                        rhs_unit.as_ref().unwrap(),
+                        lhs_unit.as_ref().unwrap(),
+                        rhs.number,
+                        currencies,
+                        &range,
+                    ) {
+                        Ok(rhs) => lhs.number == rhs,
+                        Err(_) => false,
+                    }
+                } else {
+                    lhs.number == rhs.number
+                }
             }
-        } else {
-            lhs.result == rhs.result
+            (Value::Object(lhs), Value::Object(rhs)) => lhs == rhs,
+            _ => false,
         }
     }
 
@@ -380,26 +455,31 @@ impl<'a> Engine<'a> {
 
             let mut args = Vec::new();
             for ast in arg_asts {
-                args.push(Self::evaluate(ast.clone(), self.env, self.currencies)?);
+                args.push(Self::evaluate_to_number(ast.clone(), self.env, self.currencies)?);
             }
-            let (result, unit) = match self.env.resolve_function(func_name, &args) {
-                Ok(res) => (res.0, res.1),
-                Err(ty) => {
-                    if matches!(ty, ErrorType::UnknownFunction(_)) {
+
+            let new_node = match self.env.resolve_function(func_name, &args) {
+                Ok(res) => {
+                    let mut new_node = AstNode::from(node, AstNodeData::Literal(res.0));
+                    if new_node.unit.is_none() { new_node.unit = res.1; }
+                    new_node
+                }
+                Err(ty) => match ty {
+                    ErrorType::UnknownFunction(_) => {
                         let args = args.iter()
-                            .map(|r| r.result)
+                            .map(|r| r.number)
                             .collect::<Vec<_>>();
                         match self.env.resolve_custom_function(func_name, &args, self.currencies) {
-                            Ok(res) => res,
+                            Ok(res) => res.to_ast_node_from(node),
                             Err(ty) => return Err(ty.with(node.range.clone())),
                         }
-                    } else {
+                    }
+                    _ => {
                         return Err(ty.with(node.range.clone()));
                     }
                 }
             };
-            let mut new_node = AstNode::from(node, AstNodeData::Literal(result));
-            if new_node.unit.is_none() { new_node.unit = unit; }
+
             let _ = replace(node, new_node);
         }
 
@@ -413,12 +493,10 @@ impl<'a> Engine<'a> {
                 _ => continue,
             };
 
-            let Variable(number, unit) = match self.env.resolve_variable(var_name) {
-                Ok(var) => var,
-                Err(ty) => return Err(ty.with(node.range.clone())),
-            };
-            let mut new_node = AstNode::from(node, AstNodeData::Literal(*number));
-            if new_node.unit.is_none() { new_node.unit = unit.clone(); }
+            let Variable(value) = self.env.resolve_variable(var_name)
+                .map_err(|ty| ty.with(node.range.clone()))?;
+
+            let new_node = value.to_ast_node_from(node);
             let _ = replace(node, new_node);
         }
 
@@ -434,8 +512,7 @@ impl<'a> Engine<'a> {
 
             let group_result = Self::evaluate(group_ast.clone(), self.env, self.currencies)?;
             // Construct Literal node with the evaluated result
-            let mut new_node = AstNode::from(node, AstNodeData::Literal(group_result.result));
-            if new_node.unit.is_none() { new_node.unit = group_result.unit; }
+            let new_node = group_result.to_ast_node_from(node);
             let _ = replace(node, new_node);
         }
 
@@ -449,7 +526,16 @@ impl<'a> Engine<'a> {
             let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
 
             if operators.contains(&op) {
-                lhs.apply(operator, rhs, self.currencies)?;
+                if let AstNodeData::Object(object) = &lhs.data {
+                    let new_lhs = object.apply((op, operator.range.clone()), rhs, false)?;
+                    let _ = replace(lhs, new_lhs);
+                } else if let AstNodeData::Object(object) = &rhs.data {
+                    let new_lhs = object.apply((op, operator.range.clone()), lhs, true)?;
+                    let _ = replace(lhs, new_lhs);
+                } else {
+                    lhs.apply(operator, rhs, self.currencies)?;
+                }
+
                 // remove operator and rhs
                 self.ast.remove(i + 1);
                 self.ast.remove(i + 1);
@@ -460,6 +546,10 @@ impl<'a> Engine<'a> {
 
         Ok(())
     }
+}
+
+fn full_range(ast: &[AstNode]) -> Range<usize> {
+    ast.first().unwrap().range.start..ast.last().unwrap().range.end
 }
 
 #[cfg(test)]
@@ -476,13 +566,13 @@ mod tests {
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Environment::new(),
                 &Currencies::none(),
-            )
+            ).and_then(|res| res.to_number().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))
         }
     }
 
     macro_rules! expect {
         ($str:expr, $res:expr) => {
-            assert_eq!(eval!($str)?.result, $res)
+            assert_eq!(eval!($str)?.number, $res)
         }
     }
 
@@ -557,7 +647,7 @@ mod tests {
     fn units() -> Result<()> {
         let res = eval!("3 + 3m")?;
         assert_eq!(res.unit.unwrap().to_string(), "m");
-        assert_eq!(res.result, 6.0);
+        assert_eq!(res.number, 6.0);
         Ok(())
     }
 

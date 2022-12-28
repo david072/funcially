@@ -270,9 +270,7 @@ impl App<'_> {
             Ok(res) => {
                 color_segments = res.color_segments;
                 match res.data {
-                    ResultData::Number { result, unit, format } => {
-                        format!("{}{}", format.format(result, self.use_thousands_separator), unit.unwrap_or_default())
-                    }
+                    ResultData::Value(number) => number.format(self.use_thousands_separator),
                     ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
                     ResultData::Function { name, arg_count, function: f } => {
                         function = Some(Function(name, arg_count, f));

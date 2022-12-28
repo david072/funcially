@@ -17,6 +17,8 @@ pub enum TokenType {
     // Brackets
     OpenBracket,
     CloseBracket,
+    OpenCurlyBracket,
+    CloseCurlyBracket,
     // Operators
     Plus,
     Minus,
@@ -263,6 +265,8 @@ impl<'a> Tokenizer<'a> {
             b'%' => Some(TokenType::PercentSign),
             b'(' => Some(TokenType::OpenBracket),
             b')' => Some(TokenType::CloseBracket),
+            b'{' => Some(TokenType::OpenCurlyBracket),
+            b'}' => Some(TokenType::CloseCurlyBracket),
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),
             b':' if self.is_next(b'=') => Some(TokenType::DefinitionSign),

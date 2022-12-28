@@ -327,7 +327,7 @@ mod commands {
                     Ok(res) => {
                         embed.description(format!("`{input}`"));
                         match res.data {
-                            ResultData::Number { result, unit, format } => {
+                            ResultData::Value { result, unit, format } => {
                                 embed
                                     .color(Colour::GOLD)
                                     .title(format!("{}{}",

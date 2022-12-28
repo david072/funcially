@@ -34,7 +34,7 @@ impl ColorSegment {
 
         for token in tokens {
             match token.ty {
-                OpenBracket => {
+                OpenBracket | OpenCurlyBracket => {
                     let r = rng.gen::<u8>();
                     let g = rng.gen::<u8>();
                     let b = rng.gen::<u8>();
@@ -44,7 +44,7 @@ impl ColorSegment {
                     bracket_colors.push(color);
                     nesting += 1;
                 }
-                CloseBracket => {
+                CloseBracket | CloseCurlyBracket => {
                     let color = bracket_colors.pop().unwrap_or(Color::WHITE);
                     result.push(ColorSegment::new(token.range(), color));
 

@@ -20,9 +20,10 @@ use environment::{
     Variable,
 };
 pub use environment::{Environment, Function};
-use crate::astgen::parser::ParserResult;
 
+use crate::astgen::parser::ParserResult;
 pub use crate::engine::Format;
+use crate::engine::Value;
 
 mod astgen;
 mod common;
@@ -70,11 +71,7 @@ impl FromStr for Verbosity {
 /// A struct containing information about the calculated result
 pub enum ResultData {
     Nothing,
-    Number {
-        result: f64,
-        unit: Option<String>,
-        format: Format,
-    },
+    Value(Value),
     Boolean(bool),
     /// `name`, `argument count`
     Function {
@@ -97,9 +94,9 @@ impl CalculatorResult {
         }
     }
 
-    pub fn number(result: f64, unit: Option<String>, format: Format, segments: Vec<ColorSegment>) -> Self {
+    pub fn value(value: Value, segments: Vec<ColorSegment>) -> Self {
         Self {
-            data: ResultData::Number { result, unit, format },
+            data: ResultData::Value(value),
             color_segments: segments,
         }
     }
@@ -236,12 +233,12 @@ impl<'a> Calculator<'a> {
                 }
 
                 let result = Engine::evaluate(ast, self.env(), &self.currencies)?;
-                self.env_mut().set_ans_variable(Variable(result.result, result.unit.clone()));
+                self.env_mut().set_ans_variable(Variable(result.clone()));
 
-                let unit = result.unit.as_ref().map(|unit| {
-                    unit.format(result.is_long_unit, result.result != 1.0)
-                });
-                Ok(CalculatorResult::number(result.result, unit, result.format, color_segments))
+                // let unit = result.unit.as_ref().map(|unit| {
+                //     unit.format(result.is_long_unit, result.result != 1.0)
+                // });
+                Ok(CalculatorResult::value(result, color_segments))
             }
             ParserResult::EqualityCheck(lhs, rhs) => {
                 if self.verbosity == Verbosity::Ast {
@@ -260,17 +257,12 @@ impl<'a> Calculator<'a> {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.env(), &self.currencies)?;
-                        let unit = res.unit.as_ref().map(|unit| {
-                            unit.format(res.is_long_unit, res.result != 1.0)
-                        });
+                        // let unit = res.unit.as_ref().map(|unit| {
+                        //     unit.format(res.is_long_unit, res.result != 1.0)
+                        // });
 
-                        self.env_mut().set_variable(&name, Variable(res.result, res.unit)).unwrap();
-                        Ok(CalculatorResult::number(
-                            res.result,
-                            unit,
-                            Format::Decimal,
-                            color_segments,
-                        ))
+                        self.env_mut().set_variable(&name, Variable(res.clone())).unwrap();
+                        Ok(CalculatorResult::value(res, color_segments))
                     }
                     None => {
                         self.env_mut().remove_variable(&name).unwrap();
@@ -315,16 +307,16 @@ impl<'a> Calculator<'a> {
                     &self.currencies,
                 )?;
 
-                self.env_mut().set_ans_variable(Variable(result.result, result.unit.clone()));
+                self.env_mut().set_ans_variable(Variable(result.clone()));
                 if let Some((name, range)) = output_variable {
                     if let Err(ty) = self.env_mut().set_variable(
                         &name,
-                        Variable(result.result, result.unit.clone())) {
+                        Variable(result.clone())) {
                         return Err(ty.with(range));
                     }
                 }
 
-                Ok(CalculatorResult::number(result.result, result.unit.map(|u| u.to_string()), result.format, color_segments))
+                Ok(CalculatorResult::value(result, color_segments))
             }
         }
     }

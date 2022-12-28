@@ -6,13 +6,8 @@
 
 use std::f64::consts::{E, PI, TAU};
 
-use crate::{
-    astgen::ast::AstNode,
-    common::ErrorType,
-    Currencies,
-    Engine,
-};
-use crate::engine::CalculationResult;
+use crate::{astgen::ast::AstNode, common::ErrorType, Currencies, Engine};
+use crate::engine::{NumberValue, Value};
 
 use self::units::Unit;
 
@@ -24,12 +19,12 @@ mod default_currencies;
 mod unit_conversion;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Variable(pub f64, pub Option<Unit>);
+pub struct Variable(pub Value);
 
 const STANDARD_VARIABLES: [&str; 4] = ["pi", "e", "tau", "ans"];
-const VAR_PI: &Variable = &Variable(PI, None);
-const VAR_E: &Variable = &Variable(E, None);
-const VAR_TAU: &Variable = &Variable(TAU, None);
+const VAR_PI: &Variable = &Variable(Value::only_number(PI));
+const VAR_E: &Variable = &Variable(Value::only_number(E));
+const VAR_TAU: &Variable = &Variable(Value::only_number(TAU));
 
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Function(pub(crate) Vec<String>, pub(crate) Vec<AstNode>);
@@ -77,14 +72,14 @@ impl Default for Environment {
 impl Environment {
     pub fn new() -> Environment {
         Environment {
-            ans: Variable(0.0, None),
+            ans: Variable(Value::only_number(0.0)),
             variables: Vec::new(),
             functions: Vec::new(),
         }
     }
 
     pub(crate) fn clear(&mut self) {
-        self.ans = Variable(0.0, None);
+        self.ans = Variable(Value::only_number(0.0));
         self.variables.clear();
         self.functions.clear();
     }
@@ -140,7 +135,7 @@ impl Environment {
 
     pub(crate) fn remove_variable(&mut self, var: &str) -> Result<(), ErrorType> {
         if var == "ans" {
-            self.ans = Variable(0.0, None);
+            self.ans = Variable(Value::only_number(0.0));
             return Ok(());
         } else if self.is_standard_variable(var) {
             return Err(ErrorType::ReservedVariable(var.to_owned()));
@@ -193,9 +188,10 @@ impl Environment {
     pub(crate) fn resolve_function(
         &self,
         f: &str,
-        arg_results: &[CalculationResult],
+        arg_results: &[NumberValue],
     ) -> Result<(f64, Option<Unit>), ErrorType> {
-        let args = arg_results.iter().map(|r| r.result).collect::<Vec<_>>();
+        let args = arg_results.iter().map(|r| r.number).collect::<Vec<_>>();
+
         let as_radians = |i: usize| {
             if let Some(unit) = &arg_results[i].unit {
                 if unit.0 == "°" {
@@ -267,7 +263,7 @@ impl Environment {
         }
     }
 
-    pub(crate) fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
+    pub(crate) fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies) -> Result<Value, ErrorType> {
         for (name, func) in &self.functions {
             if name == f {
                 return self.resolve_specific_function(func, args, currencies);
@@ -277,18 +273,13 @@ impl Environment {
         Err(ErrorType::UnknownFunction(f.to_owned()))
     }
 
-    pub fn resolve_specific_function(&self, f: &Function, args: &[f64], currencies: &Currencies) -> Result<(f64, Option<Unit>), ErrorType> {
+    pub fn resolve_specific_function(&self, f: &Function, args: &[f64], currencies: &Currencies) -> Result<Value, ErrorType> {
         let mut temp_env = self.clone();
         for (i, arg) in args.iter().enumerate() {
-            temp_env.set_variable(&f.0[i], Variable(*arg, None))?;
+            temp_env.set_variable(&f.0[i], Variable(Value::only_number(*arg)))?;
         }
 
-        let value = Engine::evaluate(f.1.clone(), &temp_env, currencies);
-
-        match value {
-            Ok(res) => Ok((res.result, res.unit)),
-            Err(e) => Err(e.error)
-        }
+        Engine::evaluate(f.1.clone(), &temp_env, currencies).map_err(|e| e.error)
     }
 
     pub(crate) fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {

@@ -59,8 +59,8 @@ fn main() {
             _ => {
                 match calculator.calculate(&input) {
                     Ok(res) => match res.data {
-                        ResultData::Number { result: n, unit, format } => {
-                            println!("= {}{}", format.format(n, use_thousands_separator).green(), unit.unwrap_or_default());
+                        ResultData::Value(value)  => {
+                            println!("= {}", value.format(use_thousands_separator));
                         }
                         ResultData::Boolean(b) => {
                             println!("=> {}", if b { "True".green() } else { "False".red() });

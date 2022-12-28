@@ -71,6 +71,10 @@ pub enum ErrorType {
     ExpectedOpenBracket,
     #[error("Expected closing bracket")]
     ExpectedCloseBracket,
+    #[error("Expected opening curly bracket")]
+    ExpectedOpenCurlyBracket,
+    #[error("Expected closing curly bracket")]
+    ExpectedCloseCurlyBracket,
     #[error("Expected comma")]
     ExpectedComma,
     #[error("Can't redefine standard variable \"{0}\"")]
@@ -85,6 +89,10 @@ pub enum ErrorType {
     QuestionMarkNotAllowed,
     #[error("Can't use what's being defined")]
     CantUseIdentifierInDefinition,
+    #[error("Unknown object \"{0}\"")]
+    UnknownObject(String),
+    #[error("Expected the name of the object")]
+    ExpectedObjectName,
 
     // engine
     #[error("Cannot divide by zero")]
@@ -107,6 +115,10 @@ pub enum ErrorType {
     ExpectedQuestionMark,
     #[error("Wrong unit, expected {0}")]
     WrongUnit(String),
+    #[error("This operation is not supported")]
+    UnsupportedOperation,
+    #[error("Invalid side")]
+    InvalidSide,
     /// This should never happen
     #[error("")]
     InvalidAst,
