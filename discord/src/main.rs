@@ -327,13 +327,10 @@ mod commands {
                     Ok(res) => {
                         embed.description(format!("`{input}`"));
                         match res.data {
-                            ResultData::Value { result, unit, format } => {
+                            ResultData::Value(value) => {
                                 embed
                                     .color(Colour::GOLD)
-                                    .title(format!("{}{}",
-                                                   format.format(result, use_thousands_separator),
-                                                   unit.unwrap_or_default()
-                                    ));
+                                    .title(value.format(use_thousands_separator));
                             }
                             ResultData::Boolean(b) => {
                                 embed
