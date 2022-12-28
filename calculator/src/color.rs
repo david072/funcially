@@ -82,7 +82,7 @@ impl ColorSegment {
             Color::GOLD
         } else if ty.is_boolean_operator() {
             Color::WHITE
-        } else if ty.is_format() || *ty == Identifier {
+        } else if ty.is_format() || matches!(*ty, Identifier | ObjectArgs) {
             IDENTIFIER_COLOR
         } else {
             match token.ty {

@@ -22,9 +22,9 @@ pub enum CalculatorObject {
 }
 
 impl CalculatorObject {
-    pub fn parse((name, name_range): (String, Range<usize>), tokens: &[Token], fallback_range: Range<usize>) -> Result<Self> {
+    pub fn parse((name, name_range): (String, Range<usize>), text: &str, range: Range<usize>) -> Result<Self> {
         match name.as_str() {
-            "date" => Ok(Self::Date(DateObject::parse(tokens, fallback_range)?)),
+            "date" => Ok(Self::Date(DateObject::parse(text, range)?)),
             _ => Err(ErrorType::UnknownObject(name).with(name_range))
         }
     }
@@ -58,18 +58,12 @@ impl Display for DateObject {
 }
 
 impl DateObject {
-    fn parse(tokens: &[Token], fallback_range: Range<usize>) -> Result<Self> {
-        if tokens.is_empty() {
-            return Err(ErrorType::ExpectedElements.with(fallback_range));
-        }
-
-        if tokens.len() == 1 && tokens[0].ty == TokenType::Identifier && tokens[0].text.to_lowercase() == "now" {
+    fn parse(text: &str, range: Range<usize>) -> Result<Self> {
+        if text.to_lowercase() == "now" {
             return Ok(Self { date: Local::now().date_naive() });
         }
 
-        let str = tokens.iter().map(|t| t.text.clone()).collect::<String>();
-        let range = tokens.first().unwrap().range().start..tokens.last().unwrap().range().end;
-        let date = match NaiveDate::parse_from_str(&str, "%d.%m.%Y") {
+        let date = match NaiveDate::parse_from_str(text, "%d.%m.%Y") {
             Ok(d) => d,
             Err(e) => return Err(ErrorType::InvalidDate(e).with(range)),
         };

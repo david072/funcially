@@ -44,6 +44,7 @@ pub enum TokenType {
     Scientific,
     // Identifier
     Identifier,
+    ObjectArgs,
     Comma,
     DefinitionSign,
     QuestionMark,
@@ -137,10 +138,15 @@ fn any_of(chars: &str) -> impl Fn(u8) -> bool + '_ {
     move |c| chars.contains(c as char)
 }
 
+fn not(chars: &str) -> impl Fn(u8) -> bool + '_ {
+    move |c| !chars.contains(c as char)
+}
+
 struct Tokenizer<'a> {
     source: &'a str,
     string: &'a [u8],
     index: usize,
+    tokens_left_before_object_args: Option<usize>,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -149,6 +155,7 @@ impl<'a> Tokenizer<'a> {
             source,
             string: source.as_bytes(),
             index: 0,
+            tokens_left_before_object_args: None,
         }
     }
 
@@ -181,6 +188,12 @@ impl<'a> Tokenizer<'a> {
                         "scientific" | "sci" => TokenType::Scientific,
                         _ => ty,
                     };
+                }
+
+                if let Some(counter) = &mut self.tokens_left_before_object_args {
+                    if ty != TokenType::Whitespace {
+                        *counter -= 1;
+                    }
                 }
 
                 Ok(Some(Token {
@@ -233,6 +246,15 @@ impl<'a> Tokenizer<'a> {
         if self.accept(any_of(WHITESPACE)) {
             while self.accept(any_of(WHITESPACE)) {}
             return Some(TokenType::Whitespace);
+        }
+
+        if let Some(0) = self.tokens_left_before_object_args {
+            self.tokens_left_before_object_args = None;
+            let prev_idx = self.index;
+            while self.accept(not("}")) {}
+            if self.index != prev_idx {
+                return Some(TokenType::ObjectArgs);
+            }
         }
 
         let c = self.string[self.index];
@@ -310,7 +332,10 @@ impl<'a> Tokenizer<'a> {
             b'%' => Some(TokenType::PercentSign),
             b'(' => Some(TokenType::OpenBracket),
             b')' => Some(TokenType::CloseBracket),
-            b'{' => Some(TokenType::OpenCurlyBracket),
+            b'{' => {
+                self.tokens_left_before_object_args = Some(2);
+                Some(TokenType::OpenCurlyBracket)
+            }
             b'}' => Some(TokenType::CloseCurlyBracket),
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),

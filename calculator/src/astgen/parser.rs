@@ -665,17 +665,12 @@ impl<'a> Parser<'a> {
         let name = self.accept(is(Identifier), ExpectedObjectName)?;
         let name = (name.text.to_owned(), name.range());
 
-        let start = self.index;
-        let mut end = start;
-        while self.try_accept(|t| *t != CloseCurlyBracket).is_some() {
-            end += 1;
-        }
+        let args = self.accept(is(ObjectArgs), ExpectedElements)?;
+        let object = CalculatorObject::parse(name, &args.text, args.range())?;
 
         let close_bracket = self.accept(is(CloseCurlyBracket), ExpectedCloseCurlyBracket)?;
         let close_bracket_range = close_bracket.range();
         let full_range_end = close_bracket_range.end;
-
-        let object = CalculatorObject::parse(name, &self.tokens[start..end], close_bracket_range)?;
         Ok(AstNode::new(AstNodeData::Object(object), full_range_start..full_range_end))
     }
 
