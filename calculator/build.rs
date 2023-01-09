@@ -322,19 +322,19 @@ fn unit_prefix(unit: &str) -> Option<(char, i32)> {
 pub fn convert_units(src_unit: &str, dst_unit: &str, x: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
     if src_unit == dst_unit { return Ok(x); }
 
-    let mut src_unit = src_unit;
-    let mut dst_unit = dst_unit;
+    let mut src = src_unit;
+    let mut dst = dst_unit;
 
-    let src_power = unit_prefix(src_unit).map(|x| x.1).unwrap_or(0);
-    if src_power != 0 { src_unit = &src_unit[1..]; }
-    let dst_power = unit_prefix(dst_unit).map(|x| x.1).unwrap_or(0);
-    if dst_power != 0 { dst_unit = &dst_unit[1..]; }
+    let src_power = unit_prefix(src).map(|x| x.1).unwrap_or(0);
+    if src_power != 0 { src = &src[1..]; }
+    let dst_power = unit_prefix(dst).map(|x| x.1).unwrap_or(0);
+    if dst_power != 0 { dst = &dst[1..]; }
 
     let x = x * 10f64.powi(src_power - dst_power);
 
-    if src_unit == dst_unit { return Ok(x); }
+    if src == dst { return Ok(x); }
 
-    match (src_unit, dst_unit) {
+    match (src, dst) {
 "#;
 
             file_content += &self.conversions.iter()
@@ -349,12 +349,12 @@ pub fn convert_units(src_unit: &str, dst_unit: &str, x: f64, currencies: &Curren
             // if either isn't a currency, this is an error
             // -> you can't convert from a currency to a normal unit, and if both aren't a
             //    currency, then we would have handled it in this match statement
-            if !is_currency(src_unit) || !is_currency(dst_unit) {
+            if !is_currency(src) || !is_currency(dst) {
                 Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string())
                     .with(range.clone()))
             }
             else {
-                currencies.convert(src_unit, dst_unit, x, range)
+                currencies.convert(src, dst, x, range)
            }
         }
     }

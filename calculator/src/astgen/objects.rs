@@ -10,7 +10,6 @@ use std::ops::Range;
 use chrono::{Duration, Local, NaiveDate};
 
 use crate::astgen::ast::{AstNode, AstNodeData, Operator};
-use crate::astgen::tokenizer::{Token, TokenType};
 use crate::common::{ErrorType, Result};
 use crate::environment::currencies::Currencies;
 use crate::environment::units;
