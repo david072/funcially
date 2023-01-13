@@ -689,6 +689,10 @@ impl<'a> Parser<'a> {
             match token.ty {
                 OpenBracket => nesting_level += 1,
                 CloseBracket => {
+                    nesting_level -= 1;
+                    // Ignore brackets that aren't on the base level
+                    if nesting_level != 0 { continue; }
+
                     // Set range_end here, because otherwise the borrow checker complains because
                     // we immutably borrowed `token`, and are now trying to mutably borrow
                     // `self.index` and `self.tokens`.
@@ -701,10 +705,7 @@ impl<'a> Parser<'a> {
                     let argument = &self.tokens[argument_start..self.index - 1];
                     arguments.push(argument);
 
-                    nesting_level -= 1;
-                    if nesting_level == 0 {
-                        break;
-                    }
+                    if nesting_level == 0 { break; }
                 }
                 Comma => {
                     if nesting_level == 1 {
