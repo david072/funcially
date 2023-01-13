@@ -6,14 +6,19 @@
 
 use std::ops::Range;
 
-use rand::{Rng, rngs::SmallRng, SeedableRng};
-
 use crate::astgen::tokenizer::{Token, TokenType};
 
 use self::TokenType::*;
 
 const IDENTIFIER_COLOR: Color = Color::from_rgb(0xAD, 0xD8, 0xE6);
-const INITIAL_RNG_SEED: u64 = 420;
+
+const BRACKET_COLORS: [Color; 5] = [
+    Color::from_rgb(0xD2, 0x0F, 0x39),
+    Color::from_rgb(0xfe, 0x64, 0x0b),
+    Color::from_rgb(0xdf, 0x8e, 0x1d),
+    Color::from_rgb(0x40, 0xa0, 0x2b),
+    Color::from_rgb(0x20, 0x9f, 0xb5),
+];
 
 #[derive(Debug, Clone)]
 pub struct ColorSegment {
@@ -32,16 +37,21 @@ impl ColorSegment {
         let mut last_token: Option<(TokenType, Range<usize>)> = None;
         let mut bracket_colors = Vec::<Color>::new();
 
-        let mut rng = SmallRng::seed_from_u64(INITIAL_RNG_SEED);
         let mut nesting = 0usize;
+
+        fn bracket_color(nesting: usize) -> Color {
+            let percent = (((nesting / BRACKET_COLORS.len()).saturating_sub(1) * 20) % 100) as u32;
+            BRACKET_COLORS[nesting % BRACKET_COLORS.len()].lighten(percent)
+        }
 
         for token in tokens {
             match token.ty {
                 OpenBracket | OpenCurlyBracket => {
-                    let r = rng.gen::<u8>();
-                    let g = rng.gen::<u8>();
-                    let b = rng.gen::<u8>();
-                    let color = Color::from_rgb(r, g, b);
+                    let color = bracket_color(nesting);
+                    // let r = rng.gen::<u8>();
+                    // let g = rng.gen::<u8>();
+                    // let b = rng.gen::<u8>();
+                    // let color = Color::from_rgb(r, g, b);
 
                     result.push(ColorSegment::new(token.range(), color));
                     bracket_colors.push(color);
@@ -51,12 +61,7 @@ impl ColorSegment {
                     let color = bracket_colors.pop().unwrap_or(Color::WHITE);
                     result.push(ColorSegment::new(token.range(), color));
 
-                    if nesting > 0 {
-                        nesting -= 1;
-                        if nesting == 0 {
-                            rng = SmallRng::seed_from_u64(INITIAL_RNG_SEED);
-                        }
-                    }
+                    nesting = nesting.saturating_sub(1);
                 }
                 Divide if last_token.is_some() &&
                     last_token.as_ref().unwrap().0 == Identifier &&
@@ -140,5 +145,10 @@ impl Color {
     #[inline(always)]
     pub const fn from_rgba_premultiplied(r: u8, g: u8, b: u8, a: u8) -> Color {
         Color([r, g, b, a])
+    }
+
+    pub fn lighten(&self, percent: u32) -> Color {
+        let f = |i: usize| (self.0[i] as u32 * (100 + percent) / 100).min(255) as u8;
+        Color::from_rgba_premultiplied(f(0), f(1), f(2), self.0[3])
     }
 }

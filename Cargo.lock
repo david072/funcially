@@ -419,7 +419,6 @@ dependencies = [
  "chrono",
  "dirs",
  "phf",
- "rand",
  "reqwest",
  "serde",
  "serde_json",
