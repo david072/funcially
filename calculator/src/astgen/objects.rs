@@ -53,6 +53,10 @@ impl CalculatorObject {
         }
     }
 
+    pub fn is_valid_object(name: &str) -> bool {
+        matches!(name, "date")
+    }
+
     pub fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_in_rhs: bool) -> Result<AstNode> {
         match self {
             Self::Date(date) => date.apply(self_range, op, other, self_in_rhs),

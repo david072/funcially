@@ -706,6 +706,9 @@ impl<'a> Parser<'a> {
         let open_bracket = self.accept(is(OpenCurlyBracket), ExpectedOpenCurlyBracket)?;
         let full_range_start = open_bracket.range().start;
         let name = self.accept(is(Identifier), ExpectedObjectName)?;
+        if !CalculatorObject::is_valid_object(&name.text) {
+            error!(UnknownObject(name.text.clone()): name.range());
+        }
         let name = (name.text.clone(), name.range());
 
         let range_start = self.index;
