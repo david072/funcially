@@ -194,7 +194,7 @@ impl<'a> Engine<'a> {
         engine.eval_groups()?;
         // extended operators
         engine.eval_operators(&[
-            Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr,
+            Operator::Exponentiation, Operator::BitwiseAnd, Operator::BitwiseOr, Operator::Xor,
             Operator::BitShiftLeft, Operator::BitShiftRight, Operator::Modulo
         ])?;
         engine.eval_operators(&[Operator::Multiply, Operator::Divide])?;

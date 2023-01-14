@@ -31,6 +31,7 @@ pub enum TokenType {
     Exponentiation,
     BitwiseAnd,
     BitwiseOr,
+    Xor,
     BitShiftLeft,
     BitShiftRight,
     Of,
@@ -82,6 +83,7 @@ impl TokenType {
             | Self::Exponentiation
             | Self::BitwiseAnd
             | Self::BitwiseOr
+            | Self::Xor
             | Self::BitShiftLeft
             | Self::BitShiftRight
             | Self::Of
@@ -193,6 +195,7 @@ impl<'a> Tokenizer<'a> {
                         "of" => TokenType::Of,
                         "in" => TokenType::In,
                         "mod" => TokenType::Modulo,
+                        "xor" => TokenType::Xor,
                         "decimal" => TokenType::Decimal,
                         "hex" => TokenType::Hex,
                         "binary" => TokenType::Binary,

@@ -50,6 +50,7 @@ pub enum Operator {
     Exponentiation,
     BitwiseAnd,
     BitwiseOr,
+    Xor,
     BitShiftLeft,
     BitShiftRight,
     Of,
@@ -218,21 +219,14 @@ impl AstNode {
             Operator::Plus => *lhs += rhs_value,
             Operator::Minus => *lhs -= rhs_value,
             Operator::Exponentiation => *lhs = lhs.powf(rhs_value),
-            Operator::BitwiseAnd | Operator::BitwiseOr => {
+            Operator::BitwiseAnd | Operator::BitwiseOr | Operator::Xor | Operator::BitShiftLeft | Operator::BitShiftRight => {
                 expect_int!(lhs, self.range, op);
                 expect_int!(rhs_value, self.range, op);
 
                 match op {
                     Operator::BitwiseAnd => *lhs = (*lhs as i64 & rhs_value as i64) as f64,
                     Operator::BitwiseOr => *lhs = (*lhs as i64 | rhs_value as i64) as f64,
-                    _ => unreachable!(),
-                }
-            }
-            Operator::BitShiftLeft | Operator::BitShiftRight => {
-                expect_int!(lhs, self.range, op);
-                expect_int!(rhs_value, self.range, op);
-
-                match op {
+                    Operator::Xor => *lhs = (*lhs as i64 ^ rhs_value as i64) as f64,
                     Operator::BitShiftLeft => *lhs = ((*lhs as i64) << (rhs_value as i64)) as f64,
                     Operator::BitShiftRight => *lhs = ((*lhs as i64) >> (rhs_value as i64)) as f64,
                     _ => unreachable!(),

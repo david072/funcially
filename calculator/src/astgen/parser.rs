@@ -886,6 +886,7 @@ impl<'a> Parser<'a> {
             Exponentiation => operator!(Exponentiation),
             BitwiseAnd => operator!(BitwiseAnd),
             BitwiseOr => operator!(BitwiseOr),
+            Xor => operator!(Xor),
             BitShiftLeft => operator!(BitShiftLeft),
             BitShiftRight => operator!(BitShiftRight),
             Of => operator!(Of),
