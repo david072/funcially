@@ -572,7 +572,7 @@ mod tests {
     macro_rules! eval {
         ($str:expr) => {
             Engine::evaluate(
-                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new())? { ast }
+                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new(), &Currencies::none())? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Environment::new(),
                 &Currencies::none(),
@@ -583,7 +583,7 @@ mod tests {
     macro_rules! eval_obj {
         ($str:expr) => {
             Engine::evaluate(
-                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new())? { ast }
+                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new(), &Currencies::none())? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Environment::new(),
                 &Currencies::none(),
