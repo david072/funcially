@@ -111,6 +111,14 @@ pub struct Token {
 }
 
 impl Token {
+    pub fn empty_from_type(ty: TokenType) -> Self {
+        Self {
+            ty,
+            text: String::new(),
+            range: 0..1,
+        }
+    }
+
     pub fn range(&self) -> Range<usize> {
         self.range.clone()
     }

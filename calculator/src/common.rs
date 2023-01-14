@@ -20,7 +20,7 @@ macro_rules! error {
     };
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum ErrorType {
     /// Not actually an error. Used when e.g.
     /// a variable needs a value, but will never be used.
@@ -167,7 +167,7 @@ impl ErrorType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Error {
     pub error: ErrorType,
     pub start: usize,

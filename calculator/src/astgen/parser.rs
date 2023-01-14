@@ -4,7 +4,7 @@ use crate::{Environment, error, Format};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
 use crate::astgen::objects::{CalculatorObject, ObjectArgument};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
-use crate::common::{ErrorType::*, ErrorType, Result};
+use crate::common::{Error, ErrorType::*, ErrorType, Result};
 use crate::environment::ArgCount;
 use crate::environment::currencies::Currencies;
 use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
@@ -97,7 +97,7 @@ impl<'a> Parser<'a> {
             currencies,
             0,
             true,
-            None
+            None,
         );
         if let Some(name) = parser.try_accept_variable_definition_head() {
             let name = name?;
@@ -209,34 +209,61 @@ impl<'a> Parser<'a> {
         Some(Ok(name))
     }
 
+    /// Tries to accept a function definition head. To do this, the function tries to parse the
+    /// entire definition head while storing the first error it encountered. If it does not find
+    /// a definition sign, it returns None, discards the error and resets self.index. If it finds
+    /// a definition sign, it releases the stored error if there is one, and otherwise returns the
+    /// parsed data.
     fn try_accept_function_definition_head(&mut self) -> Option<Result<(String, Vec<String>)>> {
-        // If there is no definition sign, we return immediately. This is needed, so that we can
-        // confidently emit errors in `accept_function_definition_head()`
-        self.tokens.iter().find(|token| token.ty == DefinitionSign)?;
-        Some(self.accept_function_definition_head())
-    }
+        let start_index = self.index;
 
-    fn accept_function_definition_head(&mut self) -> Result<(String, Vec<String>)> {
-        let identifier = self.accept(is(Identifier), ExpectedIdentifier)?;
+        let mut first_error: Option<Error> = None;
+        /// Runs the input, and returns the value if it returns Ok.
+        /// If the expression returns an Err, the macro stores the error in first_error, if it
+        /// is None and returns a default value.
+        macro_rules! try_token {
+            ($input:expr, $var:ident) => {
+                match $input {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if first_error.is_none() {
+                            first_error = Some(e.clone());
+                        }
+                        &$var
+                    }
+                }
+            };
+            ($input:expr) => {
+                if let Err(e) = $input {
+                    if first_error.is_none() {
+                        first_error = Some(e.clone());
+                    }
+                }
+            }
+        }
+
+        let _identifier = Token::empty_from_type(Identifier);
+        let identifier = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier);
         let identifier_range = identifier.range();
         let name = identifier.text.clone();
 
-        if self.environment.is_standard_function(&name) {
-            error!(ReservedFunction(name): identifier_range);
+        if self.environment.is_standard_function(&name) && first_error.is_none() {
+            first_error = Some(ReservedFunction(name.clone()).with(identifier_range));
         }
 
-        self.accept(is(OpenBracket), ExpectedOpenBracket)?;
+        try_token!(self.accept(is(OpenBracket), ExpectedOpenBracket));
 
-        let first_arg = self.accept(is(Identifier), ExpectedIdentifier)?.text.clone();
+        let first_arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier).text.clone();
         let mut args = vec![first_arg];
 
+        let _close_bracket = Token::empty_from_type(CloseBracket);
         loop {
-            let next = self.accept(any(&[Comma, CloseBracket]), ExpectedComma)?;
+            let next = try_token!(self.accept(any(&[Comma, CloseBracket]), ExpectedComma), _close_bracket);
             match next.ty {
                 Comma => {
-                    let arg = self.accept(is(Identifier), ExpectedIdentifier)?;
-                    if args.contains(&arg.text) {
-                        error!(DuplicateArgument(arg.text.clone()): arg.range());
+                    let arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier);
+                    if args.contains(&arg.text) && first_error.is_none() {
+                        first_error = Some(DuplicateArgument(arg.text.clone()).with(arg.range()));
                     }
                     args.push(arg.text.clone());
                 }
@@ -245,8 +272,19 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.accept(is(DefinitionSign), UnexpectedElements)?;
-        Ok((name, args))
+        let def_sign_res = self.accept(is(DefinitionSign), UnexpectedElements);
+        if def_sign_res.is_err() {
+            self.index = start_index;
+            None
+        } else {
+            Some(
+                if let Some(e) = first_error {
+                    Err(e)
+                } else {
+                    Ok((name, args))
+                }
+            )
+        }
     }
 
     fn accept_definition_expression(&mut self) -> Result<Option<Vec<AstNode>>> {
@@ -684,13 +722,13 @@ impl<'a> Parser<'a> {
                     range_end = ast.last().unwrap().range.end;
                     let range = ast.first().unwrap().range.start..ast.last().unwrap().range.end;
                     args.push(ObjectArgument::Ast(ast, range));
-                },
+                }
                 CloseSquareBracket => error!(UnexpectedCloseBracket: token.range()),
                 ObjectArgs => {
                     let token = self.accept(is(ObjectArgs), Nothing).unwrap();
                     range_end = token.range().end;
                     args.push(ObjectArgument::String(token.text.clone(), token.range()))
-                },
+                }
                 _ => error!(InvalidToken: token.range()),
             }
         }
@@ -707,7 +745,7 @@ impl<'a> Parser<'a> {
             args,
             self.environment,
             self.currencies,
-            range_start..range_end
+            range_start..range_end,
         )?;
         Ok(AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end))
     }
@@ -741,7 +779,7 @@ impl<'a> Parser<'a> {
             self.currencies,
             self.nesting_level + 1,
             false,
-            self.question_mark.clone()
+            self.question_mark.clone(),
         );
         if let Some(vars) = self.extra_allowed_variables {
             parser.set_extra_allowed_variables(vars);
