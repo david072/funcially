@@ -224,7 +224,7 @@ impl<'a> Calculator<'a> {
 
         let color_segments = ColorSegment::all(&tokens);
 
-        match Parser::parse(&tokens, self.env())? {
+        match Parser::parse(&tokens, self.env(), &self.currencies)? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
@@ -432,7 +432,7 @@ impl<'a> Calculator<'a> {
         let environment = self.env();
 
         if verbosity == Verbosity::Ast {
-            match Parser::parse(&tokens, environment) {
+            match Parser::parse(&tokens, environment, &self.currencies) {
                 Ok(parser_result) => match parser_result {
                     ParserResult::Calculation(ast) => {
                         writeln_or_err!(&mut output, "AST:");

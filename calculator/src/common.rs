@@ -10,6 +10,16 @@ use thiserror::Error;
 
 const CRATE_NAME: &str = "funcially";
 
+#[macro_export]
+macro_rules! error {
+    ($ty:ident: $range:expr) => {
+        return Err(ErrorType::$ty.with($range))
+    };
+    ($ty:ident($($arg:expr),+): $range:expr) => {
+        return Err(ErrorType::$ty($($arg),+).with($range))
+    };
+}
+
 #[derive(Error, Debug)]
 pub enum ErrorType {
     /// Not actually an error. Used when e.g.
@@ -19,8 +29,8 @@ pub enum ErrorType {
     // tokenizer
     #[error("Invalid Character {0}")]
     InvalidCharacter(String),
-    #[error("Could not parse number")]
-    InvalidNumber,
+    #[error("Could not parse number ({0})")]
+    InvalidNumber(String),
 
     // parser
     #[error("Expected Number")]
@@ -71,6 +81,12 @@ pub enum ErrorType {
     ExpectedOpenBracket,
     #[error("Expected closing bracket")]
     ExpectedCloseBracket,
+    #[error("Unexpected closing bracket")]
+    UnexpectedCloseBracket,
+    #[error("Expected opening square bracket")]
+    ExpectedOpenSquareBracket,
+    #[error("Expected closing square bracket")]
+    ExpectedCloseSquareBracket,
     #[error("Expected opening curly bracket")]
     ExpectedOpenCurlyBracket,
     #[error("Expected closing curly bracket")]
@@ -93,8 +109,15 @@ pub enum ErrorType {
     UnknownObject(String),
     #[error("Expected the name of the object")]
     ExpectedObjectName,
-    #[error("Invalid date ({0})")]
-    InvalidDate(chrono::ParseError),
+    #[error("Invalid date")]
+    InvalidDate,
+    #[error("Expected a dot")]
+    ExpectedDot,
+    #[error("This number is too big")]
+    TooBig,
+    // Stupid
+    #[error("The number is too big, or negative (found {0})")]
+    NotU32(i32),
 
     // engine
     #[error("Cannot divide by zero")]
@@ -128,8 +151,10 @@ pub enum ErrorType {
     #[error("The operands are in the wrong order")]
     WrongOrder,
     /// This should never happen
-    #[error("")]
+    #[error("Invalid AST (this is a bug!)")]
     InvalidAst,
+    #[error("Invalid token (this is a bug!)")]
+    InvalidToken,
 }
 
 impl ErrorType {

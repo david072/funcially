@@ -1,29 +1,21 @@
 use std::ops::Range;
 
-use crate::{Environment, Format};
+use crate::{Environment, error, Format};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
-use crate::astgen::objects::CalculatorObject;
+use crate::astgen::objects::{CalculatorObject, ObjectArgument};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{ErrorType::*, ErrorType, Result};
 use crate::environment::ArgCount;
+use crate::environment::currencies::Currencies;
 use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
-
-macro_rules! error {
-    ($ty:ident: $range:expr) => {
-        return Err(ErrorType::$ty.with($range))
-    };
-    ($ty:ident($($arg:expr),+): $range:expr) => {
-        return Err(ErrorType::$ty($($arg),+).with($range))
-    };
-}
 
 macro_rules! parse_f64_radix {
     ($text:expr, $radix:expr, $range:expr) => {
         {
-            let Ok(int) = i64::from_str_radix(&$text[2..], $radix) else {
-                error!(InvalidNumber: $range);
-            };
-            int as f64
+            match i64::from_str_radix(&$text[2..], $radix) {
+                Ok(int) => int as f64,
+                Err(e) => error!(InvalidNumber(e.to_string()): $range),
+            }
         }
     }
 }
@@ -90,6 +82,7 @@ pub struct Parser<'a> {
     index: usize,
     nesting_level: usize,
     environment: &'a Environment,
+    currencies: &'a Currencies,
     extra_allowed_variables: Option<&'a [String]>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
@@ -97,8 +90,15 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse(tokens: &'a [Token], env: &'a Environment) -> Result<ParserResult> {
-        let mut parser = Parser::new(tokens, env, 0, true, None);
+    pub fn parse(tokens: &'a [Token], env: &'a Environment, currencies: &'a Currencies) -> Result<ParserResult> {
+        let mut parser = Parser::new(
+            tokens,
+            env,
+            currencies,
+            0,
+            true,
+            None
+        );
         if let Some(name) = parser.try_accept_variable_definition_head() {
             let name = name?;
             let ast = parser.accept_definition_expression()?;
@@ -118,6 +118,7 @@ impl<'a> Parser<'a> {
     pub fn new(
         tokens: &'a [Token],
         env: &'a Environment,
+        currencies: &'a Currencies,
         nesting_level: usize,
         allow_question_mark: bool,
         question_mark: Option<QuestionMarkInfo>,
@@ -127,6 +128,7 @@ impl<'a> Parser<'a> {
             index: 0,
             nesting_level,
             environment: env,
+            currencies,
             extra_allowed_variables: None,
             allow_question_mark,
             question_mark,
@@ -525,7 +527,10 @@ impl<'a> Parser<'a> {
         let text = literal.text.chars().filter(|c| *c != '_').collect::<String>();
         let data = match literal.ty {
             DecimalLiteral => {
-                let Ok(number) = text.parse() else { error!(InvalidNumber: literal.range()); };
+                let number = match text.parse::<f64>() {
+                    Ok(n) => n,
+                    Err(e) => error!(InvalidNumber(e.to_string()): literal.range()),
+                };
                 AstNodeData::Literal(number)
             }
             HexLiteral => AstNodeData::Literal(parse_f64_radix!(text, 16, literal.range())),
@@ -663,15 +668,86 @@ impl<'a> Parser<'a> {
         let open_bracket = self.accept(is(OpenCurlyBracket), ExpectedOpenCurlyBracket)?;
         let full_range_start = open_bracket.range().start;
         let name = self.accept(is(Identifier), ExpectedObjectName)?;
-        let name = (name.text.to_owned(), name.range());
+        let name = (name.text.clone(), name.range());
 
-        let args = self.accept(is(ObjectArgs), ExpectedElements)?;
-        let object = CalculatorObject::parse(name, &args.text, args.range())?;
+        let range_start = self.index;
+        let mut range_end = 0usize;
+        let mut args = vec![];
+        while self.index < self.tokens.len() {
+            let Some(token) = self.peek(all()) else {
+                error!(ExpectedCloseCurlyBracket: self.error_range_at_end());
+            };
+            match token.ty {
+                CloseCurlyBracket => break,
+                OpenSquareBracket => {
+                    let ast = self.accept_object_arguments()?;
+                    range_end = ast.last().unwrap().range.end;
+                    let range = ast.first().unwrap().range.start..ast.last().unwrap().range.end;
+                    args.push(ObjectArgument::Ast(ast, range));
+                },
+                CloseSquareBracket => error!(UnexpectedCloseBracket: token.range()),
+                ObjectArgs => {
+                    let token = self.accept(is(ObjectArgs), Nothing).unwrap();
+                    range_end = token.range().end;
+                    args.push(ObjectArgument::String(token.text.clone(), token.range()))
+                },
+                _ => error!(InvalidToken: token.range()),
+            }
+        }
 
         let close_bracket = self.accept(is(CloseCurlyBracket), ExpectedCloseCurlyBracket)?;
         let close_bracket_range = close_bracket.range();
-        let full_range_end = close_bracket_range.end;
-        Ok(AstNode::new(AstNodeData::Object(object), full_range_start..full_range_end))
+
+        if self.index - 1 == range_start {
+            error!(ExpectedElements: close_bracket_range);
+        }
+
+        let object = CalculatorObject::parse(
+            name,
+            args,
+            self.environment,
+            self.currencies,
+            range_start..range_end
+        )?;
+        Ok(AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end))
+    }
+
+    fn accept_object_arguments(&mut self) -> Result<Vec<AstNode>> {
+        let open_bracket = self.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
+        let open_bracket_range = open_bracket.range();
+
+        let mut nesting_level = 1usize;
+        let start = self.index;
+        while self.index < self.tokens.len() {
+            let Some(token) = self.try_accept(all()) else { continue; };
+            match token.ty {
+                OpenSquareBracket => nesting_level += 1,
+                CloseSquareBracket => {
+                    nesting_level -= 1;
+                    if nesting_level == 0 { break; }
+                }
+                _ => {}
+            }
+        }
+
+        if nesting_level != 0 {
+            error!(MissingClosingBracket: open_bracket_range);
+        }
+
+        let tokens = &self.tokens[start..self.index - 1];
+        let mut parser = Self::new(
+            tokens,
+            self.environment,
+            self.currencies,
+            self.nesting_level + 1,
+            false,
+            self.question_mark.clone()
+        );
+        if let Some(vars) = self.extra_allowed_variables {
+            parser.set_extra_allowed_variables(vars);
+        }
+        let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+        Ok(ast)
     }
 
     fn accept_function_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {
@@ -743,6 +819,7 @@ impl<'a> Parser<'a> {
             let mut parser = Self::new(
                 tokens,
                 self.environment,
+                self.currencies,
                 self.nesting_level + 1,
                 allow_question_mark,
                 self.question_mark.clone(),
@@ -791,7 +868,7 @@ mod tests {
 
     macro_rules! parse {
         ($input:expr) => {
-            Parser::parse(&tokenize($input)?, &Environment::new())
+            Parser::parse(&tokenize($input)?, &Environment::new(), &Currencies::none())
         };
     }
 

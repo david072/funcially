@@ -46,18 +46,13 @@ impl ColorSegment {
 
         for token in tokens {
             match token.ty {
-                OpenBracket | OpenCurlyBracket => {
+                OpenBracket | OpenSquareBracket | OpenCurlyBracket => {
                     let color = bracket_color(nesting);
-                    // let r = rng.gen::<u8>();
-                    // let g = rng.gen::<u8>();
-                    // let b = rng.gen::<u8>();
-                    // let color = Color::from_rgb(r, g, b);
-
                     result.push(ColorSegment::new(token.range(), color));
                     bracket_colors.push(color);
                     nesting += 1;
                 }
-                CloseBracket | CloseCurlyBracket => {
+                CloseBracket | CloseSquareBracket | CloseCurlyBracket => {
                     let color = bracket_colors.pop().unwrap_or(Color::WHITE);
                     result.push(ColorSegment::new(token.range(), color));
 
@@ -92,7 +87,7 @@ impl ColorSegment {
         } else {
             match token.ty {
                 Whitespace => Color::TRANSPARENT,
-                OpenBracket | OpenCurlyBracket | CloseBracket | CloseCurlyBracket |
+                OpenBracket | OpenSquareBracket | OpenCurlyBracket | CloseBracket | CloseSquareBracket | CloseCurlyBracket |
                 ExclamationMark | PercentSign |
                 Comma | EqualsSign | DefinitionSign => Color::WHITE,
                 _ => unreachable!(),

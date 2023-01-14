@@ -19,6 +19,8 @@ pub enum TokenType {
     // Brackets
     OpenBracket,
     CloseBracket,
+    OpenSquareBracket,
+    CloseSquareBracket,
     OpenCurlyBracket,
     CloseCurlyBracket,
     // Operators
@@ -138,15 +140,16 @@ fn any_of(chars: &str) -> impl Fn(u8) -> bool + '_ {
     move |c| chars.contains(c as char)
 }
 
-fn not(chars: &str) -> impl Fn(u8) -> bool + '_ {
-    move |c| !chars.contains(c as char)
+enum ObjectInformation {
+    TokensLeftUntilObject(usize),
+    IsTokenizingObjectArgs(bool),
 }
 
 struct Tokenizer<'a> {
     source: &'a str,
     string: &'a [u8],
     index: usize,
-    tokens_left_before_object_args: Option<usize>,
+    current_object_stack: Vec<ObjectInformation>,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -155,7 +158,7 @@ impl<'a> Tokenizer<'a> {
             source,
             string: source.as_bytes(),
             index: 0,
-            tokens_left_before_object_args: None,
+            current_object_stack: vec![],
         }
     }
 
@@ -190,7 +193,7 @@ impl<'a> Tokenizer<'a> {
                     };
                 }
 
-                if let Some(counter) = &mut self.tokens_left_before_object_args {
+                if let Some(ObjectInformation::TokensLeftUntilObject(counter)) = self.current_object_stack.last_mut() {
                     if ty != TokenType::Whitespace {
                         *counter -= 1;
                     }
@@ -248,13 +251,52 @@ impl<'a> Tokenizer<'a> {
             return Some(TokenType::Whitespace);
         }
 
-        if let Some(0) = self.tokens_left_before_object_args {
-            self.tokens_left_before_object_args = None;
-            let prev_idx = self.index;
-            while self.accept(not("}")) {}
-            if self.index != prev_idx {
-                return Some(TokenType::ObjectArgs);
+        match self.current_object_stack.last_mut() {
+            Some(last @ ObjectInformation::TokensLeftUntilObject(0)) | Some(last @ ObjectInformation::IsTokenizingObjectArgs(true)) => {
+                *last = ObjectInformation::IsTokenizingObjectArgs(true);
+
+                let start_index = self.index;
+                while self.index < self.string.len() {
+                    let c = self.string[self.index];
+                    self.index += 1;
+
+                    match c {
+                        b'[' => {
+                            return if self.index - 1 == start_index {
+                                *last = ObjectInformation::IsTokenizingObjectArgs(false);
+                                Some(TokenType::OpenSquareBracket)
+                            } else {
+                                self.index -= 1;
+                                Some(TokenType::ObjectArgs)
+                            };
+                        }
+                        b']' => {
+                            return if self.index - 1 == start_index {
+                                *last = ObjectInformation::IsTokenizingObjectArgs(true);
+                                Some(TokenType::CloseSquareBracket)
+                            } else {
+                                self.index -= 1;
+                                Some(TokenType::ObjectArgs)
+                            };
+                        }
+                        b'}' => {
+                            self.index -= 1;
+                            if self.index == start_index {
+                                // Fall through to the match-statement below
+                                break;
+                            } else {
+                                return Some(TokenType::ObjectArgs);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                if self.index >= self.string.len() {
+                    return Some(TokenType::ObjectArgs);
+                }
             }
+            _ => {}
         }
 
         let c = self.string[self.index];
@@ -332,11 +374,21 @@ impl<'a> Tokenizer<'a> {
             b'%' => Some(TokenType::PercentSign),
             b'(' => Some(TokenType::OpenBracket),
             b')' => Some(TokenType::CloseBracket),
+            b'[' => Some(TokenType::OpenSquareBracket),
+            b']' => {
+                if let Some(info) = self.current_object_stack.last_mut() {
+                    *info = ObjectInformation::IsTokenizingObjectArgs(true);
+                }
+                Some(TokenType::CloseSquareBracket)
+            }
             b'{' => {
-                self.tokens_left_before_object_args = Some(2);
+                self.current_object_stack.push(ObjectInformation::TokensLeftUntilObject(2));
                 Some(TokenType::OpenCurlyBracket)
             }
-            b'}' => Some(TokenType::CloseCurlyBracket),
+            b'}' => {
+                self.current_object_stack.pop();
+                Some(TokenType::CloseCurlyBracket)
+            }
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),
             b':' if self.try_accept(b'=') => Some(TokenType::DefinitionSign),
