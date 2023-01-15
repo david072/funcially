@@ -993,7 +993,7 @@ impl eframe::App for App<'_> {
 
                                 output_text(ui, text, FONT_ID, i + 1);
                             } else {
-                                ui.add_space(FONT_SIZE);
+                                ui.add_space(FONT_SIZE + 2.0);
                             }
                         }
                     });
