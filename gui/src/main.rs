@@ -715,14 +715,9 @@ impl App<'_> {
             self.search_state.occurrences.len()
         ));
 
-        let match_case_button = if self.search_state.match_case {
-            ui.button(RichText::new("Aa").strong().underline())
-        } else {
-            ui.small_button("Aa")
-        };
-        if match_case_button.on_hover_text("Match case").clicked() {
-            self.search_state.match_case = !self.search_state.match_case;
-        }
+
+        ui.toggle_value(&mut self.search_state.match_case, "Aa")
+            .on_hover_text("Match case");
 
         self.search_state.update(&self.source);
 
@@ -763,7 +758,7 @@ impl App<'_> {
 }
 
 impl eframe::App for App<'_> {
-    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         #[cfg(not(target_arch = "wasm32"))]
         {
             if self.first_frame {
@@ -790,6 +785,19 @@ impl eframe::App for App<'_> {
             ui.set_enabled(self.is_ui_enabled);
 
             menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Settings").clicked() {
+                        self.is_settings_open = !self.is_settings_open;
+                        ui.close_menu();
+                    }
+
+                    ui.separator();
+
+                    if ui.button("Exit").clicked() {
+                        frame.close();
+                    }
+                });
+
                 ui.menu_button("Edit", |ui| {
                     let shortcut = ui.ctx().format_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT);
                     if shortcut_button(ui, "Surround selection with brackets", &shortcut).clicked() {
@@ -832,25 +840,24 @@ impl eframe::App for App<'_> {
                     }
                 });
 
-                if ui.button(if self.is_plot_open { "Close Plot" } else { "Open Plot" }).clicked() {
-                    self.is_plot_open = !self.is_plot_open;
-                }
-                if ui.button("Help").clicked() {
-                    self.is_help_open = !self.is_help_open;
-                }
-                #[cfg(target_arch = "wasm32")]
-                if ui.button("Download").clicked() {
-                    self.is_download_open = !self.is_download_open;
-                }
-                if ui.button("Settings").clicked() {
-                    self.is_settings_open = !self.is_settings_open;
-                }
-
                 ui.menu_button("Debug", |ui| {
                     if ui.button("Print Debug Information for current line").clicked() {
                         self.get_debug_info_for_current_line();
                         self.is_debug_info_open = true;
                     }
+                });
+
+                #[cfg(target_arch = "wasm32")]
+                if ui.button("Download").clicked() {
+                    self.is_download_open = !self.is_download_open;
+                }
+
+                if ui.button("Help").clicked() {
+                    self.is_help_open = !self.is_help_open;
+                }
+
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.toggle_value(&mut self.is_plot_open, "🗠 Plot");
                 });
             })
         });
