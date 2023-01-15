@@ -355,6 +355,16 @@ impl<'a> Calculator<'a> {
                     text.insert(0, if token.ty == HexLiteral { 'x' } else { 'b' });
                     text.insert(0, '0');
                     if text.len() == 2 { text.push('0'); }
+                    if token.ty == HexLiteral {
+                        // Uppercase letters in hex numbers
+                        text.replace_range(2.., text[2..].chars()
+                            .flat_map(|c| if !c.is_numeric() {
+                                c.to_uppercase().collect::<Vec<char>>()
+                            } else {
+                                vec![c]
+                            })
+                            .collect::<String>().as_str());
+                    }
                 }
 
                 if i != 0 && token.ty == Identifier {
