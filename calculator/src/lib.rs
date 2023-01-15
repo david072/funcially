@@ -375,7 +375,7 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
-                if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier) || token.ty == OpenSquareBracket {
+                if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier) || (token.ty == OpenSquareBracket && tokens[i - 1].ty != ObjectArgs) {
                     new_line.push(' ');
                 }
 

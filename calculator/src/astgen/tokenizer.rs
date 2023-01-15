@@ -265,7 +265,8 @@ impl<'a> Tokenizer<'a> {
         }
 
         match self.current_object_stack.last_mut() {
-            Some(last @ ObjectInformation::TokensLeftUntilObject(0)) | Some(last @ ObjectInformation::IsTokenizingObjectArgs(true)) => {
+            Some(last @ ObjectInformation::TokensLeftUntilObject(0))
+            | Some(last @ ObjectInformation::IsTokenizingObjectArgs(true)) => {
                 *last = ObjectInformation::IsTokenizingObjectArgs(true);
 
                 let start_index = self.index;
@@ -301,7 +302,16 @@ impl<'a> Tokenizer<'a> {
                                 return Some(TokenType::ObjectArgs);
                             }
                         }
-                        _ => {}
+                        c => {
+                            if WHITESPACE.contains(c as char) {
+                                return if self.index - 1 == start_index {
+                                    Some(TokenType::Whitespace)
+                                } else {
+                                    self.index -= 1;
+                                    Some(TokenType::ObjectArgs)
+                                };
+                            }
+                        }
                     }
                 }
 
