@@ -69,8 +69,10 @@ impl TokenType {
 
     pub fn is_number(&self) -> bool {
         self.is_literal() || matches!(self, Self::OpenBracket
+            | Self::OpenSquareBracket
             | Self::OpenCurlyBracket
             | Self::CloseBracket
+            | Self::CloseSquareBracket
             | Self::CloseCurlyBracket
             | Self::Identifier)
     }

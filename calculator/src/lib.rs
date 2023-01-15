@@ -24,6 +24,7 @@ pub use environment::{Environment, Function};
 use crate::astgen::parser::ParserResult;
 pub use crate::engine::Format;
 use crate::engine::Value;
+use crate::environment::units::is_unit_with_prefix;
 
 mod astgen;
 mod common;
@@ -322,16 +323,20 @@ impl<'a> Calculator<'a> {
     }
 
     pub fn format(&self, line: &str) -> Result<String> {
+        use TokenType::*;
+
         let tokens = tokenize(line)?;
 
         let mut new_line = String::new();
         for (i, token) in tokens.iter().enumerate() {
             let text = &token.text;
 
-            if token.ty.is_number() ||
-                matches!(token.ty, TokenType::ExclamationMark | TokenType::PercentSign) {
+            if token.ty.is_number() || matches!(token.ty, ExclamationMark
+                | PercentSign
+                | QuestionMark
+            ) {
                 let mut text = text.to_owned();
-                if token.ty == TokenType::DecimalLiteral {
+                if token.ty == DecimalLiteral {
                     text = if text.contains('.') {
                         text.trim_matches('0').to_owned()
                     } else if text.len() > 1 {
@@ -345,37 +350,37 @@ impl<'a> Calculator<'a> {
                     } else if text.ends_with('.') {
                         text.remove(text.len() - 1);
                     }
-                } else if token.ty == TokenType::HexLiteral || token.ty == TokenType::BinaryLiteral {
+                } else if token.ty == HexLiteral || token.ty == BinaryLiteral {
                     text = text[2..].trim_start_matches('0').to_owned();
-                    text.insert(0, if token.ty == TokenType::HexLiteral { 'x' } else { 'b' });
+                    text.insert(0, if token.ty == HexLiteral { 'x' } else { 'b' });
                     text.insert(0, '0');
                     if text.len() == 2 { text.push('0'); }
                 }
 
-                if i != 0 && token.ty == TokenType::Identifier {
+                if i != 0 && token.ty == Identifier {
                     if let Some(previous) = tokens.get(i - 1) {
-                        if previous.ty == TokenType::Identifier {
+                        if previous.ty == Identifier {
                             new_line.push(' ');
                         }
                     }
                 }
 
-                if i != 0 && token.ty.is_literal() && tokens[i - 1].ty == TokenType::Identifier {
+                if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier) || token.ty == OpenSquareBracket {
                     new_line.push(' ');
                 }
 
                 new_line += &text;
             } else if token.ty.is_operator() || token.ty.is_boolean_operator() || token.ty.is_format() ||
-                token.ty == TokenType::DefinitionSign {
-                if token.ty == TokenType::Plus || token.ty == TokenType::Minus {
+                token.ty == DefinitionSign {
+                if token.ty == Plus || token.ty == Minus {
                     if i == 0 {
                         new_line += text;
                         continue;
                     } else if tokens[i - 1].ty.is_operator() || matches!(tokens[i - 1].ty,
-                        TokenType::OpenBracket
-                        | TokenType::Comma
-                        | TokenType::DefinitionSign
-                        | TokenType::EqualsSign
+                        OpenBracket
+                        | Comma
+                        | DefinitionSign
+                        | EqualsSign
                     ) { // Check if we're a sign
                         if let Some(next) = tokens.get(i + 1) {
                             if next.ty.is_number() {
@@ -384,33 +389,40 @@ impl<'a> Calculator<'a> {
                             }
                         }
                     }
-                } else if token.ty == TokenType::Divide {
-                    let is_prev_ident = tokens.get(i - 1)
-                        .map(|t| t.ty == TokenType::Identifier)
+                }
+                // Format complex units without spaces (e.g. "km/h")
+                else if token.ty == Divide {
+                    let is_prev_ident_and_unit = tokens.get(i - 1)
+                        .map(|t| t.ty == Identifier && is_unit_with_prefix(&t.text))
                         .unwrap_or(false);
-                    let is_next_ident = tokens.get(i + 1)
-                        .map(|t| t.ty == TokenType::Identifier)
+                    let is_next_ident_and_unit = tokens.get(i + 1)
+                        .map(|t| t.ty == Identifier && is_unit_with_prefix(&t.text))
                         .unwrap_or(false);
-                    if is_prev_ident && is_next_ident {
+                    if is_prev_ident_and_unit && is_next_ident_and_unit {
                         new_line += text;
                         continue;
                     }
                 }
 
                 if !(token.ty.is_format() && tokens.get(i.saturating_sub(1))
-                    .map_or(false, |t| t.ty == TokenType::In)) &&
-                    token.ty != TokenType::Exponentiation {
+                    .map_or(false, |t| t.ty == In)) &&
+                    token.ty != Exponentiation {
                     new_line.push(' ');
                 }
                 new_line += text;
-                if i != tokens.len() - 1 && token.ty != TokenType::Exponentiation {
+                if i != tokens.len() - 1 && token.ty != Exponentiation {
                     new_line.push(' ');
                 }
-            } else if token.ty == TokenType::Comma {
+            } else if token.ty == Comma {
                 new_line += text;
                 if i != tokens.len() - 1 {
                     new_line.push(' ');
                 }
+            } else if token.ty == OpenSquareBracket {} else if token.ty == ObjectArgs {
+                if tokens.get(i - 1).map(|t| t.ty == Identifier).unwrap_or_default() {
+                    new_line.push(' ');
+                }
+                new_line += text;
             }
         }
 
