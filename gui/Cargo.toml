@@ -12,6 +12,7 @@ experimental = []
 [dependencies]
 calculator = { path = "../calculator" }
 eframe = { version = "0.20.1", features = ["persistence"] }
+egui_extras = "0.20.0"
 serde = { version = "1.0.144", features = ["derive"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

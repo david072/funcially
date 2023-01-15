@@ -15,6 +15,7 @@ use eframe::egui::text_edit::CursorRange;
 use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
+use egui_extras::{Column, TableBuilder};
 
 use calculator::{Calculator, Color, ColorSegment, Function as CalcFn, ResultData, Verbosity};
 
@@ -131,6 +132,7 @@ pub enum Line {
         /// Store the function to be able to show redefinitions as well.
         function: Option<Function>,
         show_in_plot: bool,
+        show_in_table: bool,
         #[serde(skip)]
         is_error: bool,
     },
@@ -161,6 +163,10 @@ struct App<'a> {
     debug_information: Option<String>,
 
     use_thousands_separator: bool,
+
+    is_table_open: bool,
+    value_table_range: Range<f64>,
+    value_table_step: f64,
 
     #[serde(skip)]
     search_state: helpers::SearchState,
@@ -197,6 +203,9 @@ impl Default for App<'_> {
             show_new_version_dialog: Arc::new(Mutex::new(false)),
             is_settings_open: false,
             is_debug_info_open: false,
+            is_table_open: false,
+            value_table_range: 0.0..6.0,
+            value_table_step: 1.0,
             search_state: helpers::SearchState::default(),
             debug_information: None,
             use_thousands_separator: false,
@@ -292,6 +301,7 @@ impl App<'_> {
             color_segments,
             is_error,
             show_in_plot: false,
+            show_in_table: false,
         }
     }
 
@@ -321,16 +331,22 @@ impl App<'_> {
         let mut functions = self.lines.iter()
             .filter(|l| {
                 match l {
-                    Line::Line { show_in_plot, .. } => *show_in_plot,
+                    Line::Line { show_in_plot, show_in_table, .. } => *show_in_plot || *show_in_table,
                     _ => false,
                 }
             })
             .map(|l| {
-                if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = l {
-                    (name.clone(), *show_in_plot)
+                if let Line::Line {
+                    function: Some(Function(name, ..)),
+                    show_in_plot,
+                    show_in_table,
+                    ..
+                } = l {
+                    (name.clone(), *show_in_plot, *show_in_table)
                 } else { unreachable!() }
             })
             .collect::<Vec<_>>();
+
         self.lines.clear();
         self.line_numbers_text.clear();
 
@@ -371,9 +387,15 @@ impl App<'_> {
                     } else { &line };
 
                     let mut res = self.calculate(actual_line);
-                    if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
-                        if let Some(i) = functions.iter().position(|(n, _)| n == name) {
+                    if let Line::Line {
+                        function: Some(Function(name, ..)),
+                        show_in_plot,
+                        show_in_table,
+                        ..
+                    } = &mut res {
+                        if let Some(i) = functions.iter().position(|(n, ..)| n == name) {
                             *show_in_plot = functions[i].1;
+                            *show_in_table = functions[i].2;
                             functions.remove(i);
                         }
                     }
@@ -392,9 +414,10 @@ impl App<'_> {
             } else { &line };
 
             let mut res = self.calculate(actual_line);
-            if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
-                if let Some(i) = functions.iter().position(|(n, _)| n == name) {
+            if let Line::Line { function: Some(Function(name, ..)), show_in_plot, show_in_table, .. } = &mut res {
+                if let Some(i) = functions.iter().position(|(n, ..)| n == name) {
                     *show_in_plot = functions[i].1;
+                    *show_in_table = functions[i].2;
                     functions.remove(i);
                 }
             }
@@ -791,8 +814,10 @@ impl eframe::App for App<'_> {
                         ui.close_menu();
                     }
 
+                    #[cfg(not(target_arch = "wasm32"))]
                     ui.separator();
 
+                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("Exit").clicked() {
                         frame.close();
                     }
@@ -865,7 +890,7 @@ impl eframe::App for App<'_> {
         TopBottomPanel::bottom("bottom_bar")
             .frame(egui::Frame {
                 inner_margin: style::Margin {
-                    left: 2.0,
+                    left: 8.0,
                     right: 8.0,
                     top: 2.0,
                     bottom: 2.0,
@@ -879,6 +904,7 @@ impl eframe::App for App<'_> {
 
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                     self.search_ui(ui);
+                    ui.toggle_value(&mut self.is_table_open, "☰ Table");
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let bottom_text = RichText::new(&self.bottom_text)
                             .font(FontId::proportional(FOOTER_FONT_SIZE));
@@ -886,6 +912,98 @@ impl eframe::App for App<'_> {
                     });
                 });
             });
+
+        if !self.first_frame && self.is_table_open {
+            const HEADER_HEIGHT: f32 = 30.0;
+            const ROW_HEIGHT: f32 = 20.0;
+            const MAX_ROWS: f32 = 15.0;
+
+            let response = TopBottomPanel::bottom("table_bar")
+                .min_height(HEADER_HEIGHT + ROW_HEIGHT)
+                .max_height(HEADER_HEIGHT + ROW_HEIGHT * MAX_ROWS)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    // FIXME: the bottom bar's height sometimes jumps weirdly...
+                    // TODO: allow changing self.value_table_step
+                    let av_height = ui.available_height() - HEADER_HEIGHT;
+                    let desired_row_count = (av_height / ROW_HEIGHT).floor() as f64;
+                    let desired_range_length = desired_row_count * self.value_table_step;
+                    let current_range_length = (self.value_table_range.end - self.value_table_range.start).abs();
+                    let diff = desired_range_length - current_range_length;
+                    let amount_to_add = diff / 2.0;
+                    self.value_table_range.end += amount_to_add;
+                    self.value_table_range.start -= diff - amount_to_add;
+
+                    let mut builder = TableBuilder::new(ui)
+                        .vscroll(false)
+                        .striped(true)
+                        .cell_layout(Layout::left_to_right(Align::Center))
+                        .column(Column::exact(50.0));
+
+                    let mut functions = vec![];
+
+                    fn text_with_font(text: impl Into<String>) -> RichText {
+                        RichText::new(text).font(FONT_ID)
+                    }
+
+                    for line in &self.lines {
+                        if let Line::Line { function: Some(Function(name, _, func)), show_in_table, .. } = line {
+                            if *show_in_table {
+                                functions.push((name, func));
+                                builder = builder.column(Column::remainder().resizable(true));
+                            }
+                        }
+                    }
+
+                    let env = self.calculator.clone_env();
+
+                    builder
+                        .header(HEADER_HEIGHT, |mut header| {
+                            header.col(|ui| { ui.heading(text_with_font("x")); });
+                            for (name, _) in &functions {
+                                header.col(|ui| {
+                                    ui.heading(text_with_font(format!("{name}(x)")));
+                                });
+                            }
+                        })
+                        .body(|mut body| {
+                            let mut x = self.value_table_range.start;
+                            while self.value_table_range.contains(&x) {
+                                body.row(ROW_HEIGHT, |mut row| {
+                                    row.col(|ui| { ui.label(text_with_font(x.to_string())); });
+                                    for (_, func) in &functions {
+                                        let result = match env.resolve_specific_function(func, &[x], &self.calculator.currencies) {
+                                            Ok(v) => v.to_number()
+                                                .map(|res| res.number)
+                                                .unwrap_or(f64::NAN),
+                                            Err(_) => f64::NAN,
+                                        };
+                                        row.col(|ui| { ui.label(text_with_font(result.to_string())); });
+                                    }
+                                });
+                                x += self.value_table_step;
+                            }
+                        });
+                });
+
+            if let Some(hover) = ctx.input().pointer.hover_pos() {
+                if response.response.rect.contains(hover) {
+                    // TODO: Handle dragging somehow??
+                    let scroll_delta = ctx.input().scroll_delta.y;
+                    if scroll_delta != 0.0 {
+                        let mut moved_by = (scroll_delta / 50.0) as f64;
+                        if (0.0..1.0).contains(&moved_by) {
+                            moved_by = 1.0;
+                        } else if moved_by > -1.0 && moved_by <= 0.0 {
+                            moved_by = -1.0;
+                        }
+                        moved_by *= self.value_table_step;
+                        self.value_table_range.start -= moved_by;
+                        self.value_table_range.end -= moved_by;
+                    }
+                }
+            }
+        }
 
         // We wait for the second frame to have the lines updated if they've been loaded on startup
         if !self.first_frame && self.is_plot_open { self.plot_panel(ctx); }
@@ -969,6 +1087,7 @@ impl eframe::App for App<'_> {
                                 function,
                                 is_error,
                                 show_in_plot,
+                                show_in_table,
                                 ..
                             } = line {
                                 if !*is_error {
@@ -977,6 +1096,7 @@ impl eframe::App for App<'_> {
                                             ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                                                 let mut show_ui = |ui: &mut Ui| {
                                                     ui.checkbox(show_in_plot, "Plot");
+                                                    ui.checkbox(show_in_table, "Table");
                                                 };
 
                                                 if ui.available_width() < 30.0 {
