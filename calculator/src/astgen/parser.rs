@@ -330,7 +330,11 @@ impl<'a> Parser<'a> {
             error!(MissingClosingBracket: group_stack.last().unwrap().1.clone());
         }
 
-        ast!().push(self.accept_number()?);
+        // Allow empty brackets, which is handled at the start of the while loop below
+        // NOTE: () = 1
+        if self.peek(is(CloseBracket)).is_none() {
+            ast!().push(self.accept_number()?);
+        }
 
         while self.index < self.tokens.len() {
             while self.index < self.tokens.len() {
