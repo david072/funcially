@@ -5,6 +5,8 @@
   },
   "forwardPorts": [8080],
   "portsAttributes": {"8080": {"label": "Web App port"}},
-  "containerEnv": {"RUST_BACKTRACE": 1},
-  "onCreateCommand": "cd gui; wget -qO- https://github.com/thedodd/trunk/releases/download/v0.16.0/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-"
+  "containerEnv": {
+    "RUST_BACKTRACE": 1
+  },
+  "onCreateCommand": "cd ..; wget -qO- https://github.com/thedodd/trunk/releases/download/v0.16.0/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-; rustup target add wasm32-unknown-unknown"
 }
