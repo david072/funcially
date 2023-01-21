@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
 use std::path::PathBuf;
+
+use clap::{Arg, ArgAction, Command};
 use colored::Colorize;
-use calculator::{Calculator, Verbosity, ResultData, Settings, SetError, data_dir};
+
+use calculator::{AccessError, Calculator, data_dir, ResultData, Settings, Verbosity};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -72,7 +74,7 @@ fn main() {
             break;
         }
 
-        if first_word.is_some() && first_word.unwrap() == "set" {
+        if first_word.is_some() && first_word.clone().unwrap() == "set" {
             let Some(path) = words.next() else {
                 eprintln!("{}", "Expected a setting.".red());
                 continue;
@@ -84,7 +86,7 @@ fn main() {
                 let mut path = path;
                 path.push("");
                 let err = calculator.settings.set(&path, "").unwrap_err();
-                if let SetError::InvalidPath(options) = err { println!("Options: {options:?}") }
+                if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
                 continue;
             }
 
@@ -103,12 +105,26 @@ fn main() {
             }
 
             if let Err(e) = calculator.settings.set(&path, value) {
-                match e {
-                    SetError::InvalidPath(options) => eprintln!("{}", format!("Invalid setting. Options: {options:?}").red()),
-                    SetError::Error(e) => eprintln!("{}", format!("Error: {e}").red()),
-                }
+                eprintln!("{}", e.to_string().red());
             } else if let Ok(contents) = ron::to_string(&calculator.settings) {
                 let _ = std::fs::write(settings_path(), contents);
+            }
+            continue;
+        } else if first_word.is_some() && first_word.unwrap() == "get" {
+            let Some(path) = words.next() else {
+                eprintln!("{}", "Expected a setting.".red());
+                continue;
+            };
+
+            if words.next().is_some() {
+                eprintln!("{}", "Too many arguments.".red());
+                continue;
+            }
+
+            let path = path.split('.').collect::<Vec<_>>();
+            match calculator.settings.get(&path) {
+                Ok(v) => println!("Setting's value: {v:?}"),
+                Err(e) => eprintln!("{}", e.to_string().red()),
             }
             continue;
         }
@@ -118,7 +134,7 @@ fn main() {
             _ => {
                 match calculator.calculate(&input) {
                     Ok(res) => match res.data {
-                        ResultData::Value(value)  => {
+                        ResultData::Value(value) => {
                             println!("= {}", value.format(&calculator.settings, use_thousands_separator));
                         }
                         ResultData::Boolean(b) => {

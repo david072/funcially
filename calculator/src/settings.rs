@@ -8,9 +8,18 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::error::Error;
 
-pub enum SetError {
+pub enum AccessError {
     InvalidPath(&'static [&'static str]),
     Error(Box<dyn Error>),
+}
+
+impl Display for AccessError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidPath(options) => write!(f, "Invalid setting. Options: {options:?}"),
+            Self::Error(e) => write!(f, "Error: {e}"),
+        }
+    }
 }
 
 macro_rules! settable {
@@ -23,13 +32,23 @@ macro_rules! settable {
         }
 
         impl $name {
-            pub fn set(&mut self, path: &[&str], value: &str) -> Result<(), SetError> {
-                if path.is_empty() { return Err(SetError::InvalidPath(&[$(stringify!($field)),+])); }
+            pub fn set(&mut self, path: &[&str], value: &str) -> Result<(), AccessError> {
+                if path.is_empty() { return Err(AccessError::InvalidPath(&[$(stringify!($field)),+])); }
                 match path[0] {
                     $(
                         stringify!($field) => self.$field.set(&path[1..], value),
                     )+
-                    _ => return Err(SetError::InvalidPath(&[$(stringify!($field)),+])),
+                    _ => return Err(AccessError::InvalidPath(&[$(stringify!($field)),+])),
+                }
+            }
+
+            pub fn get(&self, path: &[&str]) -> Result<String, AccessError> {
+                if path.is_empty() { return Err(AccessError::InvalidPath(&[$(stringify!($field)),+])); }
+                match path[0] {
+                    $(
+                        stringify!($field) => self.$field.get(&path[1..]),
+                    )+
+                    _ => Err(AccessError::InvalidPath(&[$(stringify!($field)),+])),
                 }
             }
         }
@@ -45,25 +64,42 @@ macro_rules! settable {
         }
 
         impl $name {
-            pub fn set(&mut self, path: &[&str], value: &str) -> Result<(), SetError> {
+            pub fn set(&mut self, path: &[&str], value: &str) -> Result<(), AccessError> {
                 const OPTIONS: &[&str] = &[$(stringify!($field)),* $(stringify!($end_field)),+];
-                if path.is_empty() { return Err(SetError::InvalidPath(OPTIONS)); }
+                if path.is_empty() { return Err(AccessError::InvalidPath(OPTIONS)); }
                 match path[0] {
                     $(
-                        stringify!($field) => self.$field.set(&path[1..], value),
+                        stringify!($field) => return self.$field.set(&path[1..], value),
                     )*
                     $(
                         stringify!($end_field) => {
-                            if path.len() > 1 { return Err(SetError::InvalidPath(OPTIONS)); }
+                            if path.len() > 1 { return Err(AccessError::InvalidPath(OPTIONS)); }
                             match value.parse::<$end_field_ty>() {
                                 Ok(v) => self.$end_field = v,
-                                Err(e) => return Err(SetError::Error(Box::new(e))),
+                                Err(e) => return Err(AccessError::Error(Box::new(e))),
                             }
                         }
                     )+
-                    _ => return Err(SetError::InvalidPath(OPTIONS)),
+                    _ => return Err(AccessError::InvalidPath(OPTIONS)),
                 }
                 Ok(())
+            }
+
+            pub fn get(&self, path: &[&str]) -> Result<String, AccessError> {
+                const OPTIONS: &[&str] = &[$(stringify!($field)),* $(stringify!($end_field)),+];
+                if path.is_empty() { return Err(AccessError::InvalidPath(OPTIONS)); }
+                match path[0] {
+                    $(
+                        stringify!($field) => self.$field.get(&path[1..]),
+                    )*
+                    $(
+                        stringify!($end_field) => {
+                            if path.len() > 1 { return Err(AccessError::InvalidPath(OPTIONS)); }
+                            return Ok(self.$end_field.to_string())
+                        }
+                    )+
+                    _ => Err(AccessError::InvalidPath(OPTIONS)),
+                }
             }
         }
     };
