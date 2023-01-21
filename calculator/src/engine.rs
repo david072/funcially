@@ -8,14 +8,7 @@ use std::fmt::{Display, Formatter};
 use std::mem::{replace, take};
 use std::ops::Range;
 
-use crate::{
-    astgen::ast::{AstNode, AstNodeData, Operator},
-    astgen::tokenizer::TokenType,
-    common::*,
-    Currencies,
-    environment::{Environment, units::{convert as convert_units, Unit}, Variable},
-    match_ast_node,
-};
+use crate::{astgen::ast::{AstNode, AstNodeData, Operator}, astgen::tokenizer::TokenType, common::*, Currencies, environment::{Environment, units::{convert as convert_units, Unit}, Variable}, match_ast_node, Settings};
 use crate::astgen::ast::BooleanOperator;
 use crate::astgen::objects::CalculatorObject;
 
@@ -127,10 +120,10 @@ impl Value {
         })
     }
 
-    pub fn format(&self, use_thousands_separator: bool) -> String {
+    pub fn format(&self, settings: &Settings, use_thousands_separator: bool) -> String {
         match self {
             Value::Number(number) => format!("{}{}", number.format.format(number.number, use_thousands_separator), number.unit_string()),
-            Value::Object(object) => object.to_string(),
+            Value::Object(object) => object.to_string(settings),
         }
     }
 
@@ -164,19 +157,20 @@ pub struct Engine<'a> {
     ast: &'a mut Vec<AstNode>,
     env: &'a Environment,
     currencies: &'a Currencies,
+    settings: &'a Settings,
 }
 
 impl<'a> Engine<'a> {
-    pub fn evaluate_to_number(ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<NumberValue> {
+    pub fn evaluate_to_number(ast: Vec<AstNode>, env: &Environment, currencies: &Currencies, settings: &Settings) -> Result<NumberValue> {
         let full_range = full_range(&ast);
-        let result = Engine::evaluate(ast, env, currencies)?;
+        let result = Engine::evaluate(ast, env, currencies, settings)?;
         let Some(result) = result.to_number() else {
             return Err(ErrorType::ExpectedNumber.with(full_range));
         };
         Ok(result.clone())
     }
 
-    pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencies) -> Result<Value> {
+    pub fn evaluate(mut ast: Vec<AstNode>, env: &Environment, currencies: &Currencies, settings: &Settings) -> Result<Value> {
         if ast.len() == 1 {
             if matches!(ast[0].data, AstNodeData::Literal(_)) {
                 ast[0].apply_modifiers()?;
@@ -188,7 +182,7 @@ impl<'a> Engine<'a> {
             }
         }
 
-        let mut engine = Engine::new(&mut ast, env, currencies);
+        let mut engine = Engine::new(&mut ast, env, currencies, settings);
         engine.eval_functions()?;
         engine.eval_variables()?;
         engine.eval_groups()?;
@@ -223,6 +217,7 @@ impl<'a> Engine<'a> {
         is_question_mark_in_lhs: bool,
         env: &Environment,
         currencies: &Currencies,
+        settings: &Settings,
     ) -> Result<Value> {
         if lhs.is_empty() || rhs.is_empty() {
             return Err(ErrorType::InvalidAst.with(0..1));
@@ -234,7 +229,7 @@ impl<'a> Engine<'a> {
         } else {
             (rhs, lhs)
         };
-        let target_result = Self::evaluate_to_number(result_side, env, currencies)?;
+        let target_result = Self::evaluate_to_number(result_side, env, currencies, settings)?;
         let mut target_value = target_result.number;
 
         if unknown_side.len() == 1 && matches!(unknown_side[0].data, AstNodeData::Literal(_)) {
@@ -376,7 +371,7 @@ impl<'a> Engine<'a> {
 
         let first_ast = replace_question_mark(unknown_side.clone(), X1);
 
-        let y1_result = Self::evaluate_to_number(first_ast, env, currencies)?;
+        let y1_result = Self::evaluate_to_number(first_ast, env, currencies, settings)?;
 
         if y1_result.unit.is_some() && target_result.unit.is_none() {
             return Err(ErrorType::WrongUnit(y1_result.unit.unwrap().to_string()).with(rhs_range));
@@ -400,7 +395,7 @@ impl<'a> Engine<'a> {
         let y1 = y1_result.number - target_value;
 
         let second_ast = replace_question_mark(unknown_side, X2);
-        let y2 = Self::evaluate_to_number(second_ast, env, currencies)?.number - target_value;
+        let y2 = Self::evaluate_to_number(second_ast, env, currencies, settings)?.number - target_value;
 
         // Calculate the variables for formula y = mx + c
         let m = (y2 - y1) / (X2 - X1);
@@ -450,8 +445,8 @@ impl<'a> Engine<'a> {
         }
     }
 
-    fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies) -> Engine<'a> {
-        Engine { ast, env, currencies }
+    fn new(ast: &'a mut Vec<AstNode>, env: &'a Environment, currencies: &'a Currencies, settings: &'a Settings) -> Engine<'a> {
+        Engine { ast, env, currencies, settings }
     }
 
     fn eval_functions(&mut self) -> Result<()> {
@@ -463,7 +458,7 @@ impl<'a> Engine<'a> {
 
             let mut args = Vec::new();
             for ast in arg_asts {
-                args.push(Self::evaluate_to_number(ast.clone(), self.env, self.currencies)?);
+                args.push(Self::evaluate_to_number(ast.clone(), self.env, self.currencies, self.settings)?);
             }
 
             let new_node = match self.env.resolve_function(func_name, &args) {
@@ -477,7 +472,7 @@ impl<'a> Engine<'a> {
                         let args = args.iter()
                             .map(|r| r.number)
                             .collect::<Vec<_>>();
-                        match self.env.resolve_custom_function(func_name, &args, self.currencies) {
+                        match self.env.resolve_custom_function(func_name, &args, self.currencies, self.settings) {
                             Ok(res) => res.to_ast_node_from(node),
                             Err(ty) => return Err(ty.with(node.range.clone())),
                         }
@@ -518,7 +513,7 @@ impl<'a> Engine<'a> {
                 _ => continue,
             };
 
-            let group_result = Self::evaluate(group_ast.clone(), self.env, self.currencies)?;
+            let group_result = Self::evaluate(group_ast.clone(), self.env, self.currencies, self.settings)?;
             // Construct Literal node with the evaluated result
             let new_node = group_result.to_ast_node_from(node);
             let _ = replace(node, new_node);
@@ -572,10 +567,11 @@ mod tests {
     macro_rules! eval {
         ($str:expr) => {
             Engine::evaluate(
-                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new(), &Currencies::none())? { ast }
+                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new(), &Currencies::none(), &Settings::default())? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Environment::new(),
                 &Currencies::none(),
+                &Settings::default(),
             ).and_then(|res| res.to_number().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))
         }
     }
@@ -583,10 +579,11 @@ mod tests {
     macro_rules! eval_obj {
         ($str:expr) => {
             Engine::evaluate(
-                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new(), &Currencies::none())? { ast }
+                if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, &Environment::new(), &Currencies::none(), &Settings::default())? { ast }
                 else { panic!("Expected ParserResult::Calculation"); },
                 &Environment::new(),
                 &Currencies::none(),
+                &Settings::default(),
             ).and_then(|res| res.to_object().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))
         }
     }

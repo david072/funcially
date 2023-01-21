@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::{Environment, error, Format};
+use crate::{Environment, error, Format, Settings};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
 use crate::astgen::objects::{CalculatorObject, ObjectArgument};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
@@ -83,6 +83,7 @@ pub struct Parser<'a> {
     nesting_level: usize,
     environment: &'a Environment,
     currencies: &'a Currencies,
+    settings: &'a Settings,
     extra_allowed_variables: Option<&'a [String]>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
@@ -90,11 +91,12 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse(tokens: &'a [Token], env: &'a Environment, currencies: &'a Currencies) -> Result<ParserResult> {
+    pub fn parse(tokens: &'a [Token], env: &'a Environment, currencies: &'a Currencies, settings: &'a Settings) -> Result<ParserResult> {
         let mut parser = Parser::new(
             tokens,
             env,
             currencies,
+            settings,
             0,
             true,
             None,
@@ -119,6 +121,7 @@ impl<'a> Parser<'a> {
         tokens: &'a [Token],
         env: &'a Environment,
         currencies: &'a Currencies,
+        settings: &'a Settings,
         nesting_level: usize,
         allow_question_mark: bool,
         question_mark: Option<QuestionMarkInfo>,
@@ -129,6 +132,7 @@ impl<'a> Parser<'a> {
             nesting_level,
             environment: env,
             currencies,
+            settings,
             extra_allowed_variables: None,
             allow_question_mark,
             question_mark,
@@ -752,6 +756,7 @@ impl<'a> Parser<'a> {
             args,
             self.environment,
             self.currencies,
+            self.settings,
             range_start..range_end,
         )?;
         Ok(AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end))
@@ -784,6 +789,7 @@ impl<'a> Parser<'a> {
             tokens,
             self.environment,
             self.currencies,
+            self.settings,
             self.nesting_level + 1,
             false,
             self.question_mark.clone(),
@@ -865,6 +871,7 @@ impl<'a> Parser<'a> {
                 tokens,
                 self.environment,
                 self.currencies,
+                self.settings,
                 self.nesting_level + 1,
                 allow_question_mark,
                 self.question_mark.clone(),
@@ -914,7 +921,7 @@ mod tests {
 
     macro_rules! parse {
         ($input:expr) => {
-            Parser::parse(&tokenize($input)?, &Environment::new(), &Currencies::none())
+            Parser::parse(&tokenize($input)?, &Environment::new(), &Currencies::none(), &Settings::default())
         };
     }
 

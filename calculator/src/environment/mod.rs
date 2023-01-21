@@ -6,7 +6,7 @@
 
 use std::f64::consts::{E, PI, TAU};
 
-use crate::{astgen::ast::AstNode, common::ErrorType, Currencies, Engine};
+use crate::{astgen::ast::AstNode, common::ErrorType, Currencies, Engine, Settings};
 use crate::engine::{NumberValue, Value};
 
 use self::units::Unit;
@@ -263,23 +263,23 @@ impl Environment {
         }
     }
 
-    pub(crate) fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies) -> Result<Value, ErrorType> {
+    pub(crate) fn resolve_custom_function(&self, f: &str, args: &[f64], currencies: &Currencies, settings: &Settings) -> Result<Value, ErrorType> {
         for (name, func) in &self.functions {
             if name == f {
-                return self.resolve_specific_function(func, args, currencies);
+                return self.resolve_specific_function(func, args, currencies, settings);
             }
         }
 
         Err(ErrorType::UnknownFunction(f.to_owned()))
     }
 
-    pub fn resolve_specific_function(&self, f: &Function, args: &[f64], currencies: &Currencies) -> Result<Value, ErrorType> {
+    pub fn resolve_specific_function(&self, f: &Function, args: &[f64], currencies: &Currencies, settings: &Settings) -> Result<Value, ErrorType> {
         let mut temp_env = self.clone();
         for (i, arg) in args.iter().enumerate() {
             temp_env.set_variable(&f.0[i], Variable(Value::only_number(*arg)))?;
         }
 
-        Engine::evaluate(f.1.clone(), &temp_env, currencies).map_err(|e| e.error)
+        Engine::evaluate(f.1.clone(), &temp_env, currencies, settings).map_err(|e| e.error)
     }
 
     pub(crate) fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {

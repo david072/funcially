@@ -5,12 +5,12 @@
  */
 
 use std::cmp::Ordering;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::ops::Range;
 
 use chrono::{Duration, Local, NaiveDate};
 
-use crate::{Environment, error};
+use crate::{DateFormat, Environment, error, Settings};
 use crate::astgen::ast::{AstNode, AstNodeData, Operator};
 use crate::common::{ErrorType, Result};
 use crate::engine::{Engine, Value};
@@ -46,9 +46,16 @@ pub enum CalculatorObject {
 }
 
 impl CalculatorObject {
-    pub fn parse((name, name_range): (String, Range<usize>), args: Vec<ObjectArgument>, env: &Environment, currencies: &Currencies, range: Range<usize>) -> Result<Self> {
+    pub fn parse(
+        (name, name_range): (String, Range<usize>),
+        args: Vec<ObjectArgument>,
+        env: &Environment,
+        currencies: &Currencies,
+        settings: &Settings,
+        range: Range<usize>,
+    ) -> Result<Self> {
         match name.as_str() {
-            "date" => Ok(Self::Date(DateObject::parse(args, env, currencies, range)?)),
+            "date" => Ok(Self::Date(DateObject::parse(args, env, currencies, settings, range)?)),
             _ => Err(ErrorType::UnknownObject(name).with(name_range))
         }
     }
@@ -62,15 +69,11 @@ impl CalculatorObject {
             Self::Date(date) => date.apply(self_range, op, other, self_in_rhs),
         }
     }
-}
 
-impl Display for CalculatorObject {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    pub fn to_string(&self, settings: &Settings) -> String {
         match self {
-            Self::Date(date) => write!(f, "{date}")?,
+            Self::Date(date) => date.to_string(settings),
         }
-
-        Ok(())
     }
 }
 
@@ -79,14 +82,23 @@ pub struct DateObject {
     pub(crate) date: NaiveDate,
 }
 
-impl Display for DateObject {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.date.format("%d.%m.%Y"))
-    }
-}
-
 impl DateObject {
-    fn parse(given_args: Vec<ObjectArgument>, env: &Environment, currencies: &Currencies, full_range: Range<usize>) -> Result<Self> {
+    pub fn to_string(&self, settings: &Settings) -> String {
+        let fmt = match settings.date.format {
+            DateFormat::Dmy => format!("%d{d}%m{d}%Y", d = settings.date.delimiter),
+            DateFormat::Mdy => format!("%m{d}%d{d}%Y", d = settings.date.delimiter),
+            DateFormat::Ymd => format!("%Y{d}%m{d}%d", d = settings.date.delimiter),
+        };
+        self.date.format(&fmt).to_string()
+    }
+
+    fn parse(
+        given_args: Vec<ObjectArgument>,
+        env: &Environment,
+        currencies: &Currencies,
+        settings: &Settings,
+        full_range: Range<usize>,
+    ) -> Result<Self> {
         if given_args.is_empty() {
             error!(ExpectedElements: full_range);
         }
@@ -116,7 +128,7 @@ impl DateObject {
                 ObjectArgument::Ast(..) => args.push(arg),
                 ObjectArgument::String(str, range) => {
                     let mut range_offset = range.start;
-                    args.append(&mut str.split('.')
+                    args.append(&mut str.split(settings.date.delimiter)
                         .map(|s| {
                             let mut range = range_offset..(range_offset + s.len()).max(range_offset + 1);
                             range_offset = range.end + 1;
@@ -184,7 +196,7 @@ impl DateObject {
             match arg {
                 ObjectArgument::String(s, range) => s.parse::<i32>().map_err(|err| ErrorType::InvalidNumber(err.to_string()).with(range.clone())),
                 ObjectArgument::Ast(ast, range) => {
-                    match Engine::evaluate(ast.clone(), env, currencies)? {
+                    match Engine::evaluate(ast.clone(), env, currencies, settings)? {
                         Value::Number(res) => {
                             if res.number.fract() != 0.0 { return Err(ErrorType::ExpectedInteger(res.number).with(range.clone())); }
                             Ok(res.number as i32)
@@ -195,10 +207,10 @@ impl DateObject {
             }
         };
 
-        let year = as_number(&args[2])?;
-        let month = as_number(&args[1])?;
+        let year = as_number(&args[settings.date.format.year_index()])?;
+        let month = as_number(&args[settings.date.format.month_index()])?;
         let month: u32 = month.try_into().map_err(|_| ErrorType::NotU32(month).with(args[1].range().clone()))?;
-        let day = as_number(&args[0])?;
+        let day = as_number(&args[settings.date.format.day_index()])?;
         let day: u32 = day.try_into().map_err(|_| ErrorType::NotU32(day).with(args[0].range().clone()))?;
 
         let Some(date) = NaiveDate::from_ymd_opt(year, month, day) else { error!(InvalidDate: full_range); };

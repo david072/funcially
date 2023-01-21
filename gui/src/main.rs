@@ -17,7 +17,7 @@ use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 use egui_extras::{Column, TableBuilder};
 
-use calculator::{Calculator, Color, ColorSegment, Function as CalcFn, ResultData, Verbosity};
+use calculator::{Calculator, Color, ColorSegment, DateFormat, Function as CalcFn, ResultData, Settings, Verbosity};
 
 use crate::widgets::*;
 
@@ -50,6 +50,10 @@ fn app_key() -> String {
 #[cfg(not(feature = "experimental"))]
 fn app_key() -> String {
     eframe::APP_KEY.to_string()
+}
+
+fn settings_key() -> String {
+    app_key() + "_calc-settings"
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -221,7 +225,10 @@ impl App<'_> {
         cc.egui_ctx.set_visuals(Visuals::dark());
 
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, &app_key()).unwrap_or_default();
+            let settings: Settings = eframe::get_value(storage, &settings_key()).unwrap_or_default();
+            let mut app: Self = eframe::get_value(storage, &app_key()).unwrap_or_default();
+            app.calculator.settings = settings;
+            return app;
         }
 
         App::default()
@@ -279,7 +286,7 @@ impl App<'_> {
             Ok(res) => {
                 color_segments = res.color_segments;
                 match res.data {
-                    ResultData::Value(number) => number.format(self.use_thousands_separator),
+                    ResultData::Value(number) => number.format(&self.calculator.settings, self.use_thousands_separator),
                     ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
                     ResultData::Function { name, arg_count, function: f } => {
                         function = Some(Function(name, arg_count, f));
@@ -503,10 +510,35 @@ impl App<'_> {
             .resizable(false)
             .enabled(self.is_ui_enabled)
             .show(ctx, |ui| {
-                if ui.checkbox(&mut self.use_thousands_separator, "Use thousands separator").clicked() {
-                    // Make update_lines() refresh on the next frame, since now source and source_old are not the same
-                    self.source_old.clear();
-                }
+                let mut update = false;
+
+                ui.heading("General");
+                ui.add_space(10.0);
+                update |= ui.checkbox(&mut self.use_thousands_separator, "Use thousands separator").clicked();
+
+                ui.separator();
+                ui.heading("Date format");
+                ui.add_space(10.0);
+                ComboBox::from_label("Format")
+                    .selected_text(self.calculator.settings.date.format.to_string())
+                    .show_ui(ui, |ui| {
+                        let current_format = &mut self.calculator.settings.date.format;
+                        update |= ui.selectable_value(current_format, DateFormat::Dmy, "DMY").clicked();
+                        update |= ui.selectable_value(current_format, DateFormat::Mdy, "MDY").clicked();
+                        update |= ui.selectable_value(current_format, DateFormat::Ymd, "YMD").clicked();
+                    });
+
+                ComboBox::from_label("Delimiter")
+                    .selected_text(self.calculator.settings.date.delimiter.to_string())
+                    .show_ui(ui, |ui| {
+                        const DELIMITERS: &str = ".,'/-";
+                        let current_del = &mut self.calculator.settings.date.delimiter;
+                        for char in DELIMITERS.chars() {
+                            update |= ui.selectable_value(current_del, char, char.to_string()).clicked();
+                        }
+                    });
+
+                ui.separator();
                 CollapsingHeader::new("Debug").default_open(true).show(ui, |ui| {
                     let mut debug_on_hover = ui.ctx().debug_on_hover();
                     ui.checkbox(&mut debug_on_hover, "Debug On Hover");
@@ -518,6 +550,11 @@ impl App<'_> {
                     *ui.ctx().tessellation_options() = tesselation_options;
                 });
                 ui.hyperlink_to("Source code", "https://github.com/david072/funcially");
+
+                if update {
+                    // Make update_lines() refresh on the next frame, since now source and source_old are not the same
+                    self.source_old.clear();
+                }
             });
     }
 
@@ -967,7 +1004,7 @@ impl eframe::App for App<'_> {
                                 body.row(ROW_HEIGHT, |mut row| {
                                     row.col(|ui| { ui.label(text_with_font(x.to_string())); });
                                     for (_, func) in &functions {
-                                        let result = match env.resolve_specific_function(func, &[x], &self.calculator.currencies) {
+                                        let result = match env.resolve_specific_function(func, &[x], &self.calculator.currencies, &self.calculator.settings) {
                                             Ok(v) => v.to_number()
                                                 .map(|res| res.number)
                                                 .unwrap_or(f64::NAN),
@@ -1121,6 +1158,7 @@ impl eframe::App for App<'_> {
 
     fn save(&mut self, storage: &mut dyn Storage) {
         eframe::set_value(storage, &app_key(), self);
+        eframe::set_value(storage, &settings_key(), &self.calculator.settings);
     }
 }
 

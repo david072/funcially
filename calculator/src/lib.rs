@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, david072
+ * Copyright (c) 2022-2023, david072
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,12 +25,14 @@ use crate::astgen::parser::ParserResult;
 pub use crate::engine::Format;
 use crate::engine::Value;
 use crate::environment::units::is_unit_with_prefix;
+pub use crate::settings::*;
 
 mod astgen;
 mod common;
 mod engine;
 mod environment;
 mod color;
+mod settings;
 
 const CRASH_REPORTS_DIR: &str = "crash_reports";
 
@@ -132,6 +134,7 @@ enum Env<'a> {
 pub struct Calculator<'a> {
     environment: Env<'a>,
     pub currencies: std::sync::Arc<Currencies>,
+    pub settings: Settings,
     verbosity: Verbosity,
 }
 
@@ -142,6 +145,7 @@ impl<'a> Default for Calculator<'a> {
         Calculator {
             environment: Env::Owned(Environment::new()),
             currencies: Currencies::new_arc(),
+            settings: Settings::default(),
             verbosity: Verbosity::None,
         }
     }
@@ -150,23 +154,25 @@ impl<'a> Default for Calculator<'a> {
 impl<'a> Calculator<'a> {
     pub fn update_currencies() { Currencies::update(); }
 
-    pub fn new(verbosity: Verbosity) -> Calculator<'a> {
+    pub fn new(verbosity: Verbosity, settings: Settings) -> Calculator<'a> {
         Calculator::set_panic_hook();
 
         Calculator {
             environment: Env::Owned(Environment::new()),
             currencies: Currencies::new_arc(),
+            settings,
             verbosity,
         }
     }
 
-    pub fn with_environment(verbosity: Verbosity, environment: &'a mut Environment) -> Calculator<'a> {
+    pub fn with_environment(verbosity: Verbosity, settings: Settings, environment: &'a mut Environment) -> Calculator<'a> {
         Calculator::set_panic_hook();
 
         Calculator {
             environment: Env::Ref(environment),
             currencies: Currencies::new_arc(),
             verbosity,
+            settings,
         }
     }
 
@@ -225,7 +231,7 @@ impl<'a> Calculator<'a> {
 
         let color_segments = ColorSegment::all(&tokens);
 
-        match Parser::parse(&tokens, self.env(), &self.currencies)? {
+        match Parser::parse(&tokens, self.env(), &self.currencies, &self.settings)? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
@@ -233,7 +239,7 @@ impl<'a> Calculator<'a> {
                     println!();
                 }
 
-                let result = Engine::evaluate(ast, self.env(), &self.currencies)?;
+                let result = Engine::evaluate(ast, self.env(), &self.currencies, &self.settings)?;
                 self.env_mut().set_ans_variable(Variable(result.clone()));
 
                 // let unit = result.unit.as_ref().map(|unit| {
@@ -250,14 +256,14 @@ impl<'a> Calculator<'a> {
                     println!();
                 }
 
-                let lhs = Engine::evaluate(lhs, self.env(), &self.currencies)?;
-                let rhs = Engine::evaluate(rhs, self.env(), &self.currencies)?;
+                let lhs = Engine::evaluate(lhs, self.env(), &self.currencies, &self.settings)?;
+                let rhs = Engine::evaluate(rhs, self.env(), &self.currencies, &self.settings)?;
                 Ok(CalculatorResult::bool(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies), color_segments))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
-                        let res = Engine::evaluate(ast, self.env(), &self.currencies)?;
+                        let res = Engine::evaluate(ast, self.env(), &self.currencies, &self.settings)?;
                         // let unit = res.unit.as_ref().map(|unit| {
                         //     unit.format(res.is_long_unit, res.result != 1.0)
                         // });
@@ -306,6 +312,7 @@ impl<'a> Calculator<'a> {
                     is_question_mark_in_lhs,
                     self.env(),
                     &self.currencies,
+                    &self.settings,
                 )?;
 
                 self.env_mut().set_ans_variable(Variable(result.clone()));
@@ -454,7 +461,7 @@ impl<'a> Calculator<'a> {
         let environment = self.env();
 
         if verbosity == Verbosity::Ast {
-            match Parser::parse(&tokens, environment, &self.currencies) {
+            match Parser::parse(&tokens, environment, &self.currencies, &self.settings) {
                 Ok(parser_result) => match parser_result {
                     ParserResult::Calculation(ast) => {
                         writeln_or_err!(&mut output, "AST:");

@@ -241,10 +241,11 @@ pub fn plot(ui: &mut Ui, lines: &Vec<Line>, calculator: &Calculator) -> InnerRes
                         let env = calculator.clone_env();
                         let f = function.2.clone();
                         let currencies = calculator.currencies.clone();
+                        let settings = calculator.settings.clone();
 
                         plot_ui.line(plot::Line::new(
                             plot::PlotPoints::from_explicit_callback(move |x| {
-                                match env.resolve_specific_function(&f, &[x], &currencies) {
+                                match env.resolve_specific_function(&f, &[x], &currencies, &settings) {
                                     Ok(v) => v.to_number()
                                         .map(|num| num.number)
                                         .unwrap_or(f64::NAN),
