@@ -1,0 +1,13 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {}
+  },
+  "forwardPorts": [8080],
+  "portsAttributes": {"8080": {"label": "Web App port"}},
+  "remoteEnv": {
+    "RUST_BACKTRACE": 1,
+    "PATH": "${containerEnv:PATH}:/workspaces/trunk"
+  },
+  "onCreateCommand": "rustup target add wasm32-unknown-unknown; cd ..; mkdir trunk; cd trunk; wget -qO- https://github.com/thedodd/trunk/releases/download/v0.16.0/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-"
+}
