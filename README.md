@@ -34,6 +34,20 @@ To pass arguments to the CLI, use `cargo run -p cli -- <args>`
    file
 2. Run `cargo run -p discord`
 
+### Codespace
+
+This repository contains a template for a GitHub codespace environment. This allows you to compile, develop and commit <br>
+on a virtual machine accessible via your browser or a supported editor, without having to download anything.
+
+To create a codespace:
+1. Click on the "Code" dropdown and choose codespace
+2. Create a new codespace
+3. The virtual machine will automatically be configured with Rust and trunk for building the project
+4. To run the application, run `cd gui` and `trunk serve` in the terminal
+5. Once it is done building, a popup appears in the bottom right hand corner with which you can open the website in the browser
+
+You can also use the editor you chose for making commits.
+
 ## Contributing
 
 You can contribute either by using the application and reporting issues and submitting feature requests,
