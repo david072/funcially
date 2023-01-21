@@ -533,6 +533,7 @@ dependencies = [
  "calculator",
  "clap",
  "colored",
+ "ron",
 ]
 
 [[package]]

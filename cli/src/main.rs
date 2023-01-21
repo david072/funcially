@@ -6,13 +6,20 @@
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{stdin, stdout, Write};
+use std::path::PathBuf;
 use colored::Colorize;
-use calculator::{Calculator, Verbosity, ResultData};
+use calculator::{Calculator, Verbosity, ResultData, Settings, SetError, data_dir};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
+
+fn settings_path() -> PathBuf {
+    let mut p = data_dir();
+    p.push("cli-settings");
+    p
+}
 
 fn main() {
     let matches = Command::new(NAME)
@@ -43,7 +50,12 @@ fn main() {
         None => false,
     };
 
-    let mut calculator = Calculator::new(verbosity);
+    let settings = std::fs::read_to_string(settings_path())
+        .ok()
+        .and_then(|s| ron::from_str::<Settings>(&s).ok())
+        .unwrap_or_else(Settings::default);
+
+    let mut calculator = Calculator::new(verbosity, settings);
 
     // TODO: Properly handle CTRL-C
     loop {
@@ -54,13 +66,60 @@ fn main() {
         stdin().read_line(&mut input).unwrap();
         input = input.trim().to_string();
 
+        let mut words = input.split(' ').filter(|s| !s.is_empty());
+        let first_word = words.next().map(|s| s.to_lowercase());
+        if matches!(input.as_str(), "quit" | "exit") {
+            break;
+        }
+
+        if first_word.is_some() && first_word.unwrap() == "set" {
+            let Some(path) = words.next() else {
+                eprintln!("{}", "Expected a setting.".red());
+                continue;
+            };
+            let path = path.split('.').collect::<Vec<_>>();
+
+            let next = words.next();
+            if next.is_some() && next.unwrap() == "?" {
+                let mut path = path;
+                path.push("");
+                let err = calculator.settings.set(&path, "").unwrap_err();
+                if let SetError::InvalidPath(options) = err { println!("Options: {options:?}") }
+                continue;
+            }
+
+            if next.is_none() || next.unwrap() != "=" {
+                eprintln!("{}", "Expected equals sign.".red());
+                eprintln!("{}", "Hint: Put a question mark at the end of the line to see the available options.".cyan());
+                continue;
+            }
+            let Some(value) = words.next() else {
+                eprintln!("{}", "Expected the value.".red());
+                continue;
+            };
+            if words.next().is_some() {
+                eprintln!("{}", "Too many arguments.".red());
+                continue;
+            }
+
+            if let Err(e) = calculator.settings.set(&path, value) {
+                match e {
+                    SetError::InvalidPath(options) => eprintln!("{}", format!("Invalid setting. Options: {options:?}").red()),
+                    SetError::Error(e) => eprintln!("{}", format!("Error: {e}").red()),
+                }
+            } else if let Ok(contents) = ron::to_string(&calculator.settings) {
+                let _ = std::fs::write(settings_path(), contents);
+            }
+            continue;
+        }
+
         match input.as_str() {
             "quit" | "exit" => break,
             _ => {
                 match calculator.calculate(&input) {
                     Ok(res) => match res.data {
                         ResultData::Value(value)  => {
-                            println!("= {}", value.format(use_thousands_separator));
+                            println!("= {}", value.format(&calculator.settings, use_thousands_separator));
                         }
                         ResultData::Boolean(b) => {
                             println!("=> {}", if b { "True".green() } else { "False".red() });
@@ -73,7 +132,7 @@ fn main() {
                         let slice_start = std::cmp::max(0, error.start as isize - 5) as usize;
                         let slice_end = std::cmp::min(input.len(), error.end + 5);
                         let slice = &input[slice_start..slice_end];
-                        eprintln!("{}", slice);
+                        eprintln!("{slice}");
 
                         for _ in 0..error.start - slice_start {
                             eprint!(" ");
