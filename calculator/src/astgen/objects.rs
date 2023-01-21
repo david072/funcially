@@ -34,10 +34,6 @@ impl ObjectArgument {
     pub fn is_ast(&self) -> bool {
         matches!(self, Self::Ast(..))
     }
-
-    pub fn is_string(&self) -> bool {
-        matches!(self, Self::Ast(..))
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
@@ -209,7 +205,10 @@ impl DateObject {
         let day = as_number(&args[context.settings.date.format.day_index()])?;
         let day: u32 = day.try_into().map_err(|_| ErrorType::NotU32(day).with(args[0].range().clone()))?;
 
-        let Some(date) = NaiveDate::from_ymd_opt(year, month, day) else { error!(InvalidDate: full_range); };
+        let Some(date) = NaiveDate::from_ymd_opt(year, month, day) else {
+            let range = args.first().unwrap().range().start..args.last().unwrap().range().end;
+            error!(InvalidDate: range);
+        };
         Ok(Self { date })
     }
 

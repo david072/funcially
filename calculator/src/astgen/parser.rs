@@ -711,7 +711,6 @@ impl<'a> Parser<'a> {
         let name = (name.text.clone(), name.range());
 
         let range_start = self.index;
-        let mut range_end = 0usize;
         let mut args = vec![];
         while self.index < self.tokens.len() {
             let Some(token) = self.peek(all()) else {
@@ -721,14 +720,12 @@ impl<'a> Parser<'a> {
                 CloseCurlyBracket => break,
                 OpenSquareBracket => {
                     let ast = self.accept_object_arguments()?;
-                    range_end = ast.last().unwrap().range.end;
                     let range = ast.first().unwrap().range.start..ast.last().unwrap().range.end;
                     args.push(ObjectArgument::Ast(ast, range));
                 }
                 CloseSquareBracket => error!(UnexpectedCloseBracket: token.range()),
                 ObjectArgs => {
                     let token = self.accept(is(ObjectArgs), Nothing).unwrap();
-                    range_end = token.range().end;
                     args.push(ObjectArgument::String(token.text.clone(), token.range()))
                 }
                 _ => error!(InvalidToken: token.range()),
@@ -746,7 +743,7 @@ impl<'a> Parser<'a> {
             name,
             args,
             self.context,
-            range_start..range_end,
+            full_range_start..close_bracket_range.end,
         )?;
         Ok(AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end))
     }
