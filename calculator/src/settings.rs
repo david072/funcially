@@ -6,9 +6,8 @@
 
 use std::fmt::{Display, Formatter};
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DateFormat {
-    #[default]
     Dmy,
     Mdy,
     Ymd,
@@ -25,6 +24,10 @@ impl Display for DateFormat {
 }
 
 impl DateFormat {
+    pub const fn default() -> Self {
+        Self::Dmy
+    }
+
     pub fn year_index(&self) -> usize {
         match self {
             Self::Dmy => 2,
@@ -56,8 +59,8 @@ pub struct DateSettings {
     pub delimiter: char,
 }
 
-impl Default for DateSettings {
-    fn default() -> Self {
+impl DateSettings {
+    pub const fn default() -> Self {
         Self {
             format: DateFormat::default(),
             delimiter: '.',
@@ -65,7 +68,15 @@ impl Default for DateSettings {
     }
 }
 
-#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     pub date: DateSettings,
+}
+
+impl Settings {
+    pub const fn default() -> Self {
+        Self {
+            date: DateSettings::default(),
+        }
+    }
 }

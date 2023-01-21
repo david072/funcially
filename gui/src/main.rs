@@ -225,7 +225,7 @@ impl App<'_> {
         cc.egui_ctx.set_visuals(Visuals::dark());
 
         if let Some(storage) = cc.storage {
-            let settings: Settings = eframe::get_value(storage, &settings_key()).unwrap_or_default();
+            let settings: Settings = eframe::get_value(storage, &settings_key()).unwrap_or_else(Settings::default);
             let mut app: Self = eframe::get_value(storage, &app_key()).unwrap_or_default();
             app.calculator.settings = settings;
             return app;
@@ -1004,7 +1004,7 @@ impl eframe::App for App<'_> {
                                 body.row(ROW_HEIGHT, |mut row| {
                                     row.col(|ui| { ui.label(text_with_font(x.to_string())); });
                                     for (_, func) in &functions {
-                                        let result = match env.resolve_specific_function(func, &[x], &self.calculator.currencies, &self.calculator.settings) {
+                                        let result = match env.resolve_specific_function(func, &[x], self.calculator.context()) {
                                             Ok(v) => v.to_number()
                                                 .map(|res| res.number)
                                                 .unwrap_or(f64::NAN),

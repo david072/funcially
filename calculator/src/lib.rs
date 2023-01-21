@@ -131,6 +131,13 @@ enum Env<'a> {
     Ref(&'a mut Environment),
 }
 
+#[derive(Clone, Copy)]
+pub struct Context<'a> {
+    pub env: &'a Environment,
+    pub currencies: &'a Currencies,
+    pub settings: &'a Settings,
+}
+
 pub struct Calculator<'a> {
     environment: Env<'a>,
     pub currencies: std::sync::Arc<Currencies>,
@@ -219,6 +226,14 @@ impl<'a> Calculator<'a> {
         }
     }
 
+    pub fn context(&self) -> Context {
+        Context {
+            env: self.env(),
+            currencies: &self.currencies,
+            settings: &self.settings,
+        }
+    }
+
     pub fn calculate(&mut self, input: &str) -> Result<CalculatorResult> {
         let tokens = tokenize(input)?;
         if matches!(self.verbosity, Verbosity::Tokens | Verbosity::Ast) {
@@ -231,7 +246,7 @@ impl<'a> Calculator<'a> {
 
         let color_segments = ColorSegment::all(&tokens);
 
-        match Parser::parse(&tokens, self.env(), &self.currencies, &self.settings)? {
+        match Parser::parse(&tokens, self.context())? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
@@ -239,7 +254,7 @@ impl<'a> Calculator<'a> {
                     println!();
                 }
 
-                let result = Engine::evaluate(ast, self.env(), &self.currencies, &self.settings)?;
+                let result = Engine::evaluate(ast, self.context())?;
                 self.env_mut().set_ans_variable(Variable(result.clone()));
 
                 // let unit = result.unit.as_ref().map(|unit| {
@@ -256,14 +271,14 @@ impl<'a> Calculator<'a> {
                     println!();
                 }
 
-                let lhs = Engine::evaluate(lhs, self.env(), &self.currencies, &self.settings)?;
-                let rhs = Engine::evaluate(rhs, self.env(), &self.currencies, &self.settings)?;
+                let lhs = Engine::evaluate(lhs, self.context())?;
+                let rhs = Engine::evaluate(rhs, self.context())?;
                 Ok(CalculatorResult::bool(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies), color_segments))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
-                        let res = Engine::evaluate(ast, self.env(), &self.currencies, &self.settings)?;
+                        let res = Engine::evaluate(ast, self.context())?;
                         // let unit = res.unit.as_ref().map(|unit| {
                         //     unit.format(res.is_long_unit, res.result != 1.0)
                         // });
@@ -310,9 +325,7 @@ impl<'a> Calculator<'a> {
                     lhs,
                     rhs,
                     is_question_mark_in_lhs,
-                    self.env(),
-                    &self.currencies,
-                    &self.settings,
+                    self.context(),
                 )?;
 
                 self.env_mut().set_ans_variable(Variable(result.clone()));
@@ -458,10 +471,8 @@ impl<'a> Calculator<'a> {
             writeln_or_err!(&mut output);
         }
 
-        let environment = self.env();
-
         if verbosity == Verbosity::Ast {
-            match Parser::parse(&tokens, environment, &self.currencies, &self.settings) {
+            match Parser::parse(&tokens, self.context()) {
                 Ok(parser_result) => match parser_result {
                     ParserResult::Calculation(ast) => {
                         writeln_or_err!(&mut output, "AST:");

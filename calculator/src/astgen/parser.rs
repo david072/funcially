@@ -1,12 +1,11 @@
 use std::ops::Range;
 
-use crate::{Environment, error, Format, Settings};
+use crate::{Context, error, Format};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
 use crate::astgen::objects::{CalculatorObject, ObjectArgument};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{Error, ErrorType::*, ErrorType, Result};
 use crate::environment::ArgCount;
-use crate::environment::currencies::Currencies;
 use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
 
 macro_rules! parse_f64_radix {
@@ -81,9 +80,7 @@ pub struct Parser<'a> {
     tokens: &'a [Token],
     index: usize,
     nesting_level: usize,
-    environment: &'a Environment,
-    currencies: &'a Currencies,
-    settings: &'a Settings,
+    context: Context<'a>,
     extra_allowed_variables: Option<&'a [String]>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
@@ -91,12 +88,10 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse(tokens: &'a [Token], env: &'a Environment, currencies: &'a Currencies, settings: &'a Settings) -> Result<ParserResult> {
+    pub(crate) fn parse(tokens: &'a [Token], context: Context) -> Result<ParserResult> {
         let mut parser = Parser::new(
             tokens,
-            env,
-            currencies,
-            settings,
+            context,
             0,
             true,
             None,
@@ -117,11 +112,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn new(
+    pub(crate) fn new(
         tokens: &'a [Token],
-        env: &'a Environment,
-        currencies: &'a Currencies,
-        settings: &'a Settings,
+        context: Context<'a>,
         nesting_level: usize,
         allow_question_mark: bool,
         question_mark: Option<QuestionMarkInfo>,
@@ -130,9 +123,7 @@ impl<'a> Parser<'a> {
             tokens,
             index: 0,
             nesting_level,
-            environment: env,
-            currencies,
-            settings,
+            context,
             extra_allowed_variables: None,
             allow_question_mark,
             question_mark,
@@ -206,7 +197,7 @@ impl<'a> Parser<'a> {
             return None;
         }
 
-        if self.environment.is_standard_variable(&name) {
+        if self.context.env.is_standard_variable(&name) {
             return Some(Err(ReservedVariable(name).with(identifier_range)));
         }
 
@@ -251,7 +242,7 @@ impl<'a> Parser<'a> {
         let identifier_range = identifier.range();
         let name = identifier.text.clone();
 
-        if self.environment.is_standard_function(&name) && first_error.is_none() {
+        if self.context.env.is_standard_function(&name) && first_error.is_none() {
             first_error = Some(ReservedFunction(name.clone()).with(identifier_range));
         }
 
@@ -675,13 +666,13 @@ impl<'a> Parser<'a> {
         let name = identifier.text.clone();
         let range = identifier.range();
 
-        if self.environment.is_valid_variable(&name) ||
+        if self.context.env.is_valid_variable(&name) ||
             self.extra_allowed_variables.map_or(false, |vars| vars.contains(&name)) {
             if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
                 return question_mark;
             }
             return Ok(AstNode::new(AstNodeData::VariableReference(name), range));
-        } else if self.environment.is_valid_function(&name) {
+        } else if self.context.env.is_valid_function(&name) {
             let arguments = self.accept_function_arguments(&name)?;
             let close_bracket_range = self.tokens[self.index - 1].range();
 
@@ -754,9 +745,7 @@ impl<'a> Parser<'a> {
         let object = CalculatorObject::parse(
             name,
             args,
-            self.environment,
-            self.currencies,
-            self.settings,
+            self.context,
             range_start..range_end,
         )?;
         Ok(AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end))
@@ -787,9 +776,7 @@ impl<'a> Parser<'a> {
         let tokens = &self.tokens[start..self.index - 1];
         let mut parser = Self::new(
             tokens,
-            self.environment,
-            self.currencies,
-            self.settings,
+            self.context,
             self.nesting_level + 1,
             false,
             self.question_mark.clone(),
@@ -855,7 +842,7 @@ impl<'a> Parser<'a> {
 
         let full_range = open_bracket_range.start..range_end;
 
-        let function_args_count = self.environment.function_argument_count(function_name).unwrap();
+        let function_args_count = self.context.env.function_argument_count(function_name).unwrap();
         if !function_args_count.is_valid_count(arguments.len()) {
             match function_args_count {
                 ArgCount::Single(count) => error!(WrongNumberOfArguments(count): full_range),
@@ -863,15 +850,13 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let allow_question_mark = !self.environment.is_standard_function(function_name);
+        let allow_question_mark = !self.context.env.is_standard_function(function_name);
 
         let mut result = Vec::new();
         for tokens in arguments {
             let mut parser = Self::new(
                 tokens,
-                self.environment,
-                self.currencies,
-                self.settings,
+                self.context,
                 self.nesting_level + 1,
                 allow_question_mark,
                 self.question_mark.clone(),
@@ -916,12 +901,17 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::astgen::tokenizer::tokenize;
+    use crate::{Settings, Currencies, Environment};
 
     use super::*;
 
     macro_rules! parse {
         ($input:expr) => {
-            Parser::parse(&tokenize($input)?, &Environment::new(), &Currencies::none(), &Settings::default())
+            Parser::parse(&tokenize($input)?, Context {
+                env: &Environment::new(),
+                currencies: &Currencies::none(),
+                settings: &Settings::default(),
+            })
         };
     }
 
