@@ -40,7 +40,7 @@ impl Currencies {
         res
     }
 
-    pub fn none() -> Currencies {
+    pub const fn none() -> Currencies {
         Currencies {
             base: Mutex::new(None),
             currencies: Mutex::new(None),

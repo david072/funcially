@@ -70,7 +70,7 @@ impl Default for Environment {
 }
 
 impl Environment {
-    pub fn new() -> Environment {
+    pub const fn new() -> Environment {
         Environment {
             ans: Variable(Value::only_number(0.0)),
             variables: Vec::new(),

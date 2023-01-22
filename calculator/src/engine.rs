@@ -563,10 +563,13 @@ mod tests {
     macro_rules! eval {
         ($str:expr) => {
             {
-                const CONTEXT: Context = Context {
-                    env: &Environment::new(),
-                    currencies: &Currencies::none(),
-                    settings: &Settings::default(),
+                static ENV: Environment = Environment::new();
+                static CURR: Currencies = Currencies::none();
+                static SET: Settings = Settings::default();
+                static CONTEXT: Context = Context {
+                    env: &ENV,
+                    currencies: &CURR,
+                    settings: &SET,
                 };
                 Engine::evaluate(
                     if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, CONTEXT)? { ast }
@@ -580,10 +583,13 @@ mod tests {
     macro_rules! eval_obj {
         ($str:expr) => {
             {
-                const CONTEXT: Context = Context {
-                    env: &Environment::new(),
-                    currencies: &Currencies::none(),
-                    settings: &Settings::default(),
+                static ENV: Environment = Environment::new();
+                static CURR: Currencies = Currencies::none();
+                static SET: Settings = Settings::default();
+                static CONTEXT: Context = Context {
+                    env: &ENV,
+                    currencies: &CURR,
+                    settings: &SET,
                 };
                 Engine::evaluate(
                     if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, CONTEXT)? { ast }
