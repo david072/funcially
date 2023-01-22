@@ -96,7 +96,7 @@ impl Display for AstNodeModifier {
             AstNodeModifier::Percent => write!(f, "%"),
             AstNodeModifier::Minus => write!(f, "-"),
             AstNodeModifier::Plus => write!(f, "+"),
-            AstNodeModifier::Power(e) => write!(f, "^{}", e),
+            AstNodeModifier::Power(e) => write!(f, "^{e}"),
         }
     }
 }
@@ -289,7 +289,7 @@ impl AstNode {
 
         let mut res = String::new();
         for m in mods {
-            res += format!("{}", m).as_str();
+            res += format!("{m}").as_str();
         }
 
         res
@@ -302,7 +302,7 @@ impl AstNode {
 
         let mut res = String::new();
         for m in mods {
-            res += format!("{}", m).as_str();
+            res += format!("{m}").as_str();
         }
 
         res
@@ -324,7 +324,7 @@ impl PartialEq for AstNode {
 
 impl Debug for AstNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -337,7 +337,7 @@ impl Display for AstNode {
                                                    s = self.suffix_modifiers(),
                                                    unit = self.unit(),
                                                    fmt = self.format),
-            AstNodeData::Operator(operator) => write!(f, "Operator: {:?}", operator),
+            AstNodeData::Operator(operator) => write!(f, "Operator: {operator:?}"),
             AstNodeData::Group(ast) => {
                 writeln!(f, "{p}Group{s} {unit} ({fmt}):",
                          p = self.prefix_modifiers(),
@@ -378,7 +378,7 @@ impl Display for AstNode {
 
                 Ok(())
             }
-            AstNodeData::Unit(name) => write!(f, "Unit: {}", name),
+            AstNodeData::Unit(name) => write!(f, "Unit: {name}"),
             AstNodeData::QuestionMark => write!(f, "QuestionMark"),
             AstNodeData::Object(object) => write!(f, "Object: {object:?}"),
         }

@@ -21,7 +21,7 @@ impl Format {
             Format::Decimal => round_dp(n, 10),
             Format::Hex => format!("{:#X}", n as i64),
             Format::Binary => format!("{:#b}", n as i64),
-            Format::Scientific => format!("{:#e}", n),
+            Format::Scientific => format!("{n:#e}"),
         };
         if *self != Format::Scientific && use_thousands_separator {
             if *self == Format::Decimal {
@@ -68,7 +68,7 @@ impl Format {
 
 impl Display for Format {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", format!("{:?}", self).to_lowercase())
+        write!(f, "{}", format!("{self:?}").to_lowercase())
     }
 }
 

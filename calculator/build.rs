@@ -158,7 +158,7 @@ mod unit_data {
                         let mut parts = self.src_to_dst_expr.split(' ');
                         let mut dts_expr = parts.next().unwrap().to_string();
                         let new_operator = invert_operator(parts.next().unwrap().chars().next().unwrap());
-                        dts_expr += &format!(" {} ", new_operator);
+                        dts_expr += &format!(" {new_operator} ");
                         dts_expr += &parts.collect::<Vec<_>>().join(" ");
                         result.push(format!("\t\t(r#\"{}\"#, r#\"{}\"#) => Ok({}),", self.dst, self.src, dts_expr));
                     }

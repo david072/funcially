@@ -205,7 +205,7 @@ impl Default for App<'_> {
             debug_information: None,
             use_thousands_separator: false,
             input_text_cursor_range: CursorRange::one(Cursor::default()),
-            bottom_text: format!("v{}", VERSION),
+            bottom_text: format!("v{VERSION}"),
             cached_help_window_color_segments: Vec::new(),
         }
     }

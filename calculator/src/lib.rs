@@ -193,7 +193,7 @@ impl<'a> Calculator<'a> {
                 .unwrap()
                 .as_secs();
 
-            let contents = format!("{}\n\n{}", info, backtrace);
+            let contents = format!("{info}\n\n{backtrace}");
 
             eprintln!("{contents}");
 
@@ -203,7 +203,7 @@ impl<'a> Calculator<'a> {
                 if std::fs::create_dir(path.clone()).is_err() { return; }
             }
 
-            let path = path.join(format!("report_{}.txt", current_millis));
+            let path = path.join(format!("report_{current_millis}.txt"));
             let _ = std::fs::write(path, contents);
         }));
     }
@@ -250,7 +250,7 @@ impl<'a> Calculator<'a> {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
-                    for node in &ast { println!("{}", node); }
+                    for node in &ast { println!("{node}"); }
                     println!();
                 }
 
@@ -265,9 +265,9 @@ impl<'a> Calculator<'a> {
             ParserResult::BooleanExpression { lhs, rhs, operator } => {
                 if self.verbosity == Verbosity::Ast {
                     println!("Equality check:\nLHS:");
-                    for node in &lhs { println!("{}", node); }
+                    for node in &lhs { println!("{node}"); }
                     println!("RHS:");
-                    for node in &rhs { println!("{}", node); }
+                    for node in &rhs { println!("{node}"); }
                     println!();
                 }
 
@@ -315,9 +315,9 @@ impl<'a> Calculator<'a> {
                 if self.verbosity == Verbosity::Ast {
                     println!("Equation:");
                     println!("QuestionMark is in {}\nLHS:", if is_question_mark_in_lhs { "LHS" } else { "RHS" });
-                    for node in &lhs { println!("{}", node); }
+                    for node in &lhs { println!("{node}"); }
                     println!("RHS:");
-                    for node in &rhs { println!("{}", node); }
+                    for node in &rhs { println!("{node}"); }
                     println!();
                 }
 

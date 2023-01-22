@@ -49,7 +49,7 @@ impl std::fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)?;
         if let Some(denom) = &self.1 {
-            write!(f, "/{}", denom)?;
+            write!(f, "/{denom}")?;
         }
         Ok(())
     }
