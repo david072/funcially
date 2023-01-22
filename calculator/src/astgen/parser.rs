@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2023, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 use std::ops::Range;
 
 use crate::{Context, error, Format};
