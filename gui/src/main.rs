@@ -987,7 +987,7 @@ impl eframe::App for App<'_> {
                     }
                     self.handle_shortcuts(ui);
 
-                    vertical_spacer(ui);
+                    Separator::default().vertical().ui(ui);
 
                     ui.vertical(|ui| {
                         ui.add_space(2.0);

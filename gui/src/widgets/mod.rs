@@ -267,24 +267,6 @@ pub fn plot(ui: &mut Ui, lines: &Vec<Line>, calculator: &Calculator) -> InnerRes
         })
 }
 
-pub fn vertical_spacer(ui: &mut Ui) -> Response {
-    let width = 5f32;
-    let height = ui.available_height();
-
-    let (rect, response) = ui.allocate_exact_size(
-        Vec2::new(width, height),
-        Sense::hover(),
-    );
-
-    if ui.is_rect_visible(rect) {
-        let visuals = ui.style().noninteractive();
-        let rect = rect.expand(visuals.expansion);
-        ui.painter().vline(rect.left(), rect.y_range(), visuals.bg_stroke);
-    }
-
-    response
-}
-
 pub fn output_text(ui: &mut Ui, str: &str, font_id: FontId, index: usize) -> Response {
     let text: WidgetText = str.into();
     let valign = ui.layout().vertical_align();
