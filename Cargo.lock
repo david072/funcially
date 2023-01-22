@@ -1037,16 +1037,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui_extras"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1975cd88ff7430f93b29e6b9868b648a8ff6a43b08b9ff8474ee0a648bd8f9a6"
-dependencies = [
- "egui",
- "serde",
-]
-
-[[package]]
 name = "egui_glow"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1496,7 +1486,6 @@ dependencies = [
  "calculator",
  "console_error_panic_hook",
  "eframe",
- "egui_extras",
  "embed-resource",
  "image",
  "reqwest",
