@@ -40,7 +40,7 @@ impl serenity::prelude::TypeMapKey for DataKey {
 #[tokio::main]
 async fn main() {
     if let Err(e) = dotenv::dotenv() {
-        eprintln!("Failed to load .env file: {}", e);
+        eprintln!("Failed to load .env file: {e}");
         std::process::exit(1);
     }
 
@@ -70,7 +70,7 @@ async fn main() {
     }
 
     if let Err(e) = client.start().await {
-        println!("Client error {:?}", e);
+        println!("Client error {e:?}");
     }
 }
 
@@ -88,13 +88,13 @@ async fn load_sessions(http: Arc<Http>) -> Data {
     let paths = match fs::read_dir(sessions_directory()) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Failed to read_dir: {}", e);
+            eprintln!("Failed to read_dir: {e}");
             return data;
         }
     };
 
     for path in paths {
-        println!("path: {:?}", path);
+        println!("path: {path:?}");
         match path {
             Ok(entry) => {
                 let Some(id) = entry.file_name()
@@ -154,7 +154,7 @@ fn save_sessions(sessions: Sessions, guild_id: GuildId) {
             if !path.try_exists().unwrap_or(false) { return; }
 
             if let Err(e) = fs::remove_file(path.clone()) {
-                eprintln!("Could not remove file at {:?}: {}", path, e);
+                eprintln!("Could not remove file at {path:?}: {e}");
             }
             return;
         }
@@ -162,12 +162,12 @@ fn save_sessions(sessions: Sessions, guild_id: GuildId) {
         let str = match ron::ser::to_string(&sessions) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("Failed to serialize sessions ({:?}): {}", sessions, e);
+                eprintln!("Failed to serialize sessions ({sessions:?}): {e}");
                 return;
             }
         };
         if let Err(e) = fs::write(path.clone(), str) {
-            eprintln!("Failed to write to file {:?}: {}", path, e);
+            eprintln!("Failed to write to file {path:?}: {e}");
         }
     });
 }
@@ -189,7 +189,7 @@ impl EventHandler for Handler {
         }).await;
 
         if let Err(e) = res {
-            eprintln!("Failed to register slash commands\n{:#?}", e);
+            eprintln!("Failed to register slash commands\n{e:#?}");
         }
 
         println!("Registered slash commands");
@@ -197,7 +197,7 @@ impl EventHandler for Handler {
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            println!("Received command interaction: {:#?}", command);
+            println!("Received command interaction: {command:#?}");
 
             let res = match command.data.name.as_str() {
                 "ping" => Ok(Some(commands::ping::run())),
@@ -225,7 +225,7 @@ impl EventHandler for Handler {
                         message.set_embed(embed)
                     })
             }).await {
-                println!("Could not respond to slash command: {}", e);
+                println!("Could not respond to slash command: {e}");
             }
         }
     }
@@ -278,7 +278,7 @@ mod commands {
         use serenity::model::prelude::command::CommandOptionType;
         use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
 
-        use calculator::{Calculator, ResultData, Verbosity};
+        use calculator::{Calculator, ResultData, Settings, Verbosity};
 
         use crate::{DataKey, save_sessions};
 
@@ -318,9 +318,9 @@ mod commands {
 
                 let mut calc = match environment {
                     Some((_, env)) => {
-                        Calculator::with_environment(Verbosity::None, env)
+                        Calculator::with_environment(Verbosity::None, Settings::default(), env)
                     }
-                    None => Calculator::new(Verbosity::None),
+                    None => Calculator::new(Verbosity::None, Settings::default()),
                 };
 
                 match calc.calculate(input) {
@@ -330,7 +330,7 @@ mod commands {
                             ResultData::Value(value) => {
                                 embed
                                     .color(Colour::GOLD)
-                                    .title(value.format(use_thousands_separator));
+                                    .title(value.format(&Settings::default(), use_thousands_separator));
                             }
                             ResultData::Boolean(b) => {
                                 embed
@@ -448,7 +448,7 @@ mod commands {
                     if sessions.iter().any(|(_, (session_name, _))| session_name == name) {
                         return Ok(error_embed(|e| {
                             e.title("New Session")
-                                .description(format!("A session with the name `{}` already exists.", name))
+                                .description(format!("A session with the name `{name}` already exists."))
                         }));
                     }
 
@@ -475,7 +475,7 @@ mod commands {
 
                     return Ok(success_embed(|e| {
                         e.title("Session created")
-                            .description(format!("Successfully created session `{}`", name))
+                            .description(format!("Successfully created session `{name}`"))
                     }));
                 }
             }
@@ -516,7 +516,7 @@ mod commands {
                         if let Some(name) = name {
                             Ok(Some(success_embed(|e| {
                                 e.title("Session deleted")
-                                    .description(format!("Successfully deleted session `{}`", name))
+                                    .description(format!("Successfully deleted session `{name}`"))
                             })))
                         } else {
                             Ok(None)
@@ -524,7 +524,7 @@ mod commands {
                     }
                     None => {
                         let description = if let Some(name) = name {
-                            format!("Could not find session thread with name `{}`", name)
+                            format!("Could not find session thread with name `{name}`")
                         } else { "This is not a session thread".to_owned() };
 
                         Ok(Some(error_embed(|e| {
