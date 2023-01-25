@@ -67,6 +67,8 @@ pub enum ErrorType {
     ExpectedUnit,
     #[error("Unexpected unit")]
     UnexpectedUnit,
+    #[error("The units don't match")]
+    UnitsNotMatching,
     #[error("Expected text")]
     ExpectedElements,
     #[error("Expected end")]

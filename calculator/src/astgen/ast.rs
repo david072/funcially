@@ -11,11 +11,12 @@ use crate::{
     common::*,
     environment::{
         currencies::Currencies,
-        units::{convert, Unit},
+        units::convert,
     },
     Format,
 };
 use crate::astgen::objects::CalculatorObject;
+use crate::environment::units::Unit;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum BooleanOperator {

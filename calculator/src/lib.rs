@@ -257,9 +257,6 @@ impl<'a> Calculator<'a> {
                 let result = Engine::evaluate(ast, self.context())?;
                 self.env_mut().set_ans_variable(Variable(result.clone()));
 
-                // let unit = result.unit.as_ref().map(|unit| {
-                //     unit.format(result.is_long_unit, result.result != 1.0)
-                // });
                 Ok(CalculatorResult::value(result, color_segments))
             }
             ParserResult::BooleanExpression { lhs, rhs, operator } => {

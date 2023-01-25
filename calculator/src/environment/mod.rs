@@ -8,8 +8,7 @@ use std::f64::consts::{E, PI, TAU};
 
 use crate::{astgen::ast::AstNode, common::ErrorType, Context, Engine};
 use crate::engine::{NumberValue, Value};
-
-use self::units::Unit;
+use crate::environment::units::Unit;
 
 pub mod units;
 pub mod currencies;
@@ -193,11 +192,12 @@ impl Environment {
         let args = arg_results.iter().map(|r| r.number).collect::<Vec<_>>();
 
         let as_radians = |i: usize| {
-            if let Some(unit) = &arg_results[i].unit {
-                if unit.0 == "°" {
-                    return args[i].to_radians();
-                }
-            }
+            println!("TODO: as_radians");
+            // if let Some(unit) = &arg_results[i].unit {
+            //     if unit.0 == "°" {
+            //         return args[i].to_radians();
+            //     }
+            // }
             args[i]
         };
 

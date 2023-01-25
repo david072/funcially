@@ -8,9 +8,10 @@ use std::fmt::{Display, Formatter};
 use std::mem::{replace, take};
 use std::ops::Range;
 
-use crate::{astgen::ast::{AstNode, AstNodeData, Operator}, astgen::tokenizer::TokenType, common::*, Context, Currencies, environment::{Environment, units::{convert as convert_units, Unit}, Variable}, match_ast_node, Settings};
+use crate::{astgen::ast::{AstNode, AstNodeData, Operator}, astgen::tokenizer::TokenType, common::*, Context, Currencies, environment::{Environment, units::convert as convert_units, Variable}, match_ast_node, Settings};
 use crate::astgen::ast::BooleanOperator;
 use crate::astgen::objects::CalculatorObject;
+use crate::environment::units::Unit;
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Format { Decimal, Hex, Binary, Scientific }

@@ -646,7 +646,7 @@ impl<'a> Parser<'a> {
                 return match denominator {
                     Ok((denom, denominator_range)) => {
                         Some(Ok((
-                            Unit(numerator, Some(denom)),
+                            Unit::Fraction(Box::new(Unit::Unit(numerator)), Box::new(Unit::Unit(denom))),
                             numerator_range.start..denominator_range.end
                         )))
                     }
@@ -657,7 +657,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Some(Ok((Unit(numerator, None), numerator_range)))
+        Some(Ok((Unit::Unit(numerator), numerator_range)))
     }
 
     fn accept_unit(&mut self) -> Option<Result<(String, Range<usize>)>> {
@@ -925,7 +925,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::astgen::tokenizer::tokenize;
-    use crate::{Settings, Currencies, Environment, match_ast_node};
+    use crate::{Settings, Currencies, Environment};
 
     use super::*;
 
