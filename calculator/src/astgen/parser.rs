@@ -511,7 +511,19 @@ impl<'a> Parser<'a> {
             if let Some(identifier) = self.peek(is(Identifier)) {
                 if identifier.text == "e" || identifier.text == "E" {
                     self.index += 1;
-                    if let Ok(exponent) = self.accept_literal() {
+
+                    let mut modifiers = vec![];
+                    while let Some(sign) = self.try_accept(any(&[Plus, Minus])) {
+                        modifiers.push(match sign.ty {
+                            Plus => AstNodeModifier::Plus,
+                            Minus => AstNodeModifier::Minus,
+                            _ => unreachable!(),
+                        });
+                    }
+
+                    if let Ok(mut exponent) = self.accept_literal() {
+                        exponent.modifiers = modifiers;
+
                         let range = number.range.clone();
                         let group = vec![
                             number,
@@ -1178,16 +1190,22 @@ mod tests {
 
     #[test]
     fn scientific_notation() -> Result<()> {
-        let ast = calculation!("1e2");
-        assert_eq!(ast.len(), 1);
-        assert!(matches!(ast[0].data, AstNodeData::Group(_)));
-        let AstNodeData::Group(ast) = &ast[0].data else { unreachable!(); };
-        assert_eq!(ast.len(), 5); // 1 * 10 ^ 2
-        assert!(matches!(ast[0].data, AstNodeData::Literal(_)));
-        assert!(matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
-        assert!(matches!(ast[2].data, AstNodeData::Literal(_)));
-        assert!(matches!(ast[3].data, AstNodeData::Operator(Operator::Exponentiation)));
-        assert!(matches!(ast[4].data, AstNodeData::Literal(_)));
+        fn test(ast: Vec<AstNode>) -> Result<()> {
+            assert_eq!(ast.len(), 1);
+            assert!(matches!(ast[0].data, AstNodeData::Group(_)));
+            let AstNodeData::Group(ast) = &ast[0].data else { unreachable!(); };
+            assert_eq!(ast.len(), 5); // 1 * 10 ^ 2
+            assert!(matches!(ast[0].data, AstNodeData::Literal(_)));
+            assert!(matches!(ast[1].data, AstNodeData::Operator(Operator::Multiply)));
+            assert!(matches!(ast[2].data, AstNodeData::Literal(_)));
+            assert!(matches!(ast[3].data, AstNodeData::Operator(Operator::Exponentiation)));
+            assert!(matches!(ast[4].data, AstNodeData::Literal(_)));
+            Ok(())
+        }
+
+        test(calculation!("1e2"))?;
+        test(calculation!("1e-2"))?;
+        test(calculation!("1e--2"))?;
 
         let ast = calculation!("1e");
         assert_eq!(ast.len(), 3);
