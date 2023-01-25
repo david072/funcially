@@ -346,11 +346,20 @@ impl<'a> Parser<'a> {
 
                     let (group, open_bracket_range) = group_stack.pop().unwrap();
                     let range = open_bracket_range.start..close_bracket.range().end;
-                    let node = if group.is_empty() {
+
+                    let unit = self.try_accept_complex_unit().transpose()?;
+
+                    let mut node = if group.is_empty() {
                         AstNode::new(AstNodeData::Literal(1.0), range)
                     } else {
                         AstNode::new(AstNodeData::Group(group), range)
                     };
+
+                    if let Some((unit, unit_range)) = unit {
+                        node.unit = Some(unit);
+                        node.range.end = unit_range.end;
+                    }
+
                     ast!().push(node);
                     self.nesting_level -= 1;
                 } else {
@@ -916,7 +925,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::astgen::tokenizer::tokenize;
-    use crate::{Settings, Currencies, Environment};
+    use crate::{Settings, Currencies, Environment, match_ast_node};
 
     use super::*;
 
@@ -1035,6 +1044,17 @@ mod tests {
         };
         assert_eq!(group.len(), 3);
         assert!(matches!(group.last().unwrap().data, AstNodeData::Group(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn group_with_unit() -> Result<()> {
+        let ast = calculation!("(3)km");
+        assert_eq!(ast.len(), 1);
+        assert!(ast[0].unit.is_some());
+        assert_eq!(ast[0].unit.as_ref().unwrap().0, "km");
+        assert!(ast[0].unit.as_ref().unwrap().1.is_none());
+
         Ok(())
     }
 
