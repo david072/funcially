@@ -41,8 +41,8 @@ impl std::fmt::Display for Unit {
             Self::Product(units) => {
                 write!(f, "(")?;
                 for (i, unit) in units.iter().enumerate() {
-                    if i != units.len() - 1 { write!(f, "*")?; }
                     write!(f, "{unit}")?;
+                    if i != units.len() - 1 { write!(f, "*")?; }
                 }
                 write!(f, ")")
             }

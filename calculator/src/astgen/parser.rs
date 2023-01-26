@@ -347,7 +347,7 @@ impl<'a> Parser<'a> {
                     let (group, open_bracket_range) = group_stack.pop().unwrap();
                     let range = open_bracket_range.start..close_bracket.range().end;
 
-                    let unit = self.try_accept_complex_unit().transpose()?;
+                    let unit = self.try_accept_unit().transpose()?;
 
                     let mut node = if group.is_empty() {
                         AstNode::new(AstNodeData::Literal(1.0), range)
@@ -374,7 +374,7 @@ impl<'a> Parser<'a> {
                     let AstNodeData::Operator(operator) = op.data else { unreachable!(); };
                     // RHS of `in` (unit / format)
                     if operator == Operator::In {
-                        if let Some(unit) = self.try_accept_complex_unit() {
+                        if let Some(unit) = self.try_accept_unit() {
                             let (unit, range) = unit?;
                             ast!().push(op);
                             ast!().push(AstNode::new(AstNodeData::Unit(unit), range));
@@ -509,7 +509,7 @@ impl<'a> Parser<'a> {
             modifiers.append(&mut self.accept_suffix_modifiers());
             number.modifiers.append(&mut modifiers);
 
-            if let Some(unit) = self.try_accept_complex_unit() {
+            if let Some(unit) = self.try_accept_unit() {
                 let (unit, unit_range) = unit?;
                 number.unit = Some(unit);
                 number.range.end = unit_range.end;
@@ -633,8 +633,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn try_accept_complex_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
-        let Some(numerator) = self.accept_unit() else { return None; };
+    fn try_accept_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
+        if self.peek(is(OpenSquareBracket)).is_some() {
+            return Some(self.accept_complex_unit());
+        }
+
+        let Some(numerator) = self.try_accept_single_unit() else { return None; };
         let (numerator, numerator_range) = match numerator {
             Ok(v) => v,
             Err(e) => return Some(Err(e)),
@@ -642,7 +646,7 @@ impl<'a> Parser<'a> {
 
         if self.peek(is(Divide)).is_some() {
             self.index += 1;
-            if let Some(denominator) = self.accept_unit() {
+            if let Some(denominator) = self.try_accept_single_unit() {
                 return match denominator {
                     Ok((denom, denominator_range)) => {
                         Some(Ok((
@@ -660,7 +664,97 @@ impl<'a> Parser<'a> {
         Some(Ok((Unit::Unit(numerator), numerator_range)))
     }
 
-    fn accept_unit(&mut self) -> Option<Result<(String, Range<usize>)>> {
+    fn accept_complex_unit(&mut self) -> Result<(Unit, Range<usize>)> {
+        let open_bracket = self.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
+        let range_start = open_bracket.range().start;
+
+        let (mut units, _) = self.next_units()?;
+        if units.is_empty() {
+            error!(ExpectedUnit: self.peek(all()).map(|t| t.range()).unwrap_or_else(|| self.error_range_at_end()));
+        }
+        let unit = if units.len() == 1 { units.remove(0) } else { Unit::Product(units) };
+
+        let close_bracket = self.accept(is(CloseSquareBracket), ExpectedCloseSquareBracket)?;
+        Ok((unit, range_start..close_bracket.range().end))
+    }
+
+    fn next_units(&mut self) -> Result<(Vec<Unit>, Range<usize>)> {
+        let mut result = vec![];
+        let mut result_range = 0..1;
+
+        let mut numerator: Option<Unit> = None;
+
+        while self.peek(is(CloseSquareBracket)).is_none() {
+            let Some(token) = self.peek(all()) else {
+                error!(ExpectedElements: self.error_range_at_end());
+            };
+            let token_range = token.range();
+            if result_range.start == 0 {
+                result_range = token.range();
+            }
+
+            match token.ty {
+                OpenBracket => 'blk: {
+                    self.index += 1;
+                    let (units, range) = self.next_units()?;
+                    if units.is_empty() {
+                        error!(ExpectedElements: token_range.start..range.end);
+                    }
+                    result_range.end = range.end;
+
+                    let unit = Unit::Product(units);
+
+                    if let Some(numerator) = numerator.take() {
+                        result.push(Unit::Fraction(Box::new(numerator), Box::new(unit)));
+                        break 'blk;
+                    }
+
+                    if self.try_accept(is(Divide)).is_some() {
+                        numerator = Some(unit);
+                        break 'blk;
+                    }
+
+                    result.push(unit);
+                }
+                CloseBracket => {
+                    self.index += 1;
+                    if numerator.is_some() {
+                        error!(ExpectedUnit: token_range);
+                    }
+
+                    return Ok((result, result_range))
+                },
+                Identifier => 'blk: {
+                    let Some(unit) = self.try_accept_single_unit() else {
+                        error!(ExpectedUnit: token_range);
+                    };
+                    let (unit_str, unit_range) = unit?;
+                    result_range.end = unit_range.end;
+
+                    let unit = Unit::Unit(unit_str);
+
+                    if let Some(numerator) = numerator.take() {
+                        result.push(Unit::Fraction(Box::new(numerator), Box::new(unit)));
+                        break 'blk;
+                    }
+
+                    if self.try_accept(is(Divide)).is_some() {
+                        numerator = Some(unit);
+                        break 'blk;
+                    }
+
+                    result.push(unit);
+                }
+                _ => error!(ExpectedUnit: token_range),
+            }
+
+            self.try_accept(is(Multiply));
+        }
+
+        Ok((result, result_range))
+    }
+
+    fn try_accept_single_unit(&mut self) -> Option<Result<(String, Range<usize>)>> {
         let Some(unit) = self.peek(is(Identifier)) else { return None; };
         if !is_unit_with_prefix(&unit.text) { return None; }
 
@@ -924,8 +1018,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{Currencies, Environment, Settings};
     use crate::astgen::tokenizer::tokenize;
-    use crate::{Settings, Currencies, Environment};
 
     use super::*;
 
