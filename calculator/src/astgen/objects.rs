@@ -217,7 +217,7 @@ impl DateObject {
             unit.and_then(|unit| {
                 units::convert(
                     unit,
-                    &Unit::Unit("ns".to_string()),
+                    &Unit::from("ns"),
                     n,
                     &Currencies::none(),
                     &range,

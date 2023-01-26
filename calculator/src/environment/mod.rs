@@ -192,12 +192,11 @@ impl Environment {
         let args = arg_results.iter().map(|r| r.number).collect::<Vec<_>>();
 
         let as_radians = |i: usize| {
-            println!("TODO: as_radians");
-            // if let Some(unit) = &arg_results[i].unit {
-            //     if unit.0 == "°" {
-            //         return args[i].to_radians();
-            //     }
-            // }
+            if let Some(Unit::Unit(str)) = &arg_results[i].unit {
+                if str == "°" {
+                    return args[i].to_radians();
+                }
+            }
             args[i]
         };
 
