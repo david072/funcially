@@ -257,9 +257,6 @@ impl<'a> Calculator<'a> {
                 let result = Engine::evaluate(ast, self.context())?;
                 self.env_mut().set_ans_variable(Variable(result.clone()));
 
-                // let unit = result.unit.as_ref().map(|unit| {
-                //     unit.format(result.is_long_unit, result.result != 1.0)
-                // });
                 Ok(CalculatorResult::value(result, color_segments))
             }
             ParserResult::BooleanExpression { lhs, rhs, operator } => {
@@ -279,10 +276,6 @@ impl<'a> Calculator<'a> {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.context())?;
-                        // let unit = res.unit.as_ref().map(|unit| {
-                        //     unit.format(res.is_long_unit, res.result != 1.0)
-                        // });
-
                         self.env_mut().set_variable(&name, Variable(res.clone())).unwrap();
                         Ok(CalculatorResult::value(res, color_segments))
                     }
@@ -347,6 +340,9 @@ impl<'a> Calculator<'a> {
 
         let tokens = tokenize(line)?;
 
+        let mut is_in_square_brackets = false;
+        let mut is_in_object = false;
+
         let mut new_line = String::new();
         for (i, token) in tokens.iter().enumerate() {
             let text = &token.text;
@@ -395,8 +391,21 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
-                if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier) || (token.ty == OpenSquareBracket && tokens[i - 1].ty != ObjectArgs) {
+                if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier) ||
+                    (token.ty == OpenSquareBracket && tokens[i - 1].ty != ObjectArgs && is_in_object) {
                     new_line.push(' ');
+                }
+
+                if token.ty == OpenSquareBracket {
+                    is_in_square_brackets = true;
+                } else if token.ty == CloseSquareBracket {
+                    is_in_square_brackets = false;
+                }
+
+                if token.ty == OpenCurlyBracket {
+                    is_in_object = true;
+                } else if token.ty == CloseCurlyBracket {
+                    is_in_object = false;
                 }
 
                 new_line += &text;
@@ -421,7 +430,7 @@ impl<'a> Calculator<'a> {
                     }
                 }
                 // Format complex units without spaces (e.g. "km/h")
-                else if token.ty == Divide {
+                else if token.ty == Divide || token.ty == Multiply {
                     let is_prev_ident_and_unit = tokens.get(i - 1)
                         .map(|t| t.ty == Identifier && is_unit_with_prefix(&t.text))
                         .unwrap_or(false);
@@ -436,11 +445,11 @@ impl<'a> Calculator<'a> {
 
                 if !(token.ty.is_format() && tokens.get(i.saturating_sub(1))
                     .map_or(false, |t| t.ty == In)) &&
-                    token.ty != Exponentiation {
+                    token.ty != Exponentiation && !is_in_square_brackets {
                     new_line.push(' ');
                 }
                 new_line += text;
-                if i != tokens.len() - 1 && token.ty != Exponentiation {
+                if i != tokens.len() - 1 && token.ty != Exponentiation && !is_in_square_brackets {
                     new_line.push(' ');
                 }
             } else if token.ty == Comma {
@@ -448,7 +457,7 @@ impl<'a> Calculator<'a> {
                 if i != tokens.len() - 1 {
                     new_line.push(' ');
                 }
-            } else if token.ty == OpenSquareBracket {} else if token.ty == ObjectArgs {
+            } else if token.ty == ObjectArgs {
                 if tokens.get(i - 1).map(|t| t.ty == Identifier).unwrap_or_default() {
                     new_line.push(' ');
                 }

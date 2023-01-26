@@ -7,15 +7,12 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Range;
 
-use crate::{
-    common::*,
-    environment::{
-        currencies::Currencies,
-        units::{convert, Unit},
-    },
-    Format,
-};
+use crate::{common::*, environment::{
+    currencies::Currencies,
+    units::convert,
+}, error, Format};
 use crate::astgen::objects::CalculatorObject;
+use crate::environment::units::Unit;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum BooleanOperator {
@@ -201,13 +198,30 @@ impl AstNode {
         if rhs.unit.is_some() && self.unit.is_none() {
             self.unit = rhs.unit.clone();
         } else if rhs.unit.is_some() && rhs.unit != self.unit {
-            rhs_value = convert(
+            if let Ok(rhs) = convert(
                 rhs.unit.as_ref().unwrap(),
                 self.unit.as_ref().unwrap(),
                 rhs_value,
                 currencies,
                 &full_range,
-            )?;
+            ) {
+                rhs_value = rhs;
+            } else {
+                let rhs_unit = rhs.unit.take().unwrap();
+                let lhs_unit = self.unit.take().unwrap();
+                self.unit = Some(match op {
+                    Operator::Multiply => lhs_unit.push_unit(rhs_unit),
+                    Operator::Divide => {
+                        if let Unit::Fraction(rhs_num, rhs_denom) = rhs_unit {
+                            // Multiply by the inverse of the fraction
+                            lhs_unit.push_unit(Unit::Fraction(rhs_denom, rhs_num))
+                        } else {
+                            Unit::Fraction(Box::new(lhs_unit), Box::new(rhs_unit))
+                        }
+                    }
+                    _ => error!(UnknownConversion(rhs_unit.format(false, false), lhs_unit.format(false, false)): full_range),
+                });
+            }
         }
 
         match op {

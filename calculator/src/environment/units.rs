@@ -6,52 +6,108 @@
 
 use std::ops::Range;
 
-use crate::{
-    common::{ErrorType, Result},
-    environment::currencies::{Currencies, is_currency},
-    environment::unit_conversion::{convert_units, format_unit, UNITS},
-};
+use crate::{common::{ErrorType, Result}, environment::currencies::{Currencies, is_currency}, environment::unit_conversion::{convert_units, format_unit, UNITS}, error};
 
-/// A struct representing a unit, holding a numerator and an optional denominator unit.
-///
-/// e.g. for `"km/h"`:
-/// - numerator (0): `"km"`
-/// - denominator (1): `"h"`
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Unit(pub String, pub Option<String>);
+pub enum Unit {
+    Product(Vec<Unit>),
+    Fraction(Box<Unit>, Box<Unit>),
+    Unit(String),
+}
 
 impl Unit {
+    pub fn push_unit(self, other: Unit) -> Unit {
+        match self {
+            unit @ Self::Unit(_) => Unit::Product(vec![unit, other]),
+            Self::Product(mut units) => {
+                units.push(other);
+                Unit::Product(units)
+            }
+            Self::Fraction(num, denom) => {
+                if let Self::Fraction(other_num, other_denom) = other {
+                    let num = num.push_unit(*other_num);
+                    let denom = denom.push_unit(*other_denom);
+                    Unit::Fraction(Box::new(num), Box::new(denom))
+                } else {
+                    Unit::Fraction(Box::new(num.push_unit(other)), denom)
+                }
+            }
+        }
+    }
+
     pub fn format(&self, full_unit: bool, plural: bool) -> String {
         if !full_unit {
-            self.to_string()
-        }
-        else {
-            let mut result = " ".to_string();
-            let numerator = format_unit(&self.0, plural);
-            result += &numerator;
+            match self {
+                Self::Product(units) => {
+                    units.iter().enumerate()
+                        .map(|(i, unit)| (i, unit.format(full_unit, plural)))
+                        .fold(String::new(), |mut acc, (i, str)| {
+                            acc += &str;
+                            if i != units.len() - 1 { acc.push('*'); }
+                            acc
+                        })
+                }
+                Self::Fraction(numerator, denominator) => {
+                    let mut result = String::new();
+                    if !matches!(**numerator, Self::Unit(_)) {
+                        result += &format!("({})", numerator.format(full_unit, plural));
+                    } else {
+                        result += &numerator.format(full_unit, plural);
+                    }
 
-            if let Some(denom) = &self.1 {
-                let denom = format_unit(denom, false);
-                result += " per ";
-                result += &denom;
+                    result.push('/');
+
+                    if !matches!(**denominator, Self::Unit(_)) {
+                        result += &format!("({})", denominator.format(full_unit, plural));
+                    } else {
+                        result += &denominator.format(full_unit, plural);
+                    }
+                    result
+                }
+                Self::Unit(str) => str.to_string(),
             }
+        } else {
+            match self {
+                Self::Product(units) => {
+                    let mut result = String::new();
+                    result += &units.first().unwrap().format(full_unit, false);
 
-            result
+                    fn lowercase_first(str: String) -> String {
+                        let mut iter = str.chars();
+                        iter.next().unwrap().to_lowercase().chain(iter).collect()
+                    }
+
+                    if units.len() > 3 {
+                        for unit in &units[1..units.len() - 1] {
+                            let str = unit.format(full_unit, false);
+                            result += &lowercase_first(str);
+                        }
+                    }
+
+                    if units.len() >= 2 {
+                        let str = units.last().unwrap().format(full_unit, plural);
+                        result += &lowercase_first(str);
+                    }
+                    result
+                }
+                Self::Fraction(numerator, denominator) => {
+                    format!("{} per {}", numerator.format(full_unit, plural), denominator.format(full_unit, false))
+                }
+                Self::Unit(str) => format_unit(str, plural),
+            }
         }
     }
 }
 
 impl From<&str> for Unit {
-    fn from(s: &str) -> Self { Unit(s.to_owned(), None) }
+    fn from(value: &str) -> Self {
+        Self::Unit(value.to_string())
+    }
 }
 
 impl std::fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)?;
-        if let Some(denom) = &self.1 {
-            write!(f, "/{denom}")?;
-        }
-        Ok(())
+        write!(f, "{}", self.format(false, false))
     }
 }
 
@@ -109,21 +165,24 @@ pub fn get_prefix_power(c: char) -> Option<i32> {
 }
 
 pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
-    let numerator = convert_units(&src_unit.0, &dst_unit.0, n, currencies, range)?;
-
-    if src_unit.1.is_none() && dst_unit.1.is_none() {
-        Ok(numerator)
-    } else if src_unit.1.is_some() && dst_unit.1.is_some() {
-        let denominator = convert_units(
-            src_unit.1.as_ref().unwrap(),
-            dst_unit.1.as_ref().unwrap(),
-            1.0,
-            currencies,
-            range,
-        )?;
-        Ok(numerator / denominator)
-    } else {
-        Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string())
-            .with(range.clone()))
+    match src_unit {
+        Unit::Product(src_units) => {
+            let Unit::Product(dst_units) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
+            src_units.iter()
+                .zip(dst_units)
+                .try_fold(n, |n, (src, dst)| {
+                    convert(src, dst, n, currencies, range)
+                })
+        }
+        Unit::Fraction(src_numerator, src_denominator) => {
+            let Unit::Fraction(dst_numerator, dst_denominator) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
+            let numerator = convert(&src_numerator, &dst_numerator, n, currencies, range)?;
+            let denominator = convert(&src_denominator, &dst_denominator, 1.0, currencies, range)?;
+            Ok(numerator / denominator)
+        }
+        Unit::Unit(src) => {
+            let Unit::Unit(dst) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
+            convert_units(src, dst, n, currencies, range)
+        }
     }
 }
