@@ -8,14 +8,6 @@ use std::ops::Range;
 
 use crate::{common::{ErrorType, Result}, environment::currencies::{Currencies, is_currency}, environment::unit_conversion::{convert_units, format_unit, UNITS}, error};
 
-/// A struct representing a unit, holding a numerator and an optional denominator unit.
-///
-/// e.g. for `"km/h"`:
-/// - numerator (0): `"km"`
-/// - denominator (1): `"h"`
-#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
-pub struct OldUnit(pub String, pub Option<String>);
-
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Unit {
     Product(Vec<Unit>),
@@ -97,40 +89,6 @@ impl From<&str> for Unit {
 impl std::fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.format(false, false))
-    }
-}
-
-impl OldUnit {
-    pub fn format(&self, full_unit: bool, plural: bool) -> String {
-        if !full_unit {
-            self.to_string()
-        } else {
-            let mut result = " ".to_string();
-            let numerator = format_unit(&self.0, plural);
-            result += &numerator;
-
-            if let Some(denom) = &self.1 {
-                let denom = format_unit(denom, false);
-                result += " per ";
-                result += &denom;
-            }
-
-            result
-        }
-    }
-}
-
-impl From<&str> for OldUnit {
-    fn from(s: &str) -> Self { OldUnit(s.to_owned(), None) }
-}
-
-impl std::fmt::Display for OldUnit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)?;
-        if let Some(denom) = &self.1 {
-            write!(f, "/{denom}")?;
-        }
-        Ok(())
     }
 }
 
