@@ -50,7 +50,7 @@ jobs:
         run: |
           cargo install cargo-edit -f --no-default-features -F "set-version" &&
           cd gui &&
-          cargo set-version "$(echo "${{ steps.bump-semver.outputs.new_version }}" | cut -c2-)-$(git rev-parse --short HEAD)" &&
+          cargo set-version "$(echo "${{ steps.bump-semver.outputs.new_version }}" | cut -c2-)-$(echo $(git rev-parse --short HEAD) | sed 's/^0*//')" &&
           cd assets && 
           mv -f ./experimental/* . &&
           rm -rf ./experimental
