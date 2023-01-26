@@ -696,13 +696,13 @@ impl<'a> Parser<'a> {
             match token.ty {
                 OpenBracket => 'blk: {
                     self.index += 1;
-                    let (units, range) = self.next_units(nesting_level + 1)?;
+                    let (mut units, range) = self.next_units(nesting_level + 1)?;
                     if units.is_empty() {
                         error!(ExpectedElements: token_range.start..range.end);
                     }
                     result_range.end = range.end;
 
-                    let unit = Unit::Product(units);
+                    let unit = if units.len() == 1 { units.remove(0) } else { Unit::Product(units) };
 
                     if let Some(numerator) = numerator.take() {
                         result.push(Unit::Fraction(Box::new(numerator), Box::new(unit)));
@@ -722,8 +722,8 @@ impl<'a> Parser<'a> {
                         error!(ExpectedUnit: token_range);
                     }
 
-                    return Ok((result, result_range))
-                },
+                    return Ok((result, result_range));
+                }
                 Identifier => 'blk: {
                     let Some(unit) = self.try_accept_single_unit() else {
                         error!(ExpectedUnit: token_range);
