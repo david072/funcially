@@ -24,8 +24,67 @@ pub enum Unit {
 }
 
 impl Unit {
-    pub fn format(&self, _full_unit: bool, _plural: bool) -> String {
-        "[A unit (TODO!)]".to_string()
+    pub fn format(&self, full_unit: bool, plural: bool) -> String {
+        if !full_unit {
+            match self {
+                Self::Product(units) => {
+                    units.iter().enumerate()
+                        .map(|(i, unit)| (i, unit.format(full_unit, plural)))
+                        .fold(String::new(), |mut acc, (i, str)| {
+                            acc += &str;
+                            if i != units.len() - 1 { acc.push('*'); }
+                            acc
+                        })
+                }
+                Self::Fraction(numerator, denominator) => {
+                    let mut result = String::new();
+                    if !matches!(**numerator, Self::Unit(_)) {
+                        result += &format!("({})", numerator.format(full_unit, plural));
+                    } else {
+                        result += &numerator.format(full_unit, plural);
+                    }
+
+                    result.push('/');
+
+                    if !matches!(**denominator, Self::Unit(_)) {
+                        result += &format!("({})", denominator.format(full_unit, plural));
+                    } else {
+                        result += &denominator.format(full_unit, plural);
+                    }
+                    result
+                }
+                Self::Unit(str) => str.to_string(),
+            }
+        } else {
+            match self {
+                Self::Product(units) => {
+                    let mut result = String::new();
+                    result += &units.first().unwrap().format(full_unit, false);
+
+                    fn lowercase_first(str: String) -> String {
+                        let mut iter = str.chars();
+                        iter.next().unwrap().to_lowercase().chain(iter).collect()
+                    }
+
+                    if units.len() > 3 {
+                        for unit in &units[1..units.len() - 1] {
+                            let str = unit.format(full_unit, false);
+                            result += &lowercase_first(str);
+                        }
+                    }
+
+                    if units.len() >= 2 {
+                        let str = units.last().unwrap().format(full_unit, plural);
+                        result += &lowercase_first(str);
+                    }
+                    result
+                }
+                Self::Fraction(numerator, denominator) => {
+                    format!("{} per {}", numerator.format(full_unit, plural), denominator.format(full_unit, false))
+                }
+                Self::Unit(str) => format_unit(str, plural),
+            }
+        }
     }
 }
 
@@ -37,18 +96,7 @@ impl From<&str> for Unit {
 
 impl std::fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Product(units) => {
-                write!(f, "(")?;
-                for (i, unit) in units.iter().enumerate() {
-                    write!(f, "{unit}")?;
-                    if i != units.len() - 1 { write!(f, "*")?; }
-                }
-                write!(f, ")")
-            }
-            Self::Fraction(num, denom) => write!(f, "{num}/{denom}"),
-            Self::Unit(unit) => write!(f, "{unit}"),
-        }
+        write!(f, "{}", self.format(false, false))
     }
 }
 
@@ -56,8 +104,7 @@ impl OldUnit {
     pub fn format(&self, full_unit: bool, plural: bool) -> String {
         if !full_unit {
             self.to_string()
-        }
-        else {
+        } else {
             let mut result = " ".to_string();
             let numerator = format_unit(&self.0, plural);
             result += &numerator;

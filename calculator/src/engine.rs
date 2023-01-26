@@ -123,7 +123,11 @@ impl Value {
 
     pub fn format(&self, settings: &Settings, use_thousands_separator: bool) -> String {
         match self {
-            Value::Number(number) => format!("{}{}", number.format.format(number.number, use_thousands_separator), number.unit_string()),
+            Value::Number(number) => {
+                let mut result = number.format.format(number.number, use_thousands_separator);
+                if !matches!(number.unit, Some(Unit::Unit(_))) || number.is_long_unit { result.push(' '); }
+                result + &number.unit_string()
+            },
             Value::Object(object) => object.to_string(settings),
         }
     }

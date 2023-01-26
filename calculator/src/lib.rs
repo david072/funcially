@@ -276,10 +276,6 @@ impl<'a> Calculator<'a> {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.context())?;
-                        // let unit = res.unit.as_ref().map(|unit| {
-                        //     unit.format(res.is_long_unit, res.result != 1.0)
-                        // });
-
                         self.env_mut().set_variable(&name, Variable(res.clone())).unwrap();
                         Ok(CalculatorResult::value(res, color_segments))
                     }
