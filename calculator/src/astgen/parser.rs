@@ -668,7 +668,7 @@ impl<'a> Parser<'a> {
         let open_bracket = self.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
         let range_start = open_bracket.range().start;
 
-        let (mut units, _) = self.next_units()?;
+        let (mut units, _) = self.next_units(0)?;
         if units.is_empty() {
             error!(ExpectedUnit: self.peek(all()).map(|t| t.range()).unwrap_or_else(|| self.error_range_at_end()));
         }
@@ -678,7 +678,7 @@ impl<'a> Parser<'a> {
         Ok((unit, range_start..close_bracket.range().end))
     }
 
-    fn next_units(&mut self) -> Result<(Vec<Unit>, Range<usize>)> {
+    fn next_units(&mut self, nesting_level: usize) -> Result<(Vec<Unit>, Range<usize>)> {
         let mut result = vec![];
         let mut result_range = 0..1;
 
@@ -696,7 +696,7 @@ impl<'a> Parser<'a> {
             match token.ty {
                 OpenBracket => 'blk: {
                     self.index += 1;
-                    let (units, range) = self.next_units()?;
+                    let (units, range) = self.next_units(nesting_level + 1)?;
                     if units.is_empty() {
                         error!(ExpectedElements: token_range.start..range.end);
                     }
@@ -749,6 +749,10 @@ impl<'a> Parser<'a> {
             }
 
             self.try_accept(is(Multiply));
+        }
+
+        if nesting_level != 0 {
+            self.accept(is(CloseBracket), ExpectedCloseBracket)?;
         }
 
         Ok((result, result_range))
