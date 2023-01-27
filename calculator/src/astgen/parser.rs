@@ -672,7 +672,8 @@ impl<'a> Parser<'a> {
         if units.is_empty() {
             error!(ExpectedUnit: self.peek(all()).map(|t| t.range()).unwrap_or_else(|| self.error_range_at_end()));
         }
-        let unit = if units.len() == 1 { units.remove(0) } else { Unit::Product(units) };
+        let mut unit = if units.len() == 1 { units.remove(0) } else { Unit::Product(units) };
+        unit.simplify();
 
         let close_bracket = self.accept(is(CloseSquareBracket), ExpectedCloseSquareBracket)?;
         Ok((unit, range_start..close_bracket.range().end))

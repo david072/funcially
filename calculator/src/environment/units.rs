@@ -31,6 +31,59 @@ impl Unit {
         }
     }
 
+    /// Tries to simplify the unit by e.g. reducing fractions
+    pub fn simplify(&mut self) {
+        match self {
+            Self::Fraction(num, denom) => {
+                // TODO: More cases
+                match (&mut **num, &mut **denom) {
+                    // Reduce the fraction by finding units that are both in the numerator and in the denominator
+                    (Self::Product(num_units), Self::Product(denom_units)) => {
+                        let mut i = 0usize;
+                        while i < num_units.len() {
+                            if let Some(denom_i) = denom_units.iter().position(|denom_unit| *denom_unit == num_units[i]) {
+                                num_units.remove(i);
+                                denom_units.remove(denom_i);
+
+                                // FIXME: Allow the unit to remove itself (e.g. `h/h`)
+                                if num_units.len() == 1 { break; }
+
+                                if denom_units.is_empty() {
+                                    let units = std::mem::take(denom_units);
+                                    *self = Self::Product(units);
+                                    return;
+                                }
+                                continue;
+                            }
+                            i += 1;
+                        }
+
+                        // Remove unnecessary `Unit::Product`s
+                        if num_units.len() == 1 { **num = num_units.remove(0); }
+                        if denom_units.len() == 1 { **denom = denom_units.remove(0); }
+                    }
+                    // Reduce the fraction by checking if the denominator is in the numerator
+                    (Self::Product(num_units), Self::Unit(_)) if num_units.len() > 1 => {
+                        if let Some(i) = num_units.iter().position(|u| *u == **denom) {
+                            num_units.remove(i);
+                            if num_units.len() == 1 {
+                                let new_self = num_units.remove(0);
+                                *self = new_self;
+                            } else {
+                                *self = (**num).clone();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Self::Product(units) => {
+                for unit in units { unit.simplify(); }
+            }
+            Self::Unit(_) => {}
+        }
+    }
+
     pub fn format(&self, full_unit: bool, plural: bool) -> String {
         if !full_unit {
             match self {
@@ -172,8 +225,8 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies
         }
         Unit::Fraction(src_numerator, src_denominator) => {
             let Unit::Fraction(dst_numerator, dst_denominator) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
-            let numerator = convert(&src_numerator, &dst_numerator, n, currencies, range)?;
-            let denominator = convert(&src_denominator, &dst_denominator, 1.0, currencies, range)?;
+            let numerator = convert(src_numerator, dst_numerator, n, currencies, range)?;
+            let denominator = convert(src_denominator, dst_denominator, 1.0, currencies, range)?;
             Ok(numerator / denominator)
         }
         Unit::Unit(src) => {
