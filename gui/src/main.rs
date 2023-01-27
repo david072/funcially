@@ -349,20 +349,19 @@ impl App<'_> {
         let mut line = String::new();
         let mut line_index = 1usize;
         let mut did_add_line_index = false;
+        let mut empty_lines = 0usize;
         for (i, row) in galley.rows.iter().enumerate() {
             line += row.glyphs.iter().map(|g| g.chr).collect::<String>().as_str();
 
             if !row.ends_with_newline {
                 if !did_add_line_index {
                     self.line_numbers_text += &line_index.to_string();
-                    self.line_numbers_text.push('\n');
                     did_add_line_index = true;
                     line_index += 1;
                 }
+                self.line_numbers_text.push('\n');
 
-                if i != galley.rows.len() - 1 {
-                    self.lines.push(Line::Empty);
-                }
+                if i != galley.rows.len() - 1 { empty_lines += 1; }
                 continue;
             } else {
                 if !did_add_line_index {
@@ -385,8 +384,12 @@ impl App<'_> {
                         }
                     }
                     self.lines.push(res);
+                    for _ in 0..empty_lines {
+                        self.lines.push(Line::Empty);
+                    }
+                    empty_lines = 0;
                 } else {
-                    self.lines.push(Line::Empty);
+                    empty_lines += 1;
                 }
 
                 line.clear();
@@ -997,7 +1000,8 @@ impl eframe::App for App<'_> {
                         ui.allocate_exact_size(
                             vec2(ui.available_width(), 0.0), Sense::hover());
 
-                        for (i, line) in self.lines.iter_mut().enumerate() {
+                        let mut line_index = 1usize;
+                        for line in &mut self.lines {
                             if let Line::Line {
                                 output_text: text,
                                 function,
@@ -1025,7 +1029,8 @@ impl eframe::App for App<'_> {
                                     }
                                 }
 
-                                output_text(ui, text, FONT_ID, i + 1);
+                                output_text(ui, text, FONT_ID, line_index);
+                                line_index += 1;
                             } else {
                                 ui.add_space(FONT_SIZE + 2.0);
                             }
