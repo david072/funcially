@@ -16,20 +16,16 @@ pub enum Unit {
 }
 
 impl Unit {
-    pub fn push_unit(self, other: Unit) -> Unit {
+    pub fn push_unit(&mut self, other: Unit) {
         match self {
-            unit @ Self::Unit(_) => Unit::Product(vec![unit, other]),
-            Self::Product(mut units) => {
-                units.push(other);
-                Unit::Product(units)
-            }
+            ref unit @ Self::Unit(_) => *self = Unit::Product(vec![(*unit).clone(), other]),
+            Self::Product(units) => units.push(other),
             Self::Fraction(num, denom) => {
                 if let Self::Fraction(other_num, other_denom) = other {
-                    let num = num.push_unit(*other_num);
-                    let denom = denom.push_unit(*other_denom);
-                    Unit::Fraction(Box::new(num), Box::new(denom))
+                    num.push_unit(*other_num);
+                    denom.push_unit(*other_denom);
                 } else {
-                    Unit::Fraction(Box::new(num.push_unit(other)), denom)
+                    num.push_unit(other);
                 }
             }
         }

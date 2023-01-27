@@ -208,19 +208,19 @@ impl AstNode {
                 rhs_value = rhs;
             } else {
                 let rhs_unit = rhs.unit.take().unwrap();
-                let lhs_unit = self.unit.take().unwrap();
-                self.unit = Some(match op {
+                let lhs_unit = self.unit.as_mut().unwrap();
+                match op {
                     Operator::Multiply => lhs_unit.push_unit(rhs_unit),
                     Operator::Divide => {
                         if let Unit::Fraction(rhs_num, rhs_denom) = rhs_unit {
                             // Multiply by the inverse of the fraction
-                            lhs_unit.push_unit(Unit::Fraction(rhs_denom, rhs_num))
+                            lhs_unit.push_unit(Unit::Fraction(rhs_denom, rhs_num));
                         } else {
-                            Unit::Fraction(Box::new(lhs_unit), Box::new(rhs_unit))
+                            *lhs_unit = Unit::Fraction(Box::new(lhs_unit.clone()), Box::new(rhs_unit));
                         }
                     }
                     _ => error!(UnknownConversion(rhs_unit.format(false, false), lhs_unit.format(false, false)): full_range),
-                });
+                }
             }
         }
 
