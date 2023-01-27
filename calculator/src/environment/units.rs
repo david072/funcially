@@ -16,6 +16,12 @@ pub enum Unit {
 }
 
 impl Unit {
+    pub fn new(str: &str) -> Unit { Unit::Unit(str.to_string()) }
+
+    pub fn new_fraction(numerator: &str, denominator: &str) -> Unit {
+        Unit::Fraction(Box::new(Unit::new(numerator)), Box::new(Unit::new(denominator)))
+    }
+
     pub fn push_unit(&mut self, other: Unit) {
         match self {
             ref unit @ Self::Unit(_) => *self = Unit::Product(vec![(*unit).clone(), other]),
@@ -149,9 +155,7 @@ impl Unit {
 }
 
 impl From<&str> for Unit {
-    fn from(value: &str) -> Self {
-        Self::Unit(value.to_string())
-    }
+    fn from(value: &str) -> Self { Self::new(value) }
 }
 
 impl std::fmt::Display for Unit {

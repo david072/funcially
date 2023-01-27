@@ -1151,8 +1151,7 @@ mod tests {
         let ast = calculation!("(3)km");
         assert_eq!(ast.len(), 1);
         assert!(ast[0].unit.is_some());
-        assert_eq!(ast[0].unit.as_ref().unwrap().0, "km");
-        assert!(ast[0].unit.as_ref().unwrap().1.is_none());
+        assert_eq!(*ast[0].unit.as_ref().unwrap(), Unit::from("km"));
 
         Ok(())
     }
@@ -1241,7 +1240,7 @@ mod tests {
     fn unit_with_exponentiation() -> Result<()> {
         let ast = calculation!("3m^3");
         assert_eq!(ast.len(), 1);
-        assert_eq!(ast[0].unit.as_ref().unwrap().0, "m^3");
+        assert_eq!(*ast[0].unit.as_ref().unwrap(), Unit::from("m^3"));
         Ok(())
     }
 
@@ -1257,8 +1256,7 @@ mod tests {
     fn complex_units() -> Result<()> {
         let ast = calculation!("3km/h");
         assert_eq!(ast.len(), 1);
-        assert_eq!(ast[0].unit.as_ref().unwrap().0, "km");
-        assert_eq!(ast[0].unit.as_ref().unwrap().1.as_ref().unwrap(), "h");
+        assert_eq!(*ast[0].unit.as_ref().unwrap(), Unit::new_fraction("km", "h"));
         Ok(())
     }
 
