@@ -132,7 +132,7 @@ impl Unit {
                         iter.next().unwrap().to_lowercase().chain(iter).collect()
                     }
 
-                    if units.len() > 3 {
+                    if units.len() > 2 {
                         for unit in &units[1..units.len() - 1] {
                             let str = unit.format(full_unit, false);
                             result += &lowercase_first(str);
