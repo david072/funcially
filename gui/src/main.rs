@@ -346,6 +346,8 @@ impl App<'_> {
             return;
         }
 
+        let max_line_number_length = self.source.split('\n').count().to_string().len();
+
         let mut line = String::new();
         let mut line_index = 1usize;
         let mut did_add_line_index = false;
@@ -355,7 +357,7 @@ impl App<'_> {
 
             if !row.ends_with_newline {
                 if !did_add_line_index {
-                    self.line_numbers_text += &line_index.to_string();
+                    self.line_numbers_text += &format!("{: >width$}", line_index.to_string(), width = max_line_number_length);
                     did_add_line_index = true;
                     line_index += 1;
                 }
@@ -365,7 +367,7 @@ impl App<'_> {
                 continue;
             } else {
                 if !did_add_line_index {
-                    self.line_numbers_text += &line_index.to_string();
+                    self.line_numbers_text += &format!("{: >width$}", line_index.to_string(), width = max_line_number_length);
                     line_index += 1;
                 }
                 self.line_numbers_text.push('\n');
@@ -1030,10 +1032,11 @@ impl eframe::App for App<'_> {
                                 }
 
                                 output_text(ui, text, FONT_ID, line_index);
-                                line_index += 1;
                             } else {
                                 ui.add_space(FONT_SIZE + 2.0);
                             }
+
+                            line_index += 1;
                         }
                     });
                 });
