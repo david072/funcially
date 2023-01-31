@@ -392,7 +392,7 @@ impl App<'_> {
                     }
                     empty_lines = 0;
                 } else {
-                    empty_lines += 1;
+                    self.lines.push(Line::Empty);
                 }
 
                 line.clear();
@@ -1096,9 +1096,10 @@ fn input_layouter(
                         const EMPTY: &[ColorSegment] = &[];
                         if trimmed_line.starts_with('#') { break 'blk EMPTY; }
 
-                        // NOTE: We use `Line::Empty`s to add spacing if the line spans multiple rows.
-                        //  We have to skip these lines here to get to the actual color segments.
-                        while matches!(lines.get(line_counter), Some(Line::Empty)) { line_counter += 1; }
+                        // NOTE: We use `Line::Empty`s for empty lines and `Line::WrappedLine` to
+                        //  add spacing if the line spans multiple rows. We have to skip these
+                        //  lines here to get to the actual color segments.
+                        while matches!(lines.get(line_counter), Some(Line::Empty | Line::WrappedLine)) { line_counter += 1; }
 
                         let Some(Line::Line { color_segments: segments, .. }) =
                             lines.get(line_counter) else { break 'outer; };
