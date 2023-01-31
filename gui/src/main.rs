@@ -125,6 +125,7 @@ pub struct Function(String, usize, #[serde(skip)] CalcFn);
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum Line {
     Empty,
+    WrappedLine,
     Line {
         #[serde(skip)]
         output_text: String,
@@ -387,7 +388,7 @@ impl App<'_> {
                     }
                     self.lines.push(res);
                     for _ in 0..empty_lines {
-                        self.lines.push(Line::Empty);
+                        self.lines.push(Line::WrappedLine);
                     }
                     empty_lines = 0;
                 } else {
@@ -1036,7 +1037,9 @@ impl eframe::App for App<'_> {
                                 ui.add_space(FONT_SIZE + 2.0);
                             }
 
-                            line_index += 1;
+                            if matches!(line, Line::Line { .. } | Line::Empty) {
+                                line_index += 1;
+                            }
                         }
                     });
                 });
