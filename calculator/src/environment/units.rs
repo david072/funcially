@@ -8,23 +8,26 @@ use std::ops::Range;
 
 use crate::{common::{ErrorType, Result}, environment::currencies::{Currencies, is_currency}, environment::unit_conversion::{convert_units, format_unit, UNITS}, error};
 
-#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Unit {
     Product(Vec<Unit>),
     Fraction(Box<Unit>, Box<Unit>),
-    Unit(String),
+    Unit(String, f64),
 }
 
 impl Unit {
-    pub fn new(str: &str) -> Unit { Unit::Unit(str.to_string()) }
+    pub fn new(str: &str, power: f64) -> Unit { Unit::Unit(str.to_string(), power) }
 
     pub fn new_fraction(numerator: &str, denominator: &str) -> Unit {
-        Unit::Fraction(Box::new(Unit::new(numerator)), Box::new(Unit::new(denominator)))
+        Unit::Fraction(
+            Box::new(Unit::new(numerator, 1.0)),
+            Box::new(Unit::new(denominator, 1.0)),
+        )
     }
 
     pub fn push_unit(&mut self, other: Unit) {
         match self {
-            ref unit @ Self::Unit(_) => *self = Unit::Product(vec![(*unit).clone(), other]),
+            ref unit @ Self::Unit(..) => *self = Unit::Product(vec![(*unit).clone(), other]),
             Self::Product(units) => units.push(other),
             Self::Fraction(num, denom) => {
                 if let Self::Fraction(other_num, other_denom) = other {
@@ -69,7 +72,7 @@ impl Unit {
                         if denom_units.len() == 1 { **denom = denom_units.remove(0); }
                     }
                     // Reduce the fraction by checking if the denominator is in the numerator
-                    (Self::Product(num_units), Self::Unit(_)) if num_units.len() > 1 => {
+                    (Self::Product(num_units), Self::Unit(..)) if num_units.len() > 1 => {
                         if let Some(i) = num_units.iter().position(|u| *u == **denom) {
                             num_units.remove(i);
                             if num_units.len() == 1 {
@@ -86,7 +89,7 @@ impl Unit {
             Self::Product(units) => {
                 for unit in units { unit.simplify(); }
             }
-            Self::Unit(_) => {}
+            Self::Unit(..) => {}
         }
     }
 
@@ -104,7 +107,7 @@ impl Unit {
                 }
                 Self::Fraction(numerator, denominator) => {
                     let mut result = String::new();
-                    if !matches!(**numerator, Self::Unit(_)) {
+                    if !matches!(**numerator, Self::Unit(..)) {
                         result += &format!("({})", numerator.format(full_unit, plural));
                     } else {
                         result += &numerator.format(full_unit, plural);
@@ -112,14 +115,18 @@ impl Unit {
 
                     result.push('/');
 
-                    if !matches!(**denominator, Self::Unit(_)) {
+                    if !matches!(**denominator, Self::Unit(..)) {
                         result += &format!("({})", denominator.format(full_unit, plural));
                     } else {
                         result += &denominator.format(full_unit, plural);
                     }
                     result
                 }
-                Self::Unit(str) => str.to_string(),
+                Self::Unit(str, power) => {
+                    let mut result = str.to_string();
+                    if *power != 1.0 { result += &format!("^{power}"); }
+                    result
+                },
             }
         } else {
             match self {
@@ -148,14 +155,26 @@ impl Unit {
                 Self::Fraction(numerator, denominator) => {
                     format!("{} per {}", numerator.format(full_unit, plural), denominator.format(full_unit, false))
                 }
-                Self::Unit(str) => format_unit(str, plural),
+                Self::Unit(str, power) => format!("{} {}", format_unit(str, plural), format_unit_power(*power)),
             }
         }
     }
 }
 
+fn format_unit_power(pow: f64) -> String {
+    if pow == 1.0 {
+        String::new()
+    } else if pow == 2.0 {
+        "squared".to_string()
+    } else if pow == 3.0 {
+        "cubed".to_string()
+    } else {
+        format!("^ {pow}")
+    }
+}
+
 impl From<&str> for Unit {
-    fn from(value: &str) -> Self { Self::new(value) }
+    fn from(value: &str) -> Self { Self::new(value, 1.0) }
 }
 
 impl std::fmt::Display for Unit {
@@ -233,9 +252,9 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies
             let denominator = convert(src_denominator, dst_denominator, 1.0, currencies, range)?;
             Ok(numerator / denominator)
         }
-        Unit::Unit(src) => {
-            let Unit::Unit(dst) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
-            convert_units(src, dst, n, currencies, range)
+        Unit::Unit(src, power) => {
+            let Unit::Unit(dst, dst_power) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
+            convert_units((src, *power), (dst, *dst_power), n, currencies, range)
         }
     }
 }

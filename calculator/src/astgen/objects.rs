@@ -252,7 +252,7 @@ impl DateObject {
                     let duration = self.date.signed_duration_since(object.date);
                     let days = duration.num_milliseconds() as f64 / 1000.0 / 60.0 / 60.0 / 24.0;
                     let mut result = AstNode::new(AstNodeData::Literal(days), self_range);
-                    result.unit = Some(Unit::Unit("d".to_string()));
+                    result.unit = Some(Unit::from("d"));
                     Ok(result)
                 }
                 _ => Err(ErrorType::InvalidSide.with(other.range.clone()))

@@ -67,8 +67,6 @@ pub enum ErrorType {
     ExpectedUnit,
     #[error("Unexpected unit")]
     UnexpectedUnit,
-    #[error("The units don't match")]
-    UnitsNotMatching,
     #[error("Expected text")]
     ExpectedElements,
     #[error("Expected end")]
@@ -134,6 +132,8 @@ pub enum ErrorType {
     Arg1GreaterThanArg2,
     #[error("Unknown conversion ({0} -> {1})")]
     UnknownConversion(String, String),
+    #[error("The units don't match")]
+    UnitsNotMatching,
     #[error("Not a number")]
     NotANumber,
     #[error("Powers can't be used around the unknown variable")]

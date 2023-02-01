@@ -7,8 +7,6 @@
 
 # legend:
 #    n: normal => format: x <*|/|+|-> <number>. Inverse conversion with inverse operator (* <-> /, + <-> -)
-#    p: powers => format: x <*|/|+|-> <number>. Unit can have powers. In that case, <number> is raised
-#                                               to that power before conversion.
 
 # unit definitions
 
@@ -156,25 +154,25 @@
 
 
 # length / area
-  m->mi: x / 1609.344                                           | np
-  m->ft: x * 3.281                                              | np
-  m->inch: x * 39.37                                              | np
-  m->yd: x * 1.094                                              | np
-  m->nmi: x / 1852.0                                            | np
+  m->mi: x / 1609.344                                           | n
+  m->ft: x * 3.281                                              | n
+  m->inch: x * 39.37                                              | n
+  m->yd: x * 1.094                                              | n
+  m->nmi: x / 1852.0                                            | n
 
-  ft->mi: x / 5280.0                                            | np
-  ft->inch: x * 12.0                                              | np
-  ft->yd: x / 3.0                                               | np
-  ft->nmi: x / 6076.0                                           | np
+  ft->mi: x / 5280.0                                            | n
+  ft->inch: x * 12.0                                              | n
+  ft->yd: x / 3.0                                               | n
+  ft->nmi: x / 6076.0                                           | n
 
-  mi->inch: x * 63360.0                                           | np
-  mi->yd: x * 1760.0                                            | np
-  mi->nmi: x / 1.151                                            | np
+  mi->inch: x * 63360.0                                           | n
+  mi->yd: x * 1760.0                                            | n
+  mi->nmi: x / 1.151                                            | n
 
-  inch->yd: x / 36.0                                              | np
-  inch->nmi: x / 72910.0                                          | np
+  inch->yd: x / 36.0                                              | n
+  inch->nmi: x / 72910.0                                          | n
   
-  yd->nmi: x / 2025.0                                           | np
+  yd->nmi: x / 2025.0                                           | n
   
   a->m^2: x * 100.0                                             | n
   a->ft^2: x * 1076.0                                           | n

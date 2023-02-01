@@ -650,7 +650,7 @@ impl<'a> Parser<'a> {
                 return match denominator {
                     Ok((denom, denominator_range)) => {
                         Some(Ok((
-                            Unit::Fraction(Box::new(Unit::Unit(numerator)), Box::new(Unit::Unit(denom))),
+                            Unit::Fraction(Box::new(numerator), Box::new(denom)),
                             numerator_range.start..denominator_range.end
                         )))
                     }
@@ -661,7 +661,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Some(Ok((Unit::Unit(numerator), numerator_range)))
+        Some(Ok((numerator, numerator_range)))
     }
 
     fn accept_complex_unit(&mut self) -> Result<(Unit, Range<usize>)> {
@@ -729,10 +729,8 @@ impl<'a> Parser<'a> {
                     let Some(unit) = self.try_accept_single_unit() else {
                         error!(ExpectedUnit: token_range);
                     };
-                    let (unit_str, unit_range) = unit?;
+                    let (unit, unit_range) = unit?;
                     result_range.end = unit_range.end;
-
-                    let unit = Unit::Unit(unit_str);
 
                     if let Some(numerator) = numerator.take() {
                         result.push(Unit::Fraction(Box::new(numerator), Box::new(unit)));
@@ -759,32 +757,29 @@ impl<'a> Parser<'a> {
         Ok((result, result_range))
     }
 
-    fn try_accept_single_unit(&mut self) -> Option<Result<(String, Range<usize>)>> {
+    fn try_accept_single_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
         let Some(unit) = self.peek(is(Identifier)) else { return None; };
         if !is_unit_with_prefix(&unit.text) { return None; }
 
-        let unit_range = unit.range();
-        let mut unit = unit.text.clone();
+        let mut unit_range = unit.range();
+        let unit = unit.text.clone();
         self.index += 1;
 
+        let mut power = 1.0f64;
         if let Some(exponentiation) = self.peek(is(Exponentiation)) {
             if exponentiation.range().start == unit_range.end {
                 self.index += 1;
                 if let Ok(AstNode { data, range, .. }) = self.accept_literal() {
-                    unit += "^";
                     let AstNodeData::Literal(number) = data else { unreachable!(); };
-                    unit += number.to_string().as_str();
-
-                    if !is_unit_with_prefix(&unit) {
-                        return Some(Err(UnknownIdentifier(unit).with(unit_range.start..range.end)));
-                    }
+                    power = number;
+                    unit_range.end = range.end;
                 } else {
                     self.index -= 1;
                 }
             }
         }
 
-        Some(Ok((unit, unit_range)))
+        Some(Ok((Unit::Unit(unit, power), unit_range)))
     }
 
     fn accept_identifier(&mut self) -> Result<AstNode> {

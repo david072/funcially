@@ -82,7 +82,6 @@ mod unit_data {
     use std::fs;
 
     const MODIFIER_NORMAL: char = 'n';
-    const MODIFIER_POWER: char = 'p';
 
     #[derive(Debug)]
     struct Unit {
@@ -108,8 +107,8 @@ mod unit_data {
 
     #[derive(Debug)]
     struct Conversion {
-        src: String,
-        dst: String,
+        src: (String, f64),
+        dst: (String, f64),
         src_to_dst_expr: String,
         dst_to_src_expr: Option<String>,
         modifiers: Vec<char>,
@@ -117,8 +116,8 @@ mod unit_data {
 
     impl Conversion {
         fn new(
-            src: String,
-            dst: String,
+            src: (String, f64),
+            dst: (String, f64),
             std_expr: String,
             dts_expr: Option<String>,
             modifiers: String,
@@ -135,9 +134,44 @@ mod unit_data {
         fn generate_lines(&self) -> Vec<String> {
             let mut result = Vec::new();
 
-            result.push(format!("\t\t(r#\"{}\"#, r#\"{}\"#) => Ok({}),", self.src, self.dst, self.src_to_dst_expr));
+            let (src, src_pow) = &self.src;
+            let (dst, dst_pow) = &self.dst;
+
+            let format = |expr: &str, flip: bool| {
+                let mut result = format!("(r#\"{}\"#, r#\"{}\"#) ", if !flip { src } else { dst }, if !flip { dst } else { src });
+
+                let (src_pow, dst_pow) = if !flip { (src_pow, dst_pow) } else { (dst_pow, src_pow) };
+
+                if *src_pow != 1.0 {
+                    result += &format!("if src_power == {src_pow:?} ");
+                }
+
+                if *dst_pow != 1.0 {
+                    if *src_pow == 1.0 {
+                        result += "if ";
+                    } else {
+                        result += "&& ";
+                    }
+                    result += &format!("dst_power == {dst_pow:?} ");
+                }
+
+                if *src_pow == 1.0 && *dst_pow == 1.0 {
+                    result += "if src_power == dst_power ";
+                }
+
+                result += "=> ";
+                result += (if *dst_pow != 1.0 || *src_pow != 1.0 {
+                    // Use the x that was passed into the function, since we don't want to account for the power
+                    format!("{{ let x = normal_x; return Ok({expr}); }}")
+                } else {
+                    format!("Ok({expr})")
+                }).as_str();
+                result + ","
+            };
+
+            result.push(format(&self.src_to_dst_expr, false));
             if let Some(dts_expr) = &self.dst_to_src_expr {
-                result.push(format!("\t\t(r#\"{}\"#, r#\"{}\"#) => Ok({}),", self.dst, self.src, dts_expr));
+                result.push(format(dts_expr, true));
             }
 
             fn invert_operator(op: char) -> char {
@@ -151,46 +185,15 @@ mod unit_data {
             }
 
             for modifier in &self.modifiers {
-                match *modifier {
-                    MODIFIER_NORMAL => 'blk: {
-                        if self.dst_to_src_expr.is_some() { break 'blk; }
+                if *modifier == MODIFIER_NORMAL {
+                    if self.dst_to_src_expr.is_some() { continue; }
 
-                        let mut parts = self.src_to_dst_expr.split(' ');
-                        let mut dts_expr = parts.next().unwrap().to_string();
-                        let new_operator = invert_operator(parts.next().unwrap().chars().next().unwrap());
-                        dts_expr += &format!(" {new_operator} ");
-                        dts_expr += &parts.collect::<Vec<_>>().join(" ");
-                        result.push(format!("\t\t(r#\"{}\"#, r#\"{}\"#) => Ok({}),", self.dst, self.src, dts_expr));
-                    }
-                    MODIFIER_POWER => {
-                        let mut parts = self.src_to_dst_expr.split(' ');
-                        let start = parts.next().unwrap().to_string();
-                        let operator = parts.next().unwrap().chars().next().unwrap();
-
-                        let number = parts.next().unwrap().parse::<f64>().unwrap();
-
-                        for exponent in 2..=3 {
-                            let number_powered = number.powi(exponent);
-                            let mut powered = number_powered.to_string();
-                            if number_powered.fract() == 0.0 { powered += ".0"; }
-
-                            result.push(format!(
-                                "\t\t(r#\"{}^{exponent}\"#, r#\"{}^{exponent}\"#) => Ok({start} {operator} {powered}),",
-                                self.src,
-                                self.dst,
-                            ));
-
-                            if self.modifiers.contains(&MODIFIER_NORMAL) {
-                                result.push(format!(
-                                    "\t\t(r#\"{}^{exponent}\"#, r#\"{}^{exponent}\"#) => Ok({start} {} {powered}),",
-                                    self.dst,
-                                    self.src,
-                                    invert_operator(operator),
-                                ));
-                            }
-                        }
-                    }
-                    _ => {}
+                    let mut parts = self.src_to_dst_expr.split(' ');
+                    let mut dts_expr = parts.next().unwrap().to_string();
+                    let new_operator = invert_operator(parts.next().unwrap().chars().next().unwrap());
+                    dts_expr += &format!(" {new_operator} ");
+                    dts_expr += &parts.collect::<Vec<_>>().join(" ");
+                    result.push(format(&dts_expr, true));
                 }
             }
 
@@ -209,13 +212,11 @@ mod unit_data {
     }
 
     macro_rules! next_or_err {
-    ($iter:expr, $curr_idx:expr) => {
-        if let Some(v) = $iter.next() {
-            v
+        ($iter:expr, $curr_idx:expr) => {
+            if let Some(v) = $iter.next() { v }
+            else { return Err(Error($curr_idx).into()) }
         }
-        else { return Err(Error($curr_idx).into()) }
     }
-}
 
     impl Generator {
         pub fn new(source: String, output_file_path: String) -> Self {
@@ -288,7 +289,7 @@ use crate::{
                     // Check if we need to add powers
                     if self.conversions.iter()
                         .find(|conv| {
-                            conv.src == u.abbreviation || conv.dst == u.abbreviation
+                            conv.src.0 == u.abbreviation || conv.dst.0 == u.abbreviation
                         })
                         .map(|conv| conv.modifiers.contains(&'p'))
                         .unwrap_or(false) {
@@ -319,45 +320,73 @@ fn unit_prefix(unit: &str) -> Option<(char, i32)> {
     PREFIXES.into_iter().find(|&prefix| prefix.0 == char)
 }
 
-pub fn convert_units(src_unit: &str, dst_unit: &str, x: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
-    if src_unit == dst_unit { return Ok(x); }
+pub fn convert_units(
+    (src_unit, src_power): (&str, f64),
+    (dst_unit, dst_power): (&str, f64),
+    x: f64,
+    currencies: &Currencies,
+    range: &Range<usize>,
+ ) -> Result<f64> {
+    if src_unit == dst_unit {
+        if src_power != dst_power {
+            return Err(ErrorType::UnknownConversion(
+                format!("{src_unit}{}", if src_power != 1.0 { format!("^{src_power}") } else { String::new() }),
+                format!("{dst_unit}{}", if dst_power != 1.0 { format!("^{dst_power}") } else { String::new() })
+            ).with(range.clone()))
+        }
+        return Ok(x);
+    }
+
+    let normal_x = x;
+    let power = src_power.max(dst_power);
+    let mut x = normal_x.powf(1.0 / power);
 
     let mut src = src_unit;
     let mut dst = dst_unit;
 
-    let src_power = unit_prefix(src).map(|x| x.1).unwrap_or(0);
-    if src_power != 0 { src = &src[1..]; }
-    let dst_power = unit_prefix(dst).map(|x| x.1).unwrap_or(0);
-    if dst_power != 0 { dst = &dst[1..]; }
+    let src_prefix_power = unit_prefix(src).map(|x| x.1).unwrap_or(0);
+    if src_prefix_power != 0 { src = &src[1..]; }
+    let dst_prefix_power = unit_prefix(dst).map(|x| x.1).unwrap_or(0);
+    if dst_prefix_power != 0 { dst = &dst[1..]; }
 
-    let x = x * 10f64.powi(src_power - dst_power);
+    x *= 10f64.powi(src_prefix_power - dst_prefix_power);
 
-    if src == dst { return Ok(x); }
+    let result = 'blk: {
+        if src == dst { break 'blk Ok(x); }
 
-    match (src, dst) {
+        match (src, dst) {
 "#;
 
             file_content += &self.conversions.iter()
                 .flat_map(|c| {
-                    c.generate_lines()
+                    let mut lines = c.generate_lines();
+                    for line in &mut lines {
+                        line.insert_str(0, "\t\t\t");
+                    }
+                    lines
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
 
             file_content += r#"
-        _ => {
-            // if either isn't a currency, this is an error
-            // -> you can't convert from a currency to a normal unit, and if both aren't a
-            //    currency, then we would have handled it in this match statement
-            if !is_currency(src) || !is_currency(dst) {
-                Err(ErrorType::UnknownConversion(src_unit.to_string(), dst_unit.to_string())
-                    .with(range.clone()))
+            _ => {
+                // if either isn't a currency, this is an error
+                // -> you can't convert from a currency to a normal unit, and if both aren't a
+                //    currency, then we would have handled it in this match statement
+                if !is_currency(src) || !is_currency(dst) {
+                    Err(ErrorType::UnknownConversion(
+                        format!("{src_unit}{}", if src_power != 1.0 { format!("^{src_power}") } else { String::new() }),
+                        format!("{dst_unit}{}", if dst_power != 1.0 { format!("^{dst_power}") } else { String::new() })
+                     ).with(range.clone()))
+                }
+                else {
+                    currencies.convert(src, dst, x, range)
+               }
             }
-            else {
-                currencies.convert(src, dst, x, range)
-           }
         }
-    }
+    };
+
+    result.map(|x| x.powf(power))
 }
 
 pub fn format_unit(unit: &str, plural: bool) -> String {
@@ -422,7 +451,7 @@ pub fn format_unit(unit: &str, plural: bool) -> String {
 
                     if self.conversions.iter()
                         .find(|conv| {
-                            conv.src == unit.abbreviation || conv.dst == unit.abbreviation
+                            conv.src.0 == unit.abbreviation || conv.dst.0 == unit.abbreviation
                         })
                         .map(|conv| conv.modifiers.contains(&'p'))
                         .unwrap_or(false) {
@@ -439,12 +468,24 @@ pub fn format_unit(unit: &str, plural: bool) -> String {
                 .join("\n")
         }
 
-        fn parse_conversion_head(&self, s: &str) -> Result<(String, String)> {
+        fn parse_conversion_head(&self, s: &str) -> Result<((String, f64), (String, f64))> {
             let mut parts = s.split("->");
             let src = next_or_err!(parts, self.index).trim();
             let dst = next_or_err!(parts, self.index).trim();
 
-            Ok((src.into(), dst.into()))
+            fn parse_unit(s: &str) -> (String, f64) {
+                let mut parts = s.split('^');
+                let unit = parts.next().unwrap();
+                let pow: f64 = if let Some(power) = parts.next() {
+                    power.parse().unwrap()
+                } else {
+                    1.0
+                };
+
+                (unit.into(), pow)
+            }
+
+            Ok((parse_unit(src), parse_unit(dst)))
         }
 
         fn parse_units(&mut self) -> Result<()> {
