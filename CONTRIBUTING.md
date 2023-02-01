@@ -23,7 +23,7 @@ Before creating your issue, check that there is not already a similiar issue. If
 Before starting to work, please file an issue (or find an existing one) and announce that you are going to work on it. This avoids people doing duplicate work.
 Ask for feedback before you start working on something non-trivial!
 
-There are a number of tests in the repository which you can run using `cargo test`.
+There are a number of tests in the repository which you can run using `cargo test --all`.
 
 When you have something that works, feel free to open a draft pull request. That way you can get some feedback early. Then, when you feel like the PR is ready to go,
 do a self-review and then open it for review.
