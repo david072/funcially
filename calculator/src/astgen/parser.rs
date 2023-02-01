@@ -635,7 +635,7 @@ impl<'a> Parser<'a> {
 
     fn try_accept_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
         if self.peek(is(OpenSquareBracket)).is_some() {
-            return Some(self.accept_complex_unit());
+            return self.accept_complex_unit();
         }
 
         let Some(numerator) = self.try_accept_single_unit() else { return None; };
@@ -649,6 +649,8 @@ impl<'a> Parser<'a> {
             if let Some(denominator) = self.try_accept_single_unit() {
                 return match denominator {
                     Ok((denom, denominator_range)) => {
+                        // e.g. `h/h`, which is equal to 1
+                        if numerator == denom { return None; }
                         Some(Ok((
                             Unit::Fraction(Box::new(numerator), Box::new(denom)),
                             numerator_range.start..denominator_range.end
@@ -664,19 +666,28 @@ impl<'a> Parser<'a> {
         Some(Ok((numerator, numerator_range)))
     }
 
-    fn accept_complex_unit(&mut self) -> Result<(Unit, Range<usize>)> {
-        let open_bracket = self.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
-        let range_start = open_bracket.range().start;
+    fn accept_complex_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
+        fn accept_complex_unit_impl(this: &mut Parser) -> Result<(Unit, Range<usize>)> {
+            let open_bracket = this.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
+            let range_start = open_bracket.range().start;
 
-        let (mut units, _) = self.next_units(0)?;
-        if units.is_empty() {
-            error!(ExpectedUnit: self.peek(all()).map(|t| t.range()).unwrap_or_else(|| self.error_range_at_end()));
+            let (mut units, _) = this.next_units(0)?;
+            if units.is_empty() {
+                error!(ExpectedUnit: this.peek(all()).map(|t| t.range()).unwrap_or_else(|| this.error_range_at_end()));
+            }
+            let unit = if units.len() == 1 { units.remove(0) } else { Unit::Product(units) };
+
+            let close_bracket = this.accept(is(CloseSquareBracket), ExpectedCloseSquareBracket)?;
+            Ok((unit, range_start..close_bracket.range().end))
         }
-        let mut unit = if units.len() == 1 { units.remove(0) } else { Unit::Product(units) };
-        unit.simplify();
 
-        let close_bracket = self.accept(is(CloseSquareBracket), ExpectedCloseSquareBracket)?;
-        Ok((unit, range_start..close_bracket.range().end))
+        let res = accept_complex_unit_impl(self);
+        if let Err(e) = res { return Some(Err(e)); }
+        let (mut unit, range) = res.unwrap();
+
+        if !unit.simplify() { return None; }
+
+        Some(Ok((unit, range)))
     }
 
     fn next_units(&mut self, nesting_level: usize) -> Result<(Vec<Unit>, Range<usize>)> {

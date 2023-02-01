@@ -222,7 +222,7 @@ impl AstNode {
                     _ => error!(UnknownConversion(rhs_unit.format(false, false), lhs_unit.format(false, false)): full_range),
                 }
 
-                lhs_unit.simplify();
+                if !lhs_unit.simplify() { self.unit = None; }
             }
         }
 

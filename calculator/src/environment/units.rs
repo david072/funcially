@@ -41,7 +41,9 @@ impl Unit {
     }
 
     /// Tries to simplify the unit by e.g. reducing fractions
-    pub fn simplify(&mut self) {
+    ///
+    /// Returns whether the unit should be kept after calling the function.
+    pub fn simplify(&mut self) -> bool {
         match self {
             Self::Fraction(num, denom) => {
                 // TODO: More cases
@@ -54,13 +56,13 @@ impl Unit {
                                 num_units.remove(i);
                                 denom_units.remove(denom_i);
 
-                                // FIXME: Allow the unit to remove itself (e.g. `h/h`)
-                                if num_units.len() == 1 { break; }
+                                println!("num_units: {}, denom_units: {}", num_units.len(), denom_units.len());
+                                if num_units.is_empty() && denom_units.is_empty() { return false; }
 
-                                if denom_units.is_empty() {
+                                if denom_units.is_empty() && !num_units.is_empty() {
                                     let units = std::mem::take(denom_units);
                                     *self = Self::Product(units);
-                                    return;
+                                    return true;
                                 }
                                 continue;
                             }
@@ -83,14 +85,26 @@ impl Unit {
                             }
                         }
                     }
+                    (num @ Self::Unit(..), denom @ Self::Unit(..)) => {
+                        if num == denom { return false; }
+                    }
                     _ => {}
                 }
             }
             Self::Product(units) => {
-                for unit in units { unit.simplify(); }
+                let mut i = 0usize;
+                while i < units.len() {
+                    if !units[i].simplify() {
+                        units.remove(i);
+                        continue;
+                    }
+                    i += 1;
+                }
             }
             Self::Unit(..) => {}
         }
+
+        true
     }
 
     pub fn format(&self, full_unit: bool, plural: bool) -> String {
@@ -155,7 +169,7 @@ impl Unit {
                 Self::Fraction(numerator, denominator) => {
                     format!("{} per {}", numerator.format(full_unit, plural), denominator.format(full_unit, false))
                 }
-                Self::Unit(str, power) => format!("{} {}", format_unit(str, plural), format_unit_power(*power)),
+                Self::Unit(str, power) => format!("{}{}", format_unit(str, plural), format_unit_power(*power)),
             }
         }
     }
@@ -165,11 +179,11 @@ fn format_unit_power(pow: f64) -> String {
     if pow == 1.0 {
         String::new()
     } else if pow == 2.0 {
-        "squared".to_string()
+        " squared".to_string()
     } else if pow == 3.0 {
-        "cubed".to_string()
+        " cubed".to_string()
     } else {
-        format!("^ {pow}")
+        format!(" ^ {pow}")
     }
 }
 
