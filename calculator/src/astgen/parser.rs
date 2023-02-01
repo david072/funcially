@@ -1246,7 +1246,7 @@ mod tests {
     fn unit_with_exponentiation() -> Result<()> {
         let ast = calculation!("3m^3");
         assert_eq!(ast.len(), 1);
-        assert_eq!(*ast[0].unit.as_ref().unwrap(), Unit::from("m^3"));
+        assert_eq!(*ast[0].unit.as_ref().unwrap(), Unit::new("m", 3.0));
         Ok(())
     }
 
