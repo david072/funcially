@@ -391,7 +391,7 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
-                if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier) ||
+                if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier && !matches!(tokens[i - 1].text.as_str(), "e" | "E")) ||
                     (token.ty == OpenSquareBracket && tokens[i - 1].ty != ObjectArgs && is_in_object) {
                     new_line.push(' ');
                 }
