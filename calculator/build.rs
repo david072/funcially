@@ -337,7 +337,7 @@ pub fn convert_units(
         return Ok(x);
     }
 
-    let normal_x = x;
+    let mut normal_x = x;
     let power = src_power.max(dst_power);
     let mut x = normal_x.powf(1.0 / power);
 
@@ -349,7 +349,9 @@ pub fn convert_units(
     let dst_prefix_power = unit_prefix(dst).map(|x| x.1).unwrap_or(0);
     if dst_prefix_power != 0 { dst = &dst[1..]; }
 
-    x *= 10f64.powi(src_prefix_power - dst_prefix_power);
+    let factor = 10f64.powi(src_prefix_power - dst_prefix_power);
+    x *= factor;
+    normal_x *= factor;
 
     let result = 'blk: {
         if src == dst { break 'blk Ok(x); }
