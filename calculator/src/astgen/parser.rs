@@ -17,7 +17,7 @@ use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
 macro_rules! parse_f64_radix {
     ($text:expr, $radix:expr, $range:expr) => {
         {
-            match i64::from_str_radix(&$text[2..], $radix) {
+            match u128::from_str_radix(&$text[2..], $radix) {
                 Ok(int) => int as f64,
                 Err(e) => error!(InvalidNumber(e.to_string()): $range),
             }
