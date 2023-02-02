@@ -56,6 +56,10 @@ impl Unit {
                                 num_units.remove(i);
                                 denom_units.remove(denom_i);
 
+                                if num_units.len() == 1 && denom_units.len() > 1 {
+                                    break;
+                                }
+
                                 if num_units.is_empty() && denom_units.is_empty() { return false; }
 
                                 if denom_units.is_empty() && !num_units.is_empty() {
