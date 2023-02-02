@@ -3596,18 +3596,19 @@ dependencies = [
 
 [[package]]
 name = "webbrowser"
-version = "0.8.2"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a0cc7962b5aaa0dfcebaeef0161eec6edf5f4606c12e6777fd7d392f52033a5"
+checksum = "97d1fa1e5c829b2bf9eb1e28fb950248b797cd6a04866fbdfa8bc31e5eef4c78"
 dependencies = [
+ "core-foundation",
+ "dirs",
  "jni",
+ "log",
  "ndk-context",
  "objc",
  "raw-window-handle 0.5.0",
  "url",
  "web-sys",
- "widestring",
- "winapi",
 ]
 
 [[package]]
@@ -3643,12 +3644,6 @@ checksum = "d743fdedc5c64377b5fc2bc036b01c7fd642205a0d96356034ae3404d49eb7fb"
 dependencies = [
  "cc",
 ]
-
-[[package]]
-name = "widestring"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17882f045410753661207383517a6f62ec3dbeb6a4ed2acce01f0728238d1983"
 
 [[package]]
 name = "winapi"
