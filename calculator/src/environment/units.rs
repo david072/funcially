@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::collections::HashMap;
 use std::ops::Range;
 
 use crate::{common::{ErrorType, Result}, environment::currencies::{Currencies, is_currency}, environment::unit_conversion::{convert_units, format_unit, UNITS}, error};
@@ -45,7 +46,15 @@ impl Unit {
     /// Returns whether the unit should be kept after calling the function.
     pub fn simplify(&mut self) -> bool {
         match self {
-            Self::Fraction(num, denom) => {
+            Self::Fraction(num, denom) => 'blk: {
+                num.simplify();
+
+                if !denom.simplify() {
+                    let new_self = (**num).clone();
+                    *self = new_self;
+                    break 'blk;
+                }
+
                 // TODO: More cases
                 match (&mut **num, &mut **denom) {
                     // Reduce the fraction by finding units that are both in the numerator and in the denominator
@@ -69,7 +78,7 @@ impl Unit {
                                     } else {
                                         *self = Self::Product(units);
                                     }
-                                    return true;
+                                    break 'blk;
                                 }
                                 continue;
                             }
@@ -99,6 +108,17 @@ impl Unit {
                 }
             }
             Self::Product(units) => {
+                let mut unique_units = HashMap::<&str, f64>::new();
+                for unit in units.iter().filter(|unit| matches!(unit, Unit::Unit(..))) {
+                    let Unit::Unit(unit, power) = unit else { unreachable!(); };
+                    let count = unique_units.entry(unit).or_insert(0.0);
+                    *count += *power;
+                }
+
+                *units = unique_units.iter()
+                    .map(|(unit, power)| Unit::new(unit, *power))
+                    .collect::<Vec<_>>();
+
                 let mut i = 0usize;
                 while i < units.len() {
                     if !units[i].simplify() {
