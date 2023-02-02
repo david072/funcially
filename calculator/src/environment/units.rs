@@ -55,18 +55,55 @@ impl Unit {
                     break 'blk;
                 }
 
-                // TODO: More cases
+                fn can_be_shortened(first: &Unit, second: &Unit) -> bool {
+                    if let Unit::Unit(first_unit, _) = first {
+                        if let Unit::Unit(second_unit, _) = second {
+                            return first_unit == second_unit;
+                        }
+                    }
+
+                    *first == *second
+                }
+
+                fn shorten_powers(num: &mut f64, denom: &mut f64) -> (bool, bool, bool) {
+                    let mut result = (false, false, false);
+                    if *num < *denom {
+                        *denom -= *num;
+                        if *denom == 0.0 { result.2 = true }
+                        result.1 = true;
+                        result.0 = true;
+                    } else if *denom < *num {
+                        *num -= *denom;
+                        if *num == 0.0 { result.1 = true; }
+                        result.2 = true;
+                        result.0 = true;
+                    }
+
+                    result
+                }
+
                 match (&mut **num, &mut **denom) {
                     // Reduce the fraction by finding units that are both in the numerator and in the denominator
                     (Self::Product(num_units), Self::Product(denom_units)) => {
                         let mut i = 0usize;
                         while i < num_units.len() {
-                            if let Some(denom_i) = denom_units.iter().position(|denom_unit| *denom_unit == num_units[i]) {
-                                num_units.remove(i);
-                                denom_units.remove(denom_i);
+                            if num_units.len() == 1 && denom_units.len() > 1 {
+                                break;
+                            }
 
-                                if num_units.len() == 1 && denom_units.len() > 1 {
-                                    break;
+                            if let Some(denom_i) = denom_units.iter().position(|denom_unit| can_be_shortened(denom_unit, &num_units[i])) {
+                                'inner: {
+                                    if let Unit::Unit(_, denom_power) = &mut denom_units[denom_i] {
+                                        if let Unit::Unit(_, num_power) = &mut num_units[i] {
+                                            let (break_, remove_num, remove_denom) = shorten_powers(num_power, denom_power);
+                                            if remove_num { num_units.remove(i); }
+                                            if remove_denom { denom_units.remove(denom_i); }
+                                            if break_ { break 'inner; }
+                                        }
+                                    }
+
+                                    num_units.remove(i);
+                                    denom_units.remove(denom_i);
                                 }
 
                                 if num_units.is_empty() && denom_units.is_empty() { return false; }
@@ -91,13 +128,32 @@ impl Unit {
                     }
                     // Reduce the fraction by checking if the denominator is in the numerator
                     (Self::Product(num_units), Self::Unit(..)) if num_units.len() > 1 => {
-                        if let Some(i) = num_units.iter().position(|u| *u == **denom) {
-                            num_units.remove(i);
-                            if num_units.len() == 1 {
-                                let new_self = num_units.remove(0);
-                                *self = new_self;
-                            } else {
-                                *self = (**num).clone();
+                        if let Some(i) = num_units.iter().position(|u| can_be_shortened(u, denom)) {
+                            let mut did_remove_denom = false;
+                            'inner: {
+                                if let Unit::Unit(_, denom_power) = &mut **denom {
+                                    if let Unit::Unit(_, num_power) = &mut num_units[i] {
+                                        let (break_, remove_num, remove_denom) = shorten_powers(num_power, denom_power);
+                                        if remove_num { num_units.remove(i); }
+                                        if remove_denom { did_remove_denom = true; }
+                                        if break_ { break 'inner; }
+                                    }
+                                }
+
+                                num_units.remove(i);
+                                did_remove_denom = true;
+                            }
+
+                            if did_remove_denom {
+                                if num_units.len() == 1 {
+                                    let new_self = num_units.remove(0);
+                                    *self = new_self;
+                                } else {
+                                    *self = (**num).clone();
+                                }
+                            } else if num_units.len() == 1 {
+                                let new_numerator = num_units.remove(0);
+                                **num = new_numerator;
                             }
                         }
                     }
@@ -171,7 +227,7 @@ impl Unit {
                     let mut result = str.to_string();
                     if *power != 1.0 { result += &format!("^{power}"); }
                     result
-                },
+                }
             }
         } else {
             match self {
