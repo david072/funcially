@@ -43,7 +43,7 @@ impl ArgCount {
     }
 }
 
-const STANDARD_FUNCTIONS: [(&str, ArgCount); 17] = [
+const STANDARD_FUNCTIONS: [(&str, ArgCount); 18] = [
     ("sin", ArgCount::Single(1)), ("asin", ArgCount::Single(1)),
     ("cos", ArgCount::Single(1)), ("acos", ArgCount::Single(1)),
     ("tan", ArgCount::Single(1)), ("atan", ArgCount::Single(1)),
@@ -51,6 +51,7 @@ const STANDARD_FUNCTIONS: [(&str, ArgCount); 17] = [
     ("sqrt", ArgCount::Single(1)), ("cbrt", ArgCount::Single(1)), ("root", ArgCount::Single(2)), // root with "index" arg1 of arg2
     ("abs", ArgCount::Single(1)),
     ("floor", ArgCount::Single(1)), ("ceil", ArgCount::Single(1)),
+    ("lerp", ArgCount::Single(3)),
     ("clamp", ArgCount::Single(3)), ("map", ArgCount::Single(5)), // map arg1 from range arg2..arg3 to range arg4..arg5
     ("round", ArgCount::Multiple(&[1, 2])),
 ];
@@ -238,6 +239,12 @@ impl Environment {
                     return Err(ErrorType::Arg1GreaterThanArg2);
                 }
                 Ok((args[0].clamp(args[1], args[2]), unit_0.clone()))
+            }
+            "lerp" => {
+                let a = args[0];
+                let b = args[1];
+                let t = args[2];
+                Ok((a + (b - a) * t, None))
             }
             "map" => {
                 let a1 = args[1];
