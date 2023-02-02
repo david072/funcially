@@ -326,7 +326,7 @@ impl AstNode {
 
     fn unit(&self) -> String {
         match self.unit {
-            Some(ref unit) => unit.to_string(),
+            Some(ref unit) => format!("{unit:?}"),
             None => String::new(),
         }
     }

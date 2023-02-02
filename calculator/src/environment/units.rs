@@ -56,12 +56,15 @@ impl Unit {
                                 num_units.remove(i);
                                 denom_units.remove(denom_i);
 
-                                println!("num_units: {}, denom_units: {}", num_units.len(), denom_units.len());
                                 if num_units.is_empty() && denom_units.is_empty() { return false; }
 
                                 if denom_units.is_empty() && !num_units.is_empty() {
-                                    let units = std::mem::take(denom_units);
-                                    *self = Self::Product(units);
+                                    let mut units = std::mem::take(num_units);
+                                    if units.len() == 1 {
+                                        *self = units.remove(0);
+                                    } else {
+                                        *self = Self::Product(units);
+                                    }
                                     return true;
                                 }
                                 continue;
@@ -99,6 +102,10 @@ impl Unit {
                         continue;
                     }
                     i += 1;
+                }
+
+                if units.len() == 1 {
+                    *self = units.remove(0);
                 }
             }
             Self::Unit(..) => {}
