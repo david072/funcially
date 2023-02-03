@@ -84,6 +84,20 @@ impl Environment {
         self.functions.clear();
     }
 
+    pub(crate) fn get_debug_info(&self) -> String {
+        let mut result = format!("Variables:\nans: {:?}\n", self.ans);
+        for (name, var) in &self.variables {
+            result += &format!("{name}: {var:?}\n");
+        }
+
+        result += "\nFunctions:\n";
+        for (name, fun) in &self.functions {
+            result += &format!("{name}: {fun:?}\n");
+        }
+
+        result
+    }
+
     pub(crate) fn is_valid_variable(&self, var: &str) -> bool {
         if STANDARD_VARIABLES.contains(&var) { true } else {
             for (name, _) in &self.variables {

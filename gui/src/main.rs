@@ -320,10 +320,12 @@ impl App<'_> {
                 line = &line[0..comment_start];
             }
 
-            self.debug_information = match self.calculator.get_debug_info(line, Verbosity::Ast) {
+            let debug_information = match self.calculator.get_debug_info(line, Verbosity::Ast) {
                 Ok(info) => Some(info),
                 Err(e) => Some(format!("Error generating debug information: {}, {}..{}", e.error, e.start, e.end))
             };
+
+            self.debug_information = debug_information;
             break;
         }
     }
@@ -914,6 +916,7 @@ impl eframe::App for App<'_> {
                     if ui.button("Print Debug Information for current line").clicked() {
                         self.get_debug_info_for_current_line();
                         self.is_debug_info_open = true;
+                        ui.close_menu();
                     }
                 });
 

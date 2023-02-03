@@ -473,7 +473,7 @@ impl<'a> Calculator<'a> {
     }
 
     pub fn get_debug_info(&self, input: &str, verbosity: Verbosity) -> Result<String> {
-        let mut output = String::new();
+        let mut output = "Line:\n".to_string();
 
         let tokens = tokenize(input)?;
         if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
@@ -536,6 +536,8 @@ impl<'a> Calculator<'a> {
                 }
             }
         }
+
+        output += &format!("\nEnvironment:\n{}", self.env().get_debug_info());
 
         Ok(output)
     }
