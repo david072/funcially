@@ -644,22 +644,31 @@ impl<'a> Parser<'a> {
             Err(e) => return Some(Err(e)),
         };
 
-        if self.peek(is(Divide)).is_some() {
-            self.index += 1;
-            if let Some(denominator) = self.try_accept_single_unit() {
-                return match denominator {
-                    Ok((denom, denominator_range)) => {
-                        // e.g. `h/h`, which is equal to 1
-                        if numerator == denom { return None; }
-                        Some(Ok((
-                            Unit::Fraction(Box::new(numerator), Box::new(denom)),
-                            numerator_range.start..denominator_range.end
-                        )))
+        'blk: {
+            if self.peek(is(Divide)).is_some() {
+                self.index += 1;
+                if let Some(identifier) = self.peek(is(Identifier)) {
+                    if self.context.env.is_valid_variable(&identifier.text) {
+                        self.index -= 1;
+                        break 'blk;
                     }
-                    Err(e) => Some(Err(e)),
-                };
-            } else {
-                self.index -= 1;
+                }
+
+                if let Some(denominator) = self.try_accept_single_unit() {
+                    return match denominator {
+                        Ok((denom, denominator_range)) => {
+                            // e.g. `h/h`, which is equal to 1
+                            if numerator == denom { return None; }
+                            Some(Ok((
+                                Unit::Fraction(Box::new(numerator), Box::new(denom)),
+                                numerator_range.start..denominator_range.end
+                            )))
+                        }
+                        Err(e) => Some(Err(e)),
+                    };
+                } else {
+                    self.index -= 1;
+                }
             }
         }
 
