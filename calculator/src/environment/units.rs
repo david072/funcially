@@ -28,7 +28,14 @@ impl Unit {
 
     pub fn push_unit(&mut self, other: Unit) {
         match self {
-            ref unit @ Self::Unit(..) => *self = Unit::Product(vec![(*unit).clone(), other]),
+            Self::Unit(..) => {
+                if let Self::Fraction(mut other_num, other_denom) = other {
+                    other_num.push_unit(self.clone());
+                    *self = Unit::Fraction(other_num, other_denom);
+                } else {
+                    *self = Unit::Product(vec![self.clone(), other]);
+                }
+            }
             Self::Product(units) => units.push(other),
             Self::Fraction(num, denom) => {
                 if let Self::Fraction(other_num, other_denom) = other {
