@@ -936,6 +936,54 @@ impl eframe::App for App<'_> {
         if self.is_settings_open { self.settings_window(ctx); }
         if self.is_debug_info_open { self.show_debug_information(ctx); }
 
+        if !self.lines.is_empty() {
+            SidePanel::right("output_panel")
+                .default_width(_frame.info().window_info.size.x * (1.0 / 3.0))
+                .show(ctx, |ui| {
+                    ui.add_space(8.0);
+                    ui.spacing_mut().item_spacing.y = 0.0;
+
+                    let mut line_index = 1usize;
+                    for line in &mut self.lines {
+                        if let Line::Line {
+                            output_text: text,
+                            function,
+                            is_error,
+                            show_in_plot,
+                            ..
+                        } = line {
+                            if !*is_error {
+                                if let Some(Function(_, arg_count, _)) = function {
+                                    if *arg_count == 1 {
+                                        ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                                            let mut show_ui = |ui: &mut Ui| {
+                                                ui.checkbox(show_in_plot, "Plot");
+                                            };
+
+                                            if ui.available_width() < 30.0 {
+                                                ui.menu_button("☰", show_ui);
+                                            } else {
+                                                show_ui(ui);
+                                            }
+                                            ui.add_space(-2.0);
+                                        });
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            output_text(ui, text, FONT_ID, line_index);
+                        } else {
+                            ui.add_space(FONT_SIZE + 2.0);
+                        }
+
+                        if matches!(line, Line::Line { .. } | Line::Empty) {
+                            line_index += 1;
+                        }
+                    }
+                });
+        }
+
         CentralPanel::default().show(ctx, |ui| {
             ui.set_enabled(self.is_ui_enabled);
 
@@ -960,15 +1008,13 @@ impl eframe::App for App<'_> {
                         .margin(vec2(0.0, 2.0))
                         .show(ui);
 
-                    let input_width = ui.available_width() * (2.0 / 3.0);
-
                     let lines = &mut self.lines;
                     let output = TextEdit::multiline(&mut self.source)
                         .id(Id::new(INPUT_TEXT_EDIT_ID))
                         .lock_focus(true)
                         .hint_text("Calculate something")
                         .frame(false)
-                        .desired_width(input_width)
+                        .desired_width(ui.available_width())
                         .font(FontSelection::from(FONT_ID))
                         .desired_rows(rows)
                         .layouter(&mut input_layouter(
@@ -992,56 +1038,6 @@ impl eframe::App for App<'_> {
                         self.handle_text_edit_shortcuts(ui, range);
                     }
                     self.handle_shortcuts(ui);
-
-                    Separator::default().vertical().ui(ui);
-
-                    ui.vertical(|ui| {
-                        ui.add_space(2.0);
-                        ui.spacing_mut().item_spacing.y = 0.0;
-
-                        // Spacer to put scroll wheel at the right side of the window
-                        ui.allocate_exact_size(
-                            vec2(ui.available_width(), 0.0), Sense::hover());
-
-                        let mut line_index = 1usize;
-                        for line in &mut self.lines {
-                            if let Line::Line {
-                                output_text: text,
-                                function,
-                                is_error,
-                                show_in_plot,
-                                ..
-                            } = line {
-                                if !*is_error {
-                                    if let Some(Function(_, arg_count, _)) = function {
-                                        if *arg_count == 1 {
-                                            ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                                                let mut show_ui = |ui: &mut Ui| {
-                                                    ui.checkbox(show_in_plot, "Plot");
-                                                };
-
-                                                if ui.available_width() < 30.0 {
-                                                    ui.menu_button("☰", show_ui);
-                                                } else {
-                                                    show_ui(ui);
-                                                }
-                                                ui.add_space(-2.0);
-                                            });
-                                            continue;
-                                        }
-                                    }
-                                }
-
-                                output_text(ui, text, FONT_ID, line_index);
-                            } else {
-                                ui.add_space(FONT_SIZE + 2.0);
-                            }
-
-                            if matches!(line, Line::Line { .. } | Line::Empty) {
-                                line_index += 1;
-                            }
-                        }
-                    });
                 });
             });
         });
