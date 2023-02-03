@@ -311,6 +311,15 @@ impl App<'_> {
         for (i, line) in self.source.lines().enumerate() {
             if i != input_text_paragraph { continue; }
 
+            if line.trim().starts_with('#') || line.is_empty() {
+                break;
+            }
+
+            let mut line = line;
+            if let Some(comment_start) = line.find('#') {
+                line = &line[0..comment_start];
+            }
+
             self.debug_information = match self.calculator.get_debug_info(line, Verbosity::Ast) {
                 Ok(info) => Some(info),
                 Err(e) => Some(format!("Error generating debug information: {}, {}..{}", e.error, e.start, e.end))
