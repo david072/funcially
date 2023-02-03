@@ -92,14 +92,14 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
     }
 
     if first_word.is_some() && first_word.clone().unwrap() == "set" {
-        let Some(path) = words.next() else {
+        let Some(path_source) = words.next().map(str::trim) else {
             eprintln!("{}", "Expected a setting.".red());
             return true;
         };
-        let path = path.split('.').collect::<Vec<_>>();
+        let path = path_source.split('.').collect::<Vec<_>>();
 
         let next = words.next();
-        if next.is_some() && next.unwrap() == "?" {
+        if path_source == "?" || (next.is_some() && next.unwrap().trim() == "?") {
             let mut path = path;
             path.push("");
             let err = calculator.settings.set(&path, "").unwrap_err();
@@ -112,7 +112,7 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
             eprintln!("{}", "Hint: Put a question mark at the end of the line to see the available options.".cyan());
             return true;
         }
-        let Some(value) = words.next() else {
+        let Some(value) = words.next().map(str::trim) else {
             eprintln!("{}", "Expected the value.".red());
             return true;
         };
@@ -128,17 +128,25 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
         }
         return true;
     } else if first_word.is_some() && first_word.unwrap() == "get" {
-        let Some(path) = words.next() else {
+        let Some(path_source) = words.next().map(str::trim) else {
             eprintln!("{}", "Expected a setting.".red());
             return true;
         };
 
-        if words.next().is_some() {
+        let path = path_source.split('.').collect::<Vec<_>>();
+
+        let next = words.next();
+        if path_source == "?" || (next.is_some() && next.unwrap().trim() == "?") {
+            let mut path = path;
+            path.push("");
+            let err = calculator.settings.set(&path, "").unwrap_err();
+            if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
+            return true;
+        } else if next.is_some() {
             eprintln!("{}", "Too many arguments.".red());
             return true;
         }
 
-        let path = path.split('.').collect::<Vec<_>>();
         match calculator.settings.get(&path) {
             Ok(v) => println!("Setting's value: {v:?}"),
             Err(e) => eprintln!("{}", e.to_string().red()),
