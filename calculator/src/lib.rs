@@ -420,11 +420,15 @@ impl<'a> Calculator<'a> {
                         | Comma
                         | DefinitionSign
                         | EqualsSign
+                        | Identifier
                     ) { // Check if we're a sign
-                        if let Some(next) = tokens.get(i + 1) {
-                            if next.ty.is_number() {
-                                new_line += text;
-                                continue;
+                        // Check if we're a sign after the 'e' of scientific notation
+                        if tokens[i - 1].ty != Identifier || (tokens[i - 1].text == "e" || tokens[i - 1].text == "E") {
+                            if let Some(next) = tokens.get(i + 1) {
+                                if next.ty.is_number() {
+                                    new_line += text;
+                                    continue;
+                                }
                             }
                         }
                     }
