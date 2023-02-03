@@ -43,10 +43,10 @@ impl ArgCount {
     }
 }
 
-const STANDARD_FUNCTIONS: [(&str, ArgCount); 18] = [
+const STANDARD_FUNCTIONS: [(&str, ArgCount); 20] = [
     ("sin", ArgCount::Single(1)), ("asin", ArgCount::Single(1)),
     ("cos", ArgCount::Single(1)), ("acos", ArgCount::Single(1)),
-    ("tan", ArgCount::Single(1)), ("atan", ArgCount::Single(1)),
+    ("tan", ArgCount::Single(1)), ("atan", ArgCount::Single(1)), ("cot", ArgCount::Single(1)), ("acot", ArgCount::Single(1)),
     ("ln", ArgCount::Single(1)), ("log", ArgCount::Single(2)), // log arg2 to base arg1
     ("sqrt", ArgCount::Single(1)), ("cbrt", ArgCount::Single(1)), ("root", ArgCount::Single(2)), // root with "index" arg1 of arg2
     ("abs", ArgCount::Single(1)),
@@ -234,6 +234,11 @@ impl Environment {
             }
             "tan" => Ok((as_radians(0).tan(), None)),
             "atan" => Ok((args[0].atan(), Some(Unit::from("rad")))),
+            "cot" => {
+                let rad = as_radians(0);
+                Ok((rad.cos() / rad.sin(), None))
+            }
+            "acot" => Ok(((1.0 / args[0]).atan(), Some(Unit::from("rad")))),
             "ln" => Ok((args[0].ln(), unit_0.clone())),
             "log" => Ok((if args[0] == 2.0 {
                 args[1].log2()
