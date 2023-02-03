@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use eframe::{CreationContext, Frame, Storage};
 use eframe::egui;
+use eframe::egui::panel::PanelState;
 use eframe::egui::text_edit::CursorRange;
 use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
@@ -33,6 +34,8 @@ const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
 const ERROR_COLOR: Color = Color::RED;
 
 const INPUT_TEXT_EDIT_ID: &str = "input-text-edit";
+const PLOT_PANEL_ID: &str = "plot_panel";
+const OUTPUT_PANEL_ID: &str = "output_panel";
 
 const TOGGLE_COMMENTATION_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::N);
 const SURROUND_WITH_BRACKETS_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::B);
@@ -422,7 +425,7 @@ impl App<'_> {
     fn plot_panel(&mut self, ctx: &Context) {
         if FullScreenPlot::is_fullscreen(ctx) { return; }
 
-        SidePanel::right("plot_panel")
+        SidePanel::right(PLOT_PANEL_ID)
             .resizable(self.is_ui_enabled)
             .show(ctx, |ui| {
                 ui.set_enabled(self.is_ui_enabled);
@@ -833,6 +836,20 @@ impl eframe::App for App<'_> {
                         ui.close_menu();
                     }
 
+                    if ui.button("Collapse side panels").clicked() {
+                        fn collapse_panel_state(ctx: &Context, id: impl Into<Id>) {
+                            let id = id.into();
+                            if let Some(mut state) = PanelState::load(ctx, id) {
+                                state.rect.set_width(5.0);
+                                ctx.data().insert_persisted(id, state);
+                            }
+                        }
+
+                        collapse_panel_state(ctx, OUTPUT_PANEL_ID);
+                        collapse_panel_state(ctx, PLOT_PANEL_ID);
+                        self.is_plot_open = false;
+                    }
+
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         ui.separator();
@@ -937,7 +954,7 @@ impl eframe::App for App<'_> {
         if self.is_debug_info_open { self.show_debug_information(ctx); }
 
         if !self.lines.is_empty() {
-            SidePanel::right("output_panel")
+            SidePanel::right(OUTPUT_PANEL_ID)
                 .default_width(_frame.info().window_info.size.x * (1.0 / 3.0))
                 .show(ctx, |ui| {
                     ui.add_space(8.0);
