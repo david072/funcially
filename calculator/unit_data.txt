@@ -42,6 +42,7 @@
   min: Minute
   h: Hour
   d: Day
+  w: Week
   mo: Month
   y: Year
   
@@ -149,6 +150,9 @@
 # catalytic activity
   kat: Katal
   
+# amount of substance
+  mol: Mole
+  
   
   ----
 
@@ -156,28 +160,28 @@
 # length / area
   m->mi: x / 1609.344                                           | n
   m->ft: x * 3.281                                              | n
-  m->inch: x * 39.37                                              | n
+  m->inch: x * 39.37                                            | n
   m->yd: x * 1.094                                              | n
   m->nmi: x / 1852.0                                            | n
 
   ft->mi: x / 5280.0                                            | n
-  ft->inch: x * 12.0                                              | n
+  ft->inch: x * 12.0                                            | n
   ft->yd: x / 3.0                                               | n
   ft->nmi: x / 6076.0                                           | n
 
-  mi->inch: x * 63360.0                                           | n
+  mi->inch: x * 63360.0                                         | n
   mi->yd: x * 1760.0                                            | n
   mi->nmi: x / 1.151                                            | n
 
-  inch->yd: x / 36.0                                              | n
-  inch->nmi: x / 72910.0                                          | n
+  inch->yd: x / 36.0                                            | n
+  inch->nmi: x / 72910.0                                        | n
   
   yd->nmi: x / 2025.0                                           | n
   
   a->m^2: x * 100.0                                             | n
   a->ft^2: x * 1076.0                                           | n
   a->mi^2: x / 25_900.0                                         | n
-  a->inch^2: x * 155_000.0                                        | n
+  a->inch^2: x * 155_000.0                                      | n
   a->yd^2: x * 119.6                                            | n
   a->nmi^2: x * 847.5                                           | n
   
@@ -190,7 +194,7 @@
   l->m^3: x / 1000.0                                            | n
   l->mi^3: x / 4_168_000_000_000.0                              | n
   l->ft^3: x / 28.317                                           | n
-  l->inch^3: x * 61.024                                           | n
+  l->inch^3: x * 61.024                                         | n
   l->yd^3: x / 764.6                                            | n
 
   tsp -> tbsp: x / 3.0                                          | n
@@ -199,7 +203,7 @@
   tsp -> m^3: x / 202_900.0                                     | n
   tsp -> mi^3: x / 845_700_000_000_000.0                        | n
   tsp -> ft^3: x / 5745.0                                       | n
-  tsp -> inch^3: x / 3.325                                        | n
+  tsp -> inch^3: x / 3.325                                      | n
   tsp -> yd^3: x / 155_100.0                                    | n
 
   tbsp -> floz: x / 2.0                                         | n
@@ -207,20 +211,20 @@
   tbsp -> m^3: x / 67_630.0                                     | n
   tbsp -> mi^3: x / 281_900_000_000_000.0                       | n
   tbsp -> ft^3: x / 1915.0                                      | n
-  tbsp -> inch^3: x / 1.108                                       | n
+  tbsp -> inch^3: x / 1.108                                     | n
   tbsp -> yd^3: x / 51_710.0                                    | n
 
   floz -> cup: x / 8.0                                          | n
   floz -> m^3: x / 284_130.0                                    | n
   floz -> mi^3: x / 146_700_000_000_000.0                       | n
   floz -> ft^3: x / 996.6                                       | n
-  floz -> inch^3: x / 1.1734                                      | n
+  floz -> inch^3: x / 1.1734                                    | n
   floz -> yd^3: x / 25_850.0                                    | n
 
   cup -> m^3: x / 4227.0                                        | n
   cup -> mi^3: x / 17_620_000_000_000.0                         | n
   cup -> ft^3: x / 119.7                                        | n
-  cup -> inch^3: x * 14.438                                       | n
+  cup -> inch^3: x * 14.438                                     | n
   cup -> yd^3: x / 3232.0                                       | n
   
 
@@ -243,21 +247,28 @@
   s->min: x / 60.0                                              | n
   s->h: x / 3600.0                                              | n
   s->d: x / 86_400.0                                            | n
+  s->w: x / 604_800.0                                           | n
   s->mo: x / 2_628_000.0                                        | n
   s->y: x / 31_540_000.0                                        | n
 
   min->h: x / 60.0                                              | n
   min->d: x / 1440.0                                            | n
+  min->w: x / 10_080.0                                          | n
   min->mo: x / 43_800.0                                         | n
   min->y: x / 525_600.0                                         | n
 
   h->d: x / 24.0                                                | n
+  h->w: x / 168.0                                               | n
   h->mo: x / 730.0                                              | n
   h->y: x / 8760.0                                              | n
 
+  d->w: x / 7.0                                                 | n
   d->mo: x / 30.417                                             | n
   d->y: x / 365.0                                               | n
 
+  w->mo: x / 4.345                                              | n
+  w->y: x / 52.0                                                | n
+  
   mo->y: x / 12.0                                               | n
   
 
