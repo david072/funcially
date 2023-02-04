@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use eframe::{CreationContext, Frame, Storage};
 use eframe::egui;
 use eframe::egui::panel::PanelState;
-use eframe::egui::text_edit::CursorRange;
+use eframe::egui::text_edit::{CursorRange, TextEditState};
 use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
@@ -1041,6 +1041,37 @@ impl eframe::App for App<'_> {
                         .desired_rows(rows)
                         .margin(vec2(0.0, 2.0))
                         .show(ui);
+
+                    if let Some(mut input_state) = TextEditState::load(ctx, Id::new(INPUT_TEXT_EDIT_ID)) {
+                        if let Some(mut cursor_range) = input_state.ccursor_range() {
+                            let mut i = 0usize;
+                            let events = &mut ui.input_mut().events;
+                            while i < events.len() {
+                                if let Event::Text(text) = &events[i] {
+                                    let mut remove = false;
+                                    for c in [')', ']', '}'] {
+                                        if *text == String::from(c) &&
+                                            self.source.chars().nth(cursor_range.primary.index)
+                                                .map(|char| char == c)
+                                                .unwrap_or_default() {
+                                            cursor_range.primary.index += 1;
+                                            cursor_range.secondary.index += 1;
+                                            input_state.set_ccursor_range(Some(cursor_range));
+                                            remove = true;
+                                        }
+                                    }
+                                    if remove {
+                                        events.remove(i);
+                                        continue;
+                                    }
+                                }
+
+                                i += 1;
+                            }
+                        }
+
+                        input_state.store(ctx, Id::new(INPUT_TEXT_EDIT_ID));
+                    }
 
                     let lines = &mut self.lines;
                     let output = TextEdit::multiline(&mut self.source)
