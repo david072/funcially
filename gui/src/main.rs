@@ -967,9 +967,9 @@ impl eframe::App for App<'_> {
 
         if !self.lines.is_empty() {
             #[cfg(not(target_arch = "wasm32"))]
-            let default_width = _frame.info().window_info.size.x * (1.0 / 3.0);
+                let default_width = _frame.info().window_info.size.x * (1.0 / 3.0);
             #[cfg(target_arch = "wasm32")]
-            let default_width = 40.0;
+                let default_width = 40.0;
 
             SidePanel::right(OUTPUT_PANEL_ID)
                 .default_width(default_width)
@@ -1057,16 +1057,30 @@ impl eframe::App for App<'_> {
                             self.search_state.selected_range_if_open(),
                         ))
                         .show(ui);
+
+                    self.update_lines(output.galley);
+
                     if let Some(range) = output.cursor_range {
                         self.input_text_cursor_range = range;
+
+                        for event in &ui.input().events {
+                            if let Event::Text(text) = event {
+                                if let Some(c) = match text.as_str() {
+                                    "(" => Some(')'),
+                                    "{" => Some('}'),
+                                    "[" => Some(']'),
+                                    _ => None,
+                                } {
+                                    self.source.insert(range.primary.ccursor.index, c);
+                                }
+                            }
+                        }
                     }
 
                     if self.input_should_request_focus {
                         self.input_should_request_focus = false;
                         output.response.request_focus();
                     }
-
-                    self.update_lines(output.galley);
 
                     if let Some(range) = output.cursor_range {
                         self.handle_text_edit_shortcuts(ui, range);
