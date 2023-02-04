@@ -966,8 +966,13 @@ impl eframe::App for App<'_> {
         if self.is_debug_info_open { self.show_debug_information(ctx); }
 
         if !self.lines.is_empty() {
+            #[cfg(not(target_arch = "wasm32"))]
+            let default_width = _frame.info().window_info.size.x * (1.0 / 3.0);
+            #[cfg(target_arch = "wasm32")]
+            let default_width = 40.0;
+
             SidePanel::right(OUTPUT_PANEL_ID)
-                .default_width(_frame.info().window_info.size.x * (1.0 / 3.0))
+                .default_width(default_width)
                 .show(ctx, |ui| {
                     ui.add_space(8.0);
                     ui.spacing_mut().item_spacing.y = 0.0;
