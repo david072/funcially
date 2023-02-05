@@ -457,15 +457,12 @@ impl App<'_> {
 
     fn help_window(&mut self, ctx: &Context) {
         let is_help_open = &mut self.is_help_open;
-        let color_segments = &mut self.cached_help_window_color_segments;
         Window::new("Help")
             .open(is_help_open)
             .vscroll(true)
             .hscroll(true)
             .enabled(self.is_ui_enabled)
-            .show(ctx, |ui| {
-                build_help(ui, FONT_ID, color_segments);
-            });
+            .show(ctx, build_help);
     }
 
     #[cfg(target_arch = "wasm32")]
