@@ -23,6 +23,7 @@ pub use environment::{Environment, Function};
 
 use crate::astgen::parser::ParserResult;
 pub use crate::engine::Format;
+pub use crate::engine::NumberValue;
 use crate::engine::Value;
 use crate::environment::units::is_unit_with_prefix;
 pub use crate::settings::*;

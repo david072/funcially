@@ -5,10 +5,11 @@
  */
 
 use std::f64::consts::{E, PI, TAU};
+use std::ops::Range;
 
-use crate::{astgen::ast::AstNode, common::ErrorType, Context, Engine};
+use crate::{astgen::ast::AstNode, common::ErrorType, Context, Engine, Format};
 use crate::engine::{NumberValue, Value};
-use crate::environment::units::Unit;
+use crate::environment::units::{convert, Unit};
 
 pub mod units;
 pub mod currencies;
@@ -25,8 +26,10 @@ const VAR_PI: &Variable = &Variable(Value::only_number(PI));
 const VAR_E: &Variable = &Variable(Value::only_number(E));
 const VAR_TAU: &Variable = &Variable(Value::only_number(TAU));
 
+pub type FunctionArgument = (String, Option<Unit>);
+
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Function(pub(crate) Vec<String>, pub(crate) Vec<AstNode>);
+pub struct Function(pub(crate) Vec<FunctionArgument>, pub(crate) Vec<AstNode>);
 
 #[derive(Debug)]
 pub(crate) enum ArgCount {
@@ -288,27 +291,48 @@ impl Environment {
         }
     }
 
-    pub(crate) fn resolve_custom_function(&self, f: &str, args: &[f64], context: Context) -> Result<Value, ErrorType> {
+    pub(crate) fn resolve_custom_function(
+        &self,
+        f: &str,
+        args: &[(NumberValue, Range<usize>)],
+        full_range: Range<usize>,
+        context: Context,
+    ) -> crate::common::Result<Value> {
         for (name, func) in &self.functions {
             if name == f {
-                return self.resolve_specific_function(func, args, context);
+                return self.resolve_specific_function(func, args, full_range, context);
             }
         }
 
-        Err(ErrorType::UnknownFunction(f.to_owned()))
+        Err(ErrorType::UnknownFunction(f.to_owned()).with(full_range))
     }
 
-    pub fn resolve_specific_function(&self, f: &Function, args: &[f64], context: Context) -> Result<Value, ErrorType> {
+    pub fn resolve_specific_function(
+        &self,
+        f: &Function,
+        call_side_args: &[(NumberValue, Range<usize>)],
+        full_range: Range<usize>,
+        context: Context,
+    ) -> crate::common::Result<Value> {
         let mut temp_env = self.clone();
-        for (i, arg) in args.iter().enumerate() {
-            temp_env.set_variable(&f.0[i], Variable(Value::only_number(*arg)))?;
+        for (i, (arg, range)) in call_side_args.iter().enumerate() {
+            let definition_arg = &f.0[i];
+
+            let call_side_arg_value = if arg.unit.is_some() && definition_arg.1.is_some() {
+                convert(arg.unit.as_ref().unwrap(), definition_arg.1.as_ref().unwrap(), arg.number, context.currencies, range)?
+            } else {
+                arg.number
+            };
+
+            let value = Variable(Value::number(call_side_arg_value, definition_arg.1.clone(), false, Format::Decimal));
+            temp_env.set_variable(&definition_arg.0, value).map_err(|e| e.with(full_range.clone()))?;
         }
 
         let context = Context {
             env: &temp_env,
             ..context
         };
-        Engine::evaluate(f.1.clone(), context).map_err(|e| e.error)
+        Engine::evaluate(f.1.clone(), context).map_err(|e| e.error.with(full_range))
     }
 
     pub(crate) fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {

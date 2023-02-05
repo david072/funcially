@@ -247,7 +247,8 @@ pub fn plot(ui: &mut Ui, lines: &Vec<Line>, calculator: &Calculator) -> InnerRes
                             plot::PlotPoints::from_explicit_callback(move |x| {
                                 match env.resolve_specific_function(
                                     &f,
-                                    &[x],
+                                    &[(calculator::NumberValue::new(x), 0..1)],
+                                    0..1,
                                     calculator::Context {
                                         env: &env,
                                         currencies: &currencies,

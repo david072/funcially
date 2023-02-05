@@ -11,7 +11,7 @@ use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator,
 use crate::astgen::objects::{CalculatorObject, ObjectArgument};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{Error, ErrorType::*, ErrorType, Result};
-use crate::environment::ArgCount;
+use crate::environment::{ArgCount, FunctionArgument};
 use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
 
 macro_rules! parse_f64_radix {
@@ -53,7 +53,7 @@ pub enum ParserResult {
     VariableDefinition(String, Option<Vec<AstNode>>),
     FunctionDefinition {
         name: String,
-        args: Vec<String>,
+        args: Vec<FunctionArgument>,
         ast: Option<Vec<AstNode>>,
     },
     Equation {
@@ -87,7 +87,7 @@ pub struct Parser<'a> {
     index: usize,
     nesting_level: usize,
     context: Context<'a>,
-    extra_allowed_variables: Option<&'a [String]>,
+    extra_allowed_variables: Option<&'a [&'a str]>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
     did_find_equals_sign: bool,
@@ -109,7 +109,8 @@ impl<'a> Parser<'a> {
         } else if let Some(result) = parser.try_accept_function_definition_head() {
             let (name, args) = result?;
 
-            parser.set_extra_allowed_variables(&args);
+            let vars = args.iter().map(|(arg, ..)| arg.as_str()).collect::<Vec<_>>();
+            parser.set_extra_allowed_variables(&vars);
             let ast = parser.accept_definition_expression()?;
 
             Ok(ParserResult::FunctionDefinition { name, args, ast })
@@ -137,7 +138,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn set_extra_allowed_variables(&mut self, variables: &'a [String]) {
+    pub fn set_extra_allowed_variables(&mut self, variables: &'a [&'a str]) {
         self.extra_allowed_variables = Some(variables);
     }
 
@@ -215,7 +216,7 @@ impl<'a> Parser<'a> {
     /// a definition sign, it returns None, discards the error and resets self.index. If it finds
     /// a definition sign, it releases the stored error if there is one, and otherwise returns the
     /// parsed data.
-    fn try_accept_function_definition_head(&mut self) -> Option<Result<(String, Vec<String>)>> {
+    fn try_accept_function_definition_head(&mut self) -> Option<Result<(String, Vec<FunctionArgument>)>> {
         let start_index = self.index;
 
         let mut first_error: Option<Error> = None;
@@ -255,18 +256,35 @@ impl<'a> Parser<'a> {
         try_token!(self.accept(is(OpenBracket), ExpectedOpenBracket));
 
         let first_arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier).text.clone();
-        let mut args = vec![first_arg];
+        let unit = self.try_accept_unit()
+            .and_then(|unit| {
+                unit.map_or_else(|e| {
+                    first_error = Some(e);
+                    None
+                }, |(unit, ..)| Some(unit))
+            });
+        let mut args = vec![(first_arg, unit)];
 
         let _close_bracket = Token::empty_from_type(CloseBracket);
         loop {
             let next = try_token!(self.accept(any(&[Comma, CloseBracket]), ExpectedComma), _close_bracket);
             match next.ty {
                 Comma => {
-                    let arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier);
-                    if args.contains(&arg.text) && first_error.is_none() {
-                        first_error = Some(DuplicateArgument(arg.text.clone()).with(arg.range()));
+                    let next_arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier);
+                    let next_arg_text = next_arg.text.clone();
+                    if args.iter().any(|(arg, ..)| *arg == next_arg_text) && first_error.is_none() {
+                        first_error = Some(DuplicateArgument(next_arg.text.clone()).with(next_arg.range()));
+                        continue;
                     }
-                    args.push(arg.text.clone());
+
+                    let unit = self.try_accept_unit()
+                        .and_then(|unit| {
+                            unit.map_or_else(|e| {
+                                first_error = Some(e);
+                                None
+                            }, |(unit, ..)| Some(unit))
+                        });
+                    args.push((next_arg_text, unit));
                 }
                 CloseBracket => break,
                 _ => unreachable!(),
@@ -808,7 +826,7 @@ impl<'a> Parser<'a> {
         let range = identifier.range();
 
         if self.context.env.is_valid_variable(&name) ||
-            self.extra_allowed_variables.map_or(false, |vars| vars.contains(&name)) {
+            self.extra_allowed_variables.map_or(false, |vars| vars.contains(&name.as_str())) {
             if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
                 return question_mark;
             }
@@ -1303,19 +1321,19 @@ mod tests {
     fn function_definitions() -> Result<()> {
         let (name, args, ast) = func_definition!("f(x) := x");
         assert_eq!(name, "f");
-        assert_eq!(args, vec!["x"]);
+        assert_eq!(args, vec![("x".into(), None)]);
         assert!(ast.is_some());
         assert_eq!(ast.as_ref().unwrap().len(), 1);
         assert_eq!(ast.unwrap()[0].data, AstNodeData::VariableReference("x".to_owned()));
 
         let (name, args, ast) = func_definition!("f(x, y) := x");
         assert_eq!(name, "f");
-        assert_eq!(args, vec!["x", "y"]);
+        assert_eq!(args, vec![("x".into(), None), ("y".into(), None)]);
         assert!(ast.is_some());
 
         let (name, args, ast) = func_definition!("f(x, y) :=");
         assert_eq!(name, "f");
-        assert_eq!(args, vec!["x", "y"]);
+        assert_eq!(args, vec![("x".into(), None), ("y".into(), None)]);
         assert!(ast.is_none());
         Ok(())
     }
