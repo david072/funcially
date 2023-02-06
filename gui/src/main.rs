@@ -1037,10 +1037,13 @@ impl eframe::App for App<'_> {
                         if let Some(mut cursor_range) = input_state.ccursor_range() {
                             let mut i = 0usize;
                             let events = &mut ui.input_mut().events;
+
+                            const BRACKETS: [(char, char); 3] = [('(', ')'), ('[', ']'), ('{', '}')];
+
                             while i < events.len() {
                                 if let Event::Text(text) = &events[i] {
                                     let mut remove = false;
-                                    for c in [')', ']', '}'] {
+                                    for (_, c) in BRACKETS {
                                         if *text == String::from(c) &&
                                             self.source.chars().nth(cursor_range.primary.index)
                                                 .map(|char| char == c)
@@ -1054,6 +1057,15 @@ impl eframe::App for App<'_> {
                                     if remove {
                                         events.remove(i);
                                         continue;
+                                    }
+                                } else if let Event::Key { key: Key::Backspace, pressed: true, modifiers } = &events[i] {
+                                    if modifiers.is_none() {
+                                        for (opening, closing) in BRACKETS {
+                                            if self.source.chars().nth(cursor_range.primary.index) == Some(closing) &&
+                                                self.source.chars().nth(cursor_range.primary.index - 1) == Some(opening) {
+                                                self.source.remove(cursor_range.primary.index);
+                                            }
+                                        }
                                     }
                                 }
 
