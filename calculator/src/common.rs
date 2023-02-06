@@ -128,6 +128,10 @@ pub enum ErrorType {
     ExpectedInteger(f64),
     #[error("Expected percentage for 'of' operator")]
     ExpectedPercentage,
+    #[error("Expected a vector")]
+    ExpectedVector,
+    #[error("The lengths don't match")]
+    VectorLengthsNotMatching,
     #[error("Argument 1 must be less than argument 2")]
     Arg1GreaterThanArg2,
     #[error("Unknown conversion ({0} -> {1})")]

@@ -393,7 +393,7 @@ impl<'a> Calculator<'a> {
                 }
 
                 if (i != 0 && token.ty.is_literal() && tokens[i - 1].ty == Identifier && !matches!(tokens[i - 1].text.as_str(), "e" | "E")) ||
-                    (token.ty == OpenSquareBracket && tokens[i - 1].ty != ObjectArgs && is_in_object) {
+                    (token.ty == OpenSquareBracket && i != 0 && tokens[i - 1].ty != ObjectArgs && is_in_object) {
                     new_line.push(' ');
                 }
 
@@ -457,7 +457,7 @@ impl<'a> Calculator<'a> {
                 if i != tokens.len() - 1 && token.ty != Exponentiation && !is_in_square_brackets {
                     new_line.push(' ');
                 }
-            } else if token.ty == Comma {
+            } else if matches!(token.ty, Comma | Semicolon) {
                 new_line += text;
                 if i != tokens.len() - 1 {
                     new_line.push(' ');

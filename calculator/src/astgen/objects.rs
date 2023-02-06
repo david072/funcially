@@ -36,9 +36,10 @@ impl ObjectArgument {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, serde::Serialize, serde::Deserialize)]
 pub enum CalculatorObject {
     Date(DateObject),
+    Vector(Vector),
 }
 
 impl CalculatorObject {
@@ -61,14 +62,24 @@ impl CalculatorObject {
     pub fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_in_rhs: bool) -> Result<AstNode> {
         match self {
             Self::Date(date) => date.apply(self_range, op, other, self_in_rhs),
+            Self::Vector(vec) => vec.apply(self_range, op, other, self_in_rhs),
         }
     }
 
     pub fn to_string(&self, settings: &Settings) -> String {
         match self {
             Self::Date(date) => date.to_string(settings),
+            Self::Vector(vec) => vec.to_string(settings),
         }
     }
+}
+
+trait Object: Sized {
+    fn to_string(&self, settings: &Settings) -> String;
+
+    fn parse(given_args: Vec<ObjectArgument>, context: Context, full_range: Range<usize>) -> Result<Self>;
+
+    fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_is_rhs: bool) -> Result<AstNode>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
@@ -76,8 +87,8 @@ pub struct DateObject {
     pub(crate) date: NaiveDate,
 }
 
-impl DateObject {
-    pub fn to_string(&self, settings: &Settings) -> String {
+impl Object for DateObject {
+    fn to_string(&self, settings: &Settings) -> String {
         let fmt = match settings.date.format {
             DateFormat::Dmy => format!("%d{d}%m{d}%Y", d = settings.date.delimiter),
             DateFormat::Mdy => format!("%m{d}%d{d}%Y", d = settings.date.delimiter),
@@ -176,7 +187,7 @@ impl DateObject {
         match args.len().cmp(&3) {
             Ordering::Greater => {
                 error!(UnexpectedElements: args[3].range().start..args.last().unwrap().range().end)
-            },
+            }
             Ordering::Less => {
                 let last = args.last().unwrap();
                 error!(ExpectedElements: last.range().end..last.range().end + 1);
@@ -258,6 +269,61 @@ impl DateObject {
                 _ => Err(ErrorType::InvalidSide.with(other.range.clone()))
             }
             _ => Err(ErrorType::UnsupportedOperation.with(op.1))
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Vector {
+    pub(crate) numbers: Vec<f64>,
+}
+
+impl Object for Vector {
+    fn to_string(&self, _: &Settings) -> String {
+        let mut result = "[".to_string();
+        for (i, num) in self.numbers.iter().enumerate() {
+            result += &format!("{num}{}", if i != self.numbers.len() - 1 { "; " } else { "" });
+        }
+        result + "]"
+    }
+
+    fn parse(_: Vec<ObjectArgument>, _: Context, _: Range<usize>) -> Result<Self> {
+        // This object cannot be constructed using the object syntax
+        unreachable!()
+    }
+
+    fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_is_rhs: bool) -> Result<AstNode> {
+        let numbers = self.numbers.clone();
+
+        match op.0 {
+            Operator::Multiply => {
+                let AstNodeData::Literal(n) = other.data else { error!(ExpectedNumber: other.range.clone()); };
+                let numbers = numbers.into_iter().map(|num| num * n).collect::<Vec<_>>();
+                Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Self { numbers })), self_range))
+            }
+            Operator::Plus | Operator::Minus => {
+                let AstNodeData::Object(CalculatorObject::Vector(other_vec)) = &other.data else { error!(ExpectedVector: other.range.clone()); };
+                if numbers.len() != other_vec.numbers.len() {
+                    error!(VectorLengthsNotMatching: self_range.start..other.range.end);
+                }
+
+                let numbers = numbers.into_iter()
+                    .zip(other_vec.numbers.iter())
+                    .map(|(num, other)| {
+                        match op.0 {
+                            Operator::Plus => num + *other,
+                            Operator::Minus => if self_is_rhs {
+                                *other - num
+                            } else {
+                                num - *other
+                            }
+                            _ => unreachable!()
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Self { numbers })), self_range))
+            }
+            _ => error!(UnsupportedOperation: op.1),
         }
     }
 }

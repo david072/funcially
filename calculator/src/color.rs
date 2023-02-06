@@ -89,7 +89,7 @@ impl ColorSegment {
                 Whitespace => Color::TRANSPARENT,
                 OpenBracket | OpenSquareBracket | OpenCurlyBracket | CloseBracket | CloseSquareBracket | CloseCurlyBracket |
                 ExclamationMark | PercentSign |
-                Comma | EqualsSign | DefinitionSign => Color::WHITE,
+                Comma | Semicolon | EqualsSign | DefinitionSign => Color::WHITE,
                 _ => unreachable!(),
             }
         };

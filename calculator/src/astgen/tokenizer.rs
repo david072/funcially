@@ -12,6 +12,8 @@ use crate::common::*;
 pub enum TokenType {
     Whitespace,
     Dot,
+    Comma,
+    Semicolon,
     // Literals
     DecimalLiteral,
     HexLiteral,
@@ -48,7 +50,6 @@ pub enum TokenType {
     // Identifier
     Identifier,
     ObjectArgs,
-    Comma,
     DefinitionSign,
     QuestionMark,
     // Boolean operators
@@ -415,6 +416,7 @@ impl<'a> Tokenizer<'a> {
             b'=' => Some(TokenType::EqualsSign),
             b',' => Some(TokenType::Comma),
             b':' if self.try_accept(b'=') => Some(TokenType::DefinitionSign),
+            b';' => Some(TokenType::Semicolon),
             b'?' => Some(TokenType::QuestionMark),
             _ => None
         };

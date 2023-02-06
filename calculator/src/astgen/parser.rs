@@ -8,9 +8,10 @@ use std::ops::Range;
 
 use crate::{Context, error, Format};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
-use crate::astgen::objects::{CalculatorObject, ObjectArgument};
+use crate::astgen::objects::{CalculatorObject, ObjectArgument, Vector};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{Error, ErrorType::*, ErrorType, Result};
+use crate::engine::Engine;
 use crate::environment::{ArgCount, FunctionArgument};
 use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
 
@@ -510,66 +511,70 @@ impl<'a> Parser<'a> {
     }
 
     fn accept_number(&mut self) -> Result<AstNode> {
-        if self.peek(is(OpenCurlyBracket)).is_some() {
-            self.accept_object()
-        } else {
-            let mut modifiers = self.accept_prefix_modifiers();
+        let next = self.peek(all()).map(|t| t.ty);
 
-            let next = self.peek(all());
-            let mut number = match next.map(|token| token.ty) {
-                Some(ty) if ty.is_literal() => self.accept_literal()?,
-                Some(Identifier) => self.accept_identifier()?,
-                Some(QuestionMark) => self.accept_question_mark()?,
-                Some(_) => error!(ExpectedNumber: next.unwrap().range()),
-                None => error!(ExpectedNumber: self.error_range_at_end()),
-            };
+        match next {
+            Some(OpenCurlyBracket) => self.accept_object(),
+            Some(OpenSquareBracket) => self.accept_vector(),
+            _ => {
+                let mut modifiers = self.accept_prefix_modifiers();
 
-            modifiers.append(&mut self.accept_suffix_modifiers());
-            number.modifiers.append(&mut modifiers);
+                let next = self.peek(all());
+                let mut number = match next.map(|token| token.ty) {
+                    Some(ty) if ty.is_literal() => self.accept_literal()?,
+                    Some(Identifier) => self.accept_identifier()?,
+                    Some(QuestionMark) => self.accept_question_mark()?,
+                    Some(_) => error!(ExpectedNumber: next.unwrap().range()),
+                    None => error!(ExpectedNumber: self.error_range_at_end()),
+                };
 
-            if let Some(unit) = self.try_accept_unit() {
-                let (unit, unit_range) = unit?;
-                number.unit = Some(unit);
-                number.range.end = unit_range.end;
-            } else if let Some(power) = self.try_accept_unit_prefix() {
-                number.modifiers.push(AstNodeModifier::Power(power));
-            }
+                modifiers.append(&mut self.accept_suffix_modifiers());
+                number.modifiers.append(&mut modifiers);
 
-            if let Some(identifier) = self.peek(is(Identifier)) {
-                if identifier.text == "e" || identifier.text == "E" {
-                    self.index += 1;
+                if let Some(unit) = self.try_accept_unit() {
+                    let (unit, unit_range) = unit?;
+                    number.unit = Some(unit);
+                    number.range.end = unit_range.end;
+                } else if let Some(power) = self.try_accept_unit_prefix() {
+                    number.modifiers.push(AstNodeModifier::Power(power));
+                }
 
-                    let mut modifiers = vec![];
-                    while let Some(sign) = self.try_accept(any(&[Plus, Minus])) {
-                        modifiers.push(match sign.ty {
-                            Plus => AstNodeModifier::Plus,
-                            Minus => AstNodeModifier::Minus,
-                            _ => unreachable!(),
-                        });
-                    }
+                if let Some(identifier) = self.peek(is(Identifier)) {
+                    if identifier.text == "e" || identifier.text == "E" {
+                        self.index += 1;
 
-                    if let Ok(mut exponent) = self.accept_literal() {
-                        exponent.modifiers = modifiers;
+                        let mut modifiers = vec![];
+                        while let Some(sign) = self.try_accept(any(&[Plus, Minus])) {
+                            modifiers.push(match sign.ty {
+                                Plus => AstNodeModifier::Plus,
+                                Minus => AstNodeModifier::Minus,
+                                _ => unreachable!(),
+                            });
+                        }
 
-                        let range = number.range.clone();
-                        let group = vec![
-                            number,
-                            AstNode::new(AstNodeData::Operator(Operator::Multiply), range.clone()),
-                            AstNode::new(AstNodeData::Literal(10.0), range.clone()),
-                            AstNode::new(AstNodeData::Operator(Operator::Exponentiation), range.clone()),
-                            exponent,
-                        ];
+                        if let Ok(mut exponent) = self.accept_literal() {
+                            exponent.modifiers = modifiers;
 
-                        return Ok(AstNode::new(AstNodeData::Group(group), range));
-                    } else {
-                        // If this isn't a scientific notation (i.e. there is no exponent after the "e"),
-                        // revert back to pointing at the "e", so that it can be handled later.
-                        self.index -= 1;
+                            let range = number.range.clone();
+                            let group = vec![
+                                number,
+                                AstNode::new(AstNodeData::Operator(Operator::Multiply), range.clone()),
+                                AstNode::new(AstNodeData::Literal(10.0), range.clone()),
+                                AstNode::new(AstNodeData::Operator(Operator::Exponentiation), range.clone()),
+                                exponent,
+                            ];
+
+                            return Ok(AstNode::new(AstNodeData::Group(group), range));
+                        } else {
+                            // If this isn't a scientific notation (i.e. there is no exponent after the "e"),
+                            // revert back to pointing at the "e", so that it can be handled later.
+                            self.index -= 1;
+                        }
                     }
                 }
-            }
 
-            Ok(number)
+                Ok(number)
+            }
         }
     }
 
@@ -947,57 +952,44 @@ impl<'a> Parser<'a> {
         Ok(ast)
     }
 
+    fn accept_vector(&mut self) -> Result<AstNode> {
+        let opening_bracket = self.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
+        let open_bracket_range = opening_bracket.range();
+
+        let tokens = self.accept_separated(open_bracket_range.clone(), Semicolon, CloseSquareBracket)?;
+
+        let full_range = open_bracket_range.start..self.tokens[self.index - 1].range().end;
+
+        let numbers = tokens.into_iter()
+            .map(|tokens| {
+                let mut parser = Self::new(
+                    tokens,
+                    self.context,
+                    self.nesting_level + 1,
+                    false,
+                    self.question_mark.clone(),
+                );
+                if let Some(vars) = self.extra_allowed_variables { parser.set_extra_allowed_variables(vars); }
+                let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+                Ok(ast)
+            })
+            .map(|ast| ast.and_then(|ast| {
+                let _full_range = crate::engine::full_range(&ast);
+                let Ok(crate::engine::NumberValue { number, .. }) = Engine::evaluate_to_number(ast, self.context) else { error!(ExpectedNumber: _full_range); };
+                Ok(number)
+            }))
+            .collect::<Result<Vec<f64>>>()?;
+
+        Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Vector { numbers })), full_range))
+    }
+
     fn accept_function_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {
         let open_bracket_token = self.accept(is(OpenBracket), MissingOpeningBracket)?;
         let open_bracket_range = open_bracket_token.range();
 
-        let mut arguments: Vec<&[Token]> = vec![];
+        let arguments = self.accept_separated(open_bracket_range.clone(), Comma, CloseBracket)?;
 
-        let mut range_end = 0usize;
-
-        let mut nesting_level = 1usize;
-        let mut argument_start = self.index;
-        while self.index < self.tokens.len() {
-            let Some(token) = self.try_accept(all()) else { continue; };
-            match token.ty {
-                OpenBracket => nesting_level += 1,
-                CloseBracket => {
-                    nesting_level -= 1;
-                    // Ignore brackets that aren't on the base level
-                    if nesting_level != 0 { continue; }
-
-                    // Set range_end here, because otherwise the borrow checker complains because
-                    // we immutably borrowed `token`, and are now trying to mutably borrow
-                    // `self.index` and `self.tokens`.
-                    range_end = token.range().end;
-
-                    if argument_start == self.index - 1 {
-                        let range = self.tokens[argument_start].range().start..self.tokens[self.index - 1].range().end;
-                        error!(ExpectedElements: range);
-                    }
-                    let argument = &self.tokens[argument_start..self.index - 1];
-                    arguments.push(argument);
-
-                    if nesting_level == 0 { break; }
-                }
-                Comma => {
-                    if nesting_level == 1 {
-                        if argument_start == self.index - 1 {
-                            let range = self.tokens[argument_start].range().start..self.tokens[self.index - 1].range().end;
-                            error!(ExpectedElements: range);
-                        }
-                        let argument = &self.tokens[argument_start..self.index - 1];
-                        arguments.push(argument);
-                        argument_start = self.index;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        if nesting_level != 0 {
-            error!(MissingClosingBracket: open_bracket_range);
-        }
+        let range_end = self.tokens[self.index - 1].range().end;
 
         let full_range = open_bracket_range.start..range_end;
 
@@ -1028,6 +1020,54 @@ impl<'a> Parser<'a> {
         }
 
         Ok(result)
+    }
+
+    fn accept_separated<'b>(&mut self, open_bracket_range: Range<usize>, separator: TokenType, end: TokenType) -> Result<Vec<&'b [Token]>>
+        where 'a: 'b {
+        let mut tokens: Vec<&'b [Token]> = vec![];
+
+        let mut nesting_level = 1usize;
+        let mut argument_start = self.index;
+        while self.index < self.tokens.len() {
+            let Some(token) = self.try_accept(all()) else { continue; };
+            let ty = token.ty;
+            if ty == OpenBracket {
+                nesting_level += 1
+            } else if ty == CloseBracket {
+                nesting_level -= 1;
+                // Ignore brackets that aren't on the base level
+                if nesting_level != 0 { continue; }
+            } else if ty == separator && nesting_level == 1 {
+                if argument_start == self.index - 1 {
+                    let range = self.tokens[argument_start].range().start..self.tokens[self.index - 1].range().end;
+                    error!(ExpectedElements: range);
+                }
+                let argument = &self.tokens[argument_start..self.index - 1];
+                tokens.push(argument);
+                argument_start = self.index;
+            }
+
+            if ty == end {
+                if end != CloseBracket {
+                    nesting_level -= 1;
+                }
+
+                if argument_start == self.index - 1 {
+                    let range = self.tokens[argument_start].range().start..self.tokens[self.index - 1].range().end;
+                    error!(ExpectedElements: range);
+                }
+                let argument = &self.tokens[argument_start..self.index - 1];
+                tokens.push(argument);
+
+                if nesting_level == 0 { break; }
+            }
+        }
+
+        if nesting_level != 0 {
+            error!(MissingClosingBracket: open_bracket_range);
+        }
+
+        Ok(tokens)
     }
 
     fn accept_operator(&mut self) -> Result<AstNode> {

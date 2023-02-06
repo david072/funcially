@@ -174,10 +174,10 @@ pub struct Engine<'a> {
 
 impl<'a> Engine<'a> {
     pub(crate) fn evaluate_to_number(ast: Vec<AstNode>, context: Context) -> Result<NumberValue> {
-        let full_range = full_range(&ast);
+        let _full_range = full_range(&ast);
         let result = Engine::evaluate(ast, context)?;
         let Some(result) = result.to_number() else {
-            return Err(ErrorType::ExpectedNumber.with(full_range));
+            return Err(ErrorType::ExpectedNumber.with(_full_range));
         };
         Ok(result.clone())
     }
@@ -566,7 +566,7 @@ impl<'a> Engine<'a> {
     }
 }
 
-fn full_range(ast: &[AstNode]) -> Range<usize> {
+pub fn full_range(ast: &[AstNode]) -> Range<usize> {
     ast.first().unwrap().range.start..ast.last().unwrap().range.end
 }
 
