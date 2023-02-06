@@ -183,8 +183,6 @@ struct App<'a> {
     input_text_cursor_range: CursorRange,
     #[serde(skip)]
     bottom_text: String,
-    #[serde(skip)]
-    cached_help_window_color_segments: Vec<Vec<ColorSegment>>,
 }
 
 impl Default for App<'_> {
@@ -210,7 +208,6 @@ impl Default for App<'_> {
             use_thousands_separator: false,
             input_text_cursor_range: CursorRange::one(Cursor::default()),
             bottom_text: format!("v{VERSION}"),
-            cached_help_window_color_segments: Vec::new(),
         }
     }
 }
@@ -822,9 +819,6 @@ impl eframe::App for App<'_> {
             self.new_version_dialog(ctx);
         }
 
-        if !self.cached_help_window_color_segments.is_empty() && !self.is_help_open {
-            self.cached_help_window_color_segments.clear();
-        }
         if !self.is_debug_info_open { self.debug_information = None; }
 
         FullScreenPlot::new(
