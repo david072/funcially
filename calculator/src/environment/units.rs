@@ -163,8 +163,15 @@ impl Unit {
                             }
                         }
                     }
-                    (num @ Self::Unit(..), denom @ Self::Unit(..)) => {
-                        if num == denom { return false; }
+                    (Self::Unit(num_str, num_pow), Self::Unit(denom_str, denom_pow)) => {
+                        if num_str == denom_str {
+                            if num_pow == denom_pow {
+                                return false;
+                            } else if denom_pow < num_pow {
+                                *num_pow -= *denom_pow;
+                                *self = Self::Unit(num_str.clone(), *num_pow);
+                            }
+                        }
                     }
                     _ => {}
                 }

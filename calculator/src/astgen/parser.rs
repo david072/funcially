@@ -677,8 +677,11 @@ impl<'a> Parser<'a> {
                         Ok((denom, denominator_range)) => {
                             // e.g. `h/h`, which is equal to 1
                             if numerator == denom { return None; }
+
+                            let mut result = Unit::Fraction(Box::new(numerator), Box::new(denom));
+                            if !result.simplify() { return None; }
                             Some(Ok((
-                                Unit::Fraction(Box::new(numerator), Box::new(denom)),
+                                result,
                                 numerator_range.start..denominator_range.end
                             )))
                         }
