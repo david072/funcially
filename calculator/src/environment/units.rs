@@ -171,16 +171,27 @@ impl Unit {
                 }
             }
             Self::Product(units) => {
-                let mut unique_units = HashMap::<&str, f64>::new();
-                for unit in units.iter().filter(|unit| matches!(unit, Unit::Unit(..))) {
-                    let Unit::Unit(unit, power) = unit else { unreachable!(); };
-                    let count = unique_units.entry(unit).or_insert(0.0);
-                    *count += *power;
-                }
+                // Combine equal units into the unit with a power
+                {
+                    let units_value = std::mem::take(units);
 
-                *units = unique_units.iter()
-                    .map(|(unit, power)| Unit::new(unit, *power))
-                    .collect::<Vec<_>>();
+                    let mut unique_units = HashMap::<String, f64>::new();
+                    let mut remaining_units = vec![];
+                    for unit in units_value {
+                        if let Unit::Unit(unit, power) = unit {
+                            let count = unique_units.entry(unit).or_insert(0.0);
+                            *count += power;
+                        } else {
+                            remaining_units.push(unit);
+                        }
+                    }
+
+                    *units = remaining_units.into_iter()
+                        .chain(unique_units.iter()
+                            .map(|(unit, power)| Unit::new(unit, *power))
+                        )
+                        .collect::<Vec<_>>();
+                }
 
                 let mut i = 0usize;
                 while i < units.len() {
