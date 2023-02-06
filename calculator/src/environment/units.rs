@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use std::collections::HashMap;
 use std::ops::Range;
 
 use crate::{common::{ErrorType, Result}, environment::currencies::{Currencies, is_currency}, environment::unit_conversion::{convert_units, format_unit, UNITS}, error};
@@ -175,12 +174,15 @@ impl Unit {
                 {
                     let units_value = std::mem::take(units);
 
-                    let mut unique_units = HashMap::<String, f64>::new();
+                    let mut unique_units: Vec<(String, f64)> = vec![];
                     let mut remaining_units = vec![];
                     for unit in units_value {
                         if let Unit::Unit(unit, power) = unit {
-                            let count = unique_units.entry(unit).or_insert(0.0);
-                            *count += power;
+                            if let Some((_, p)) = unique_units.iter_mut().find(|(str, _)| str == &unit) {
+                                *p += power;
+                            } else {
+                                unique_units.push((unit, power));
+                            }
                         } else {
                             remaining_units.push(unit);
                         }
