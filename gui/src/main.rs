@@ -36,6 +36,7 @@ const ERROR_COLOR: Color = Color::RED;
 const INPUT_TEXT_EDIT_ID: &str = "input-text-edit";
 const PLOT_PANEL_ID: &str = "plot_panel";
 const OUTPUT_PANEL_ID: &str = "output_panel";
+const OUTPUT_PANEL_SCROLL_AREA_ID: &str = "output_panel_scroll_area";
 
 const TOGGLE_COMMENTATION_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::N);
 const SURROUND_WITH_BRACKETS_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::B);
@@ -956,6 +957,8 @@ impl eframe::App for App<'_> {
         if self.is_settings_open { self.settings_window(ctx); }
         if self.is_debug_info_open { self.show_debug_information(ctx); }
 
+        let mut output_scroll_area_id: Option<Id> = None;
+
         if !self.lines.is_empty() {
             #[cfg(not(target_arch = "wasm32"))]
                 let default_width = _frame.info().window_info.size.x * (1.0 / 3.0);
@@ -968,44 +971,58 @@ impl eframe::App for App<'_> {
                     ui.add_space(8.0);
                     ui.spacing_mut().item_spacing.y = 0.0;
 
-                    let mut line_index = 1usize;
-                    for line in &mut self.lines {
-                        if let Line::Line {
-                            output_text: text,
-                            function,
-                            is_error,
-                            show_in_plot,
-                            ..
-                        } = line {
-                            if !*is_error {
-                                if let Some(Function(_, arg_count, _)) = function {
-                                    if *arg_count == 1 {
-                                        ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                                            let mut show_ui = |ui: &mut Ui| {
-                                                ui.checkbox(show_in_plot, "Plot");
-                                            };
+                    let mut style = (**ui.style()).clone();
+                    style.visuals.extreme_bg_color = Color32::TRANSPARENT;
+                    style.visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                    ui.set_style(style);
 
-                                            if ui.available_width() < 30.0 {
-                                                ui.menu_button("☰", show_ui);
-                                            } else {
-                                                show_ui(ui);
+                    let response = ScrollArea::vertical()
+                        .id_source(OUTPUT_PANEL_SCROLL_AREA_ID)
+                        .enable_scrolling(false)
+                        .show(ui, |ui| {
+                            ui.reset_style();
+                            let mut line_index = 1usize;
+                            for line in &mut self.lines {
+                                if let Line::Line {
+                                    output_text: text,
+                                    function,
+                                    is_error,
+                                    show_in_plot,
+                                    ..
+                                } = line {
+                                    if !*is_error {
+                                        if let Some(Function(_, arg_count, _)) = function {
+                                            if *arg_count == 1 {
+                                                ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                                                    let mut show_ui = |ui: &mut Ui| {
+                                                        ui.checkbox(show_in_plot, "Plot");
+                                                    };
+
+                                                    if ui.available_width() < 30.0 {
+                                                        ui.menu_button("☰", show_ui);
+                                                    } else {
+                                                        show_ui(ui);
+                                                    }
+                                                    ui.add_space(-2.0);
+                                                });
+                                                continue;
                                             }
-                                            ui.add_space(-2.0);
-                                        });
-                                        continue;
+                                        }
                                     }
+
+                                    output_text(ui, text, FONT_ID, line_index);
+                                } else {
+                                    ui.add_space(FONT_SIZE + 2.0);
+                                }
+
+                                if matches!(line, Line::Line { .. } | Line::Empty) {
+                                    line_index += 1;
                                 }
                             }
+                        });
 
-                            output_text(ui, text, FONT_ID, line_index);
-                        } else {
-                            ui.add_space(FONT_SIZE + 2.0);
-                        }
-
-                        if matches!(line, Line::Line { .. } | Line::Empty) {
-                            line_index += 1;
-                        }
-                    }
+                    output_scroll_area_id = Some(response.id);
+                    ui.reset_style();
                 });
         }
 
@@ -1015,7 +1032,7 @@ impl eframe::App for App<'_> {
             // FIXME: Scroll bar is too long (potential issue in egui?)
             let rows = ((ui.available_height() - TEXT_EDIT_MARGIN.y) / FONT_SIZE) as usize;
 
-            ScrollArea::vertical().show(ui, |ui| {
+            let response = ScrollArea::vertical().show(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
                     let char_width = ui.fonts().glyph_width(&FONT_ID, '0') + 2.0;
 
@@ -1122,6 +1139,13 @@ impl eframe::App for App<'_> {
                     self.handle_shortcuts(ui);
                 });
             });
+
+            if let Some(id) = output_scroll_area_id {
+                if let Some(mut output_scroll_state) = scroll_area::State::load(ctx, id) {
+                    output_scroll_state.offset = response.state.offset;
+                    output_scroll_state.store(ctx, id);
+                }
+            }
         });
 
         self.first_frame = false;
