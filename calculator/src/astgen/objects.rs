@@ -278,6 +278,12 @@ pub struct Vector {
     pub(crate) numbers: Vec<f64>,
 }
 
+impl Vector {
+    pub(crate) fn length(&self) -> f64 {
+        self.numbers.iter().fold(0f64, |acc, n| acc + n.powi(2)).sqrt()
+    }
+}
+
 impl Object for Vector {
     fn to_string(&self, _: &Settings) -> String {
         let mut result = "[".to_string();

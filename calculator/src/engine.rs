@@ -468,7 +468,23 @@ impl<'a> Engine<'a> {
                 _ => continue,
             };
 
-            let mut args = vec![];
+
+            // TODO: Make this generic!?
+            let mut first_arg: Option<NumberValue> = None;
+            if func_name == "abs" && arg_asts.len() == 1 {
+                match Self::evaluate(arg_asts[0].clone(), self.context)? {
+                    Value::Number(number) => first_arg = Some(number),
+                    Value::Object(CalculatorObject::Vector(vector)) => {
+                        let result = vector.length();
+                        let new_node = AstNode::from(node, AstNodeData::Literal(result));
+                        let _ = replace(node, new_node);
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+
+            let mut args = if let Some(arg) = first_arg { vec![arg] } else { vec![] };
             for ast in arg_asts {
                 args.push(Self::evaluate_to_number(ast.clone(), self.context)?);
             }
