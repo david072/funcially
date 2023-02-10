@@ -1003,8 +1003,9 @@ impl eframe::App for App<'_> {
                                                     } else {
                                                         show_ui(ui);
                                                     }
-                                                    ui.add_space(-2.0);
                                                 });
+
+                                                ui.add_space(-6.5);
 
                                                 if matches!(line, Line::Line { .. } | Line::Empty) {
                                                     line_index += 1;
