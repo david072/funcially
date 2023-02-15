@@ -341,7 +341,7 @@ impl<'a> Calculator<'a> {
 
         let tokens = tokenize(line)?;
 
-        let mut is_in_square_brackets = false;
+        let mut is_in_unit = false;
         let mut is_in_object = false;
 
         let mut new_line = String::new();
@@ -397,10 +397,10 @@ impl<'a> Calculator<'a> {
                     new_line.push(' ');
                 }
 
-                if token.ty == OpenSquareBracket {
-                    is_in_square_brackets = true;
+                if token.ty == OpenSquareBracket && i != 0 && !tokens[i - 1].ty.is_operator() {
+                    is_in_unit = true;
                 } else if token.ty == CloseSquareBracket {
-                    is_in_square_brackets = false;
+                    is_in_unit = false;
                 }
 
                 if token.ty == OpenCurlyBracket {
@@ -450,11 +450,11 @@ impl<'a> Calculator<'a> {
 
                 if !(token.ty.is_format() && tokens.get(i.saturating_sub(1))
                     .map_or(false, |t| t.ty == In)) &&
-                    token.ty != Exponentiation && !is_in_square_brackets {
+                    token.ty != Exponentiation && !is_in_unit {
                     new_line.push(' ');
                 }
                 new_line += text;
-                if i != tokens.len() - 1 && token.ty != Exponentiation && !is_in_square_brackets {
+                if i != tokens.len() - 1 && token.ty != Exponentiation && !is_in_unit {
                     new_line.push(' ');
                 }
             } else if matches!(token.ty, Comma | Semicolon) {
