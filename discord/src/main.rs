@@ -344,23 +344,36 @@ mod commands {
                             save_sessions(sessions.clone(), guild_id);
                         }
                     }
-                    Err(error) => {
+                    Err(mut error) => {
                         embed.color(Colour::DARK_RED)
                             .title(error.error.to_string());
 
-                        let slice_start = std::cmp::max(0, error.start as isize - 5) as usize;
-                        let slice_end = std::cmp::min(input.len(), error.end + 5);
+                        error.ranges.sort_by(|r1, r2| r1.clone().cmp(r2.clone().into_iter()));
+                        let ranges = &error.ranges;
+
+                        let slice_start = std::cmp::max(0, ranges.first().unwrap().start as isize - 5) as usize;
+                        let slice_end = std::cmp::min(input.len(), ranges.last().unwrap().end + 5);
                         let slice = &input[slice_start..slice_end];
 
                         let mut description = "```\n".to_string() + slice;
                         description.push('\n');
 
-                        for _ in 0..error.start - slice_start {
-                            description += "\u{200b} ";
-                        }
-                        description.push('^');
-                        for _ in 0..error.end - error.start - 1 {
-                            description.push('-');
+                        let mut last_end = 0usize;
+                        for range in ranges {
+                            // Offset the range so that it is in the range of our slice
+                            let range = range.start - slice_start..range.end - slice_start;
+
+                            for _ in last_end..range.start {
+                                description += "\u{200b} ";
+                                last_end += 1;
+                            }
+
+                            description.push('^');
+                            for _ in 0..range.end - range.start - 1 {
+                                description.push('-');
+                                last_end += 1;
+                            }
+                            last_end += 1;
                         }
 
                         description.push(' ');

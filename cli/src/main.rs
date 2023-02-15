@@ -64,7 +64,7 @@ fn main() {
     let mut calculator = Calculator::new(verbosity, settings);
 
     if let Some(input) = matches.get_many::<String>("input") {
-        let input = input.fold(String::new(), |acc, s| acc + s );
+        let input = input.fold(String::new(), |acc, s| acc + s);
         calculate_and_print(input, &mut calculator, use_thousands_separator);
         return;
     }
@@ -167,20 +167,34 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
                     }
                     ResultData::Function { .. } | ResultData::Nothing => {}
                 },
-                Err(error) => {
+                Err(mut error) => {
                     eprintln!("{}: {}", "Error".red(), error.error);
 
-                    let slice_start = std::cmp::max(0, error.start as isize - 5) as usize;
-                    let slice_end = std::cmp::min(input.len(), error.end + 5);
+                    error.ranges.sort_by(|r1, r2| r1.clone().cmp(r2.clone().into_iter()));
+                    let ranges = &error.ranges;
+
+                    let slice_start = std::cmp::max(0, ranges.first().unwrap().start as isize - 5) as usize;
+                    let slice_end = std::cmp::min(input.len(), ranges.last().unwrap().end + 5);
                     let slice = &input[slice_start..slice_end];
                     eprintln!("{slice}");
 
-                    for _ in 0..error.start - slice_start {
-                        eprint!(" ");
-                    }
-                    eprint!("{}", "^".cyan());
-                    for _ in 0..error.end - error.start - 1 {
-                        eprint!("{}", "-".cyan());
+                    let mut last_end = 0usize;
+
+                    for range in ranges {
+                        // Offset the range so that it is in the range of our slice
+                        let range = range.start - slice_start..range.end - slice_start;
+
+                        for _ in last_end..range.start {
+                            eprint!(" ");
+                            last_end += 1;
+                        }
+
+                        eprint!("{}", "^".cyan());
+                        for _ in 0..range.end - range.start - 1 {
+                            eprint!("{}", "-".cyan());
+                            last_end += 1;
+                        }
+                        last_end += 1;
                     }
 
                     eprintln!(" {}", error.error.to_string().cyan());

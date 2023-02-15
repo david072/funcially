@@ -293,7 +293,9 @@ impl App<'_> {
             }
             Err(e) => {
                 is_error = true;
-                color_segments.push(ColorSegment::new(e.start..e.end, ERROR_COLOR));
+                for range in e.ranges {
+                    color_segments.push(ColorSegment::new(range, ERROR_COLOR));
+                }
                 format!("{}", e.error)
             }
         };
@@ -323,7 +325,8 @@ impl App<'_> {
 
             let debug_information = match self.calculator.get_debug_info(line, Verbosity::Ast) {
                 Ok(info) => Some(info),
-                Err(e) => Some(format!("Error generating debug information: {}, {}..{}", e.error, e.start, e.end))
+                // TODO: Move to get_debug_info
+                Err(e) => Some(format!("Error generating debug information: {}, {}..{}", e.error, e.ranges.first().unwrap().start, e.ranges.first().unwrap().end))
             };
 
             self.debug_information = debug_information;

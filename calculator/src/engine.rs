@@ -330,8 +330,8 @@ impl<'a> Engine<'a> {
                                     // TODO: Maybe somehow show the corresponding variable
                                     //  reference in the function source in addition to this.
                                     let range = question_mark_range.unwrap();
-                                    e.start = range.start;
-                                    e.end = range.end;
+                                    e.ranges.first_mut().unwrap().start = range.start;
+                                    e.ranges.first_mut().unwrap().end = range.end;
                                     return Err(e);
                                 }
                             }

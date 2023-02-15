@@ -532,7 +532,11 @@ impl<'a> Calculator<'a> {
                     }
                 }
                 Err(e) => {
-                    writeln_or_err!(&mut output, "Error while parsing: {} at {}..{}", e.error, e.start, e.end);
+                    writeln_or_err!(&mut output, "Error while parsing: {} at", e.error);
+                    for range in e.ranges {
+                        writeln_or_err!(&mut output, "\t{range:?}")
+                    }
+
                     return Ok(output);
                 }
             }

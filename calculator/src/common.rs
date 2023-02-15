@@ -167,8 +167,14 @@ impl ErrorType {
     pub fn with(self, range: Range<usize>) -> Error {
         Error {
             error: self,
-            start: range.start,
-            end: range.end,
+            ranges: vec![range],
+        }
+    }
+
+    pub fn with_multiple(self, ranges: Vec<Range<usize>>) -> Error {
+        Error {
+            error: self,
+            ranges,
         }
     }
 }
@@ -176,8 +182,7 @@ impl ErrorType {
 #[derive(Debug, Clone)]
 pub struct Error {
     pub error: ErrorType,
-    pub start: usize,
-    pub end: usize,
+    pub ranges: Vec<Range<usize>>,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
