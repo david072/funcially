@@ -183,6 +183,8 @@ struct App<'a> {
     #[serde(skip)]
     input_text_cursor_range: CursorRange,
     #[serde(skip)]
+    should_scroll_to_input_text_cursor: bool,
+    #[serde(skip)]
     bottom_text: String,
 }
 
@@ -208,6 +210,7 @@ impl Default for App<'_> {
             debug_information: None,
             use_thousands_separator: false,
             input_text_cursor_range: CursorRange::one(Cursor::default()),
+            should_scroll_to_input_text_cursor: false,
             bottom_text: format!("v{VERSION}"),
         }
     }
@@ -714,9 +717,13 @@ impl App<'_> {
             &self.source,
         ).show(ctx);
 
-        if result {
+        if let Some(cursor_changed) = result {
             self.is_ui_enabled = true;
             self.input_should_request_focus = true;
+
+            if cursor_changed {
+                self.should_scroll_to_input_text_cursor = true;
+            }
         }
     }
 
@@ -1114,7 +1121,7 @@ impl eframe::App for App<'_> {
                         ))
                         .show(ui);
 
-                    self.update_lines(output.galley);
+                    self.update_lines(output.galley.clone());
 
                     if let Some(range) = output.cursor_range {
                         self.input_text_cursor_range = range;
@@ -1130,6 +1137,14 @@ impl eframe::App for App<'_> {
                                     self.source.insert(range.primary.ccursor.index, c);
                                 }
                             }
+                        }
+
+                        if self.should_scroll_to_input_text_cursor {
+                            let cursor_pos = output.galley
+                                .pos_from_cursor(&range.primary)
+                                .translate(output.response.rect.min.to_vec2());
+                            ui.scroll_to_rect(cursor_pos, None);
+                            self.should_scroll_to_input_text_cursor = false;
                         }
                     }
 
