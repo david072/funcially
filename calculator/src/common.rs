@@ -12,11 +12,11 @@ const CRATE_NAME: &str = "funcially";
 
 #[macro_export]
 macro_rules! error {
-    ($ty:ident: $range:expr) => {
-        return Err(ErrorType::$ty.with($range))
+    ($ty:ident: $($range:expr),+) => {
+        return Err(ErrorType::$ty.with_multiple(vec![$($range),+]))
     };
-    ($ty:ident($($arg:expr),+): $range:expr) => {
-        return Err(ErrorType::$ty($($arg),+).with($range))
+    ($ty:ident($($arg:expr),+): $($range:expr),+) => {
+        return Err(ErrorType::$ty($($arg),+).with_multiple(vec![$($range),+]))
     };
 }
 

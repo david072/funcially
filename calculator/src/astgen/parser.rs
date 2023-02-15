@@ -256,15 +256,27 @@ impl<'a> Parser<'a> {
 
         try_token!(self.accept(is(OpenBracket), ExpectedOpenBracket));
 
-        let first_arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier).text.clone();
+        let first_arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier);
+        let first_arg_text = first_arg.text.clone();
+        let first_arg_range = first_arg.range();
+
+        let mut unit_range: Option<Range<usize>> = None;
         let unit = self.try_accept_unit()
             .and_then(|unit| {
                 unit.map_or_else(|e| {
                     first_error = Some(e);
                     None
-                }, |(unit, ..)| Some(unit))
+                }, |(unit, range)| {
+                    unit_range = Some(range);
+                    Some(unit)
+                })
             });
-        let mut args = vec![(first_arg, unit)];
+        let mut range = first_arg_range;
+        if let Some(unit_range) = unit_range {
+            range.end = unit_range.end;
+        }
+
+        let mut args = vec![(first_arg_text, unit, range)];
 
         let _close_bracket = Token::empty_from_type(CloseBracket);
         loop {
@@ -273,19 +285,32 @@ impl<'a> Parser<'a> {
                 Comma => {
                     let next_arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier);
                     let next_arg_text = next_arg.text.clone();
-                    if args.iter().any(|(arg, ..)| *arg == next_arg_text) && first_error.is_none() {
-                        first_error = Some(DuplicateArgument(next_arg.text.clone()).with(next_arg.range()));
-                        continue;
+                    let next_arg_range = next_arg.range();
+
+                    if first_error.is_none() {
+                        if let Some((_, _, first_occurrence_range)) = args.iter().find(|(arg, ..)| *arg == next_arg_text) {
+                            first_error = Some(DuplicateArgument(next_arg.text.clone()).with_multiple(vec![next_arg.range(), first_occurrence_range.clone()]));
+                            continue;
+                        }
                     }
 
+                    let mut unit_range: Option<Range<usize>> = None;
                     let unit = self.try_accept_unit()
                         .and_then(|unit| {
                             unit.map_or_else(|e| {
                                 first_error = Some(e);
                                 None
-                            }, |(unit, ..)| Some(unit))
+                            }, |(unit, range)| {
+                                unit_range = Some(range);
+                                Some(unit)
+                            })
                         });
-                    args.push((next_arg_text, unit));
+                    let mut range = next_arg_range;
+                    if let Some(unit_range) = unit_range {
+                        range.end = unit_range.end;
+                    }
+
+                    args.push((next_arg_text, unit, range));
                 }
                 CloseBracket => break,
                 _ => unreachable!(),
@@ -301,6 +326,9 @@ impl<'a> Parser<'a> {
                 if let Some(e) = first_error {
                     Err(e)
                 } else {
+                    let args = args.into_iter()
+                        .map(|(arg, unit, _)| (arg, unit))
+                        .collect::<Vec<_>>();
                     Ok((name, args))
                 }
             )

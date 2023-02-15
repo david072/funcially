@@ -250,7 +250,7 @@ impl Object for DateObject {
             Operator::Minus => match other.data {
                 AstNodeData::Literal(n) => {
                     if self_is_rhs {
-                        return Err(ErrorType::WrongOrder.with(other.range.start..self_range.end));
+                        return Err(ErrorType::WrongOrder.with_multiple(vec![other.range.clone(), self_range]));
                     }
 
                     let n = as_nanoseconds(other.unit.as_ref(), n, other.range.clone())? as i64;
@@ -310,7 +310,7 @@ impl Object for Vector {
             Operator::Plus | Operator::Minus => {
                 let AstNodeData::Object(CalculatorObject::Vector(other_vec)) = &other.data else { error!(ExpectedVector: other.range.clone()); };
                 if numbers.len() != other_vec.numbers.len() {
-                    error!(VectorLengthsNotMatching: self_range.start..other.range.end);
+                    error!(VectorLengthsNotMatching: self_range, other.range.clone());
                 }
 
                 let numbers = numbers.into_iter()
