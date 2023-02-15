@@ -323,13 +323,8 @@ impl App<'_> {
                 line = &line[0..comment_start];
             }
 
-            let debug_information = match self.calculator.get_debug_info(line, Verbosity::Ast) {
-                Ok(info) => Some(info),
-                // TODO: Move to get_debug_info
-                Err(e) => Some(format!("Error generating debug information: {}, {}..{}", e.error, e.ranges.first().unwrap().start, e.ranges.first().unwrap().end))
-            };
-
-            self.debug_information = debug_information;
+            let debug_information = self.calculator.get_debug_info(line, Verbosity::Ast);
+            self.debug_information = Some(debug_information);
             break;
         }
     }

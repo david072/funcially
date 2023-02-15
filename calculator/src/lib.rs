@@ -457,10 +457,21 @@ impl<'a> Calculator<'a> {
         Ok(new_line.to_string())
     }
 
-    pub fn get_debug_info(&self, input: &str, verbosity: Verbosity) -> Result<String> {
+    pub fn get_debug_info(&self, input: &str, verbosity: Verbosity) -> String {
         let mut output = "Line:\n".to_string();
 
-        let tokens = tokenize(input)?;
+        let tokens = match tokenize(input) {
+            Ok(tokens) => tokens,
+            Err(e) => {
+                writeln!(&mut output, "Error while tokenizing: {} at", e.error).unwrap();
+                for range in e.ranges {
+                    writeln!(&mut output, "\t{range:?}").unwrap();
+                }
+
+                return output;
+            }
+        };
+
         if matches!(verbosity, Verbosity::Tokens | Verbosity::Ast) {
             writeln!(&mut output, "Tokens:").unwrap();
             for token in &tokens {
@@ -521,13 +532,11 @@ impl<'a> Calculator<'a> {
                         writeln!(&mut output, "\t{range:?}").unwrap();
                     }
 
-                    return Ok(output);
+                    return output;
                 }
             }
         }
 
-        output += &format!("\nEnvironment:\n{}", self.env().get_debug_info());
-
-        Ok(output)
+        output + &format!("\nEnvironment:\n{}", self.env().get_debug_info())
     }
 }
