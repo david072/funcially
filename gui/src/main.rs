@@ -6,12 +6,14 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use std::cmp::Ordering;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
 use eframe::{CreationContext, Frame, Storage};
 use eframe::egui;
 use eframe::egui::panel::PanelState;
+use eframe::egui::text::CCursorRange;
 use eframe::egui::text_edit::{CursorRange, TextEditState};
 use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
@@ -246,14 +248,14 @@ impl App<'_> {
             response.sort_by(|first, second| {
                 match version_compare::compare(&first.name, &second.name) {
                     Ok(cmp) => match cmp {
-                        version_compare::Cmp::Lt => std::cmp::Ordering::Less,
-                        version_compare::Cmp::Eq => std::cmp::Ordering::Equal,
-                        version_compare::Cmp::Gt => std::cmp::Ordering::Greater,
+                        version_compare::Cmp::Lt => Ordering::Less,
+                        version_compare::Cmp::Eq => Ordering::Equal,
+                        version_compare::Cmp::Gt => Ordering::Greater,
                         _ => unreachable!(),
                     }
                     Err(_) => {
                         eprintln!("Failed to compare versions {} and {}", first.name, second.name);
-                        std::cmp::Ordering::Equal
+                        Ordering::Equal
                     }
                 }
             });
@@ -432,6 +434,13 @@ impl App<'_> {
         }
     }
 
+    fn set_input_text_edit_ccursor_range(&self, ctx: &Context, range: CCursorRange) {
+        if let Some(mut state) = TextEditState::load(ctx, Id::new(INPUT_TEXT_EDIT_ID)) {
+            state.set_ccursor_range(Some(range));
+            state.store(ctx, Id::new(INPUT_TEXT_EDIT_ID));
+        }
+    }
+
     fn plot_panel(&mut self, ctx: &Context) {
         if FullScreenPlot::is_fullscreen(ctx) { return; }
 
@@ -574,10 +583,10 @@ impl App<'_> {
     /// Handles shortcuts that modify what's inside the textedit => needs a cursor range
     fn handle_text_edit_shortcuts(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
         if ui.input_mut().consume_shortcut(&TOGGLE_COMMENTATION_SHORTCUT) {
-            self.toggle_commentation(cursor_range);
+            self.toggle_commentation(ui.ctx(), cursor_range);
         }
         if ui.input_mut().consume_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT) {
-            self.surround_selection_with_brackets(cursor_range);
+            self.surround_selection_with_brackets(ui.ctx(), cursor_range);
         }
         if ui.input_mut().consume_shortcut(&COPY_RESULT_SHORTCUT) {
             self.copy_result(ui, cursor_range);
@@ -597,9 +606,27 @@ impl App<'_> {
         }
     }
 
-    fn toggle_commentation(&mut self, cursor_range: CursorRange) {
-        let start_line = cursor_range.primary.pcursor.paragraph;
-        let end_line = cursor_range.secondary.pcursor.paragraph;
+    fn toggle_commentation(&mut self, ctx: &Context, cursor_range: CursorRange) {
+        let primary_paragraph = cursor_range.primary.pcursor.paragraph;
+        let secondary_paragraph = cursor_range.secondary.pcursor.paragraph;
+        let start_line = primary_paragraph.min(secondary_paragraph);
+        let end_line = primary_paragraph.max(secondary_paragraph);
+
+        let mut ccursor_range = cursor_range.as_ccursor_range();
+
+        fn mut_start_index(range: &mut CCursorRange) -> &mut usize {
+            [&mut range.primary.index, &mut range.secondary.index]
+                .into_iter()
+                .min()
+                .unwrap()
+        }
+
+        fn mut_end_index(range: &mut CCursorRange) -> &mut usize {
+            [&mut range.primary.index, &mut range.secondary.index]
+                .into_iter()
+                .max()
+                .unwrap()
+        }
 
         let has_uncommented_line = self.source.lines()
             .skip(start_line)
@@ -611,6 +638,7 @@ impl App<'_> {
         // uncommented lines too.
         // Otherwise, we uncomment, since all lines are commented.
 
+        let mut char_diff = 0i32;
         let mut new_source = String::new();
         let line_count = self.source.lines().count();
         for (i, line) in self.source.lines().enumerate() {
@@ -630,8 +658,13 @@ impl App<'_> {
                 if !line.trim_start().starts_with('#') {
                     for _ in 0..offset { new_source.push(' '); }
                     new_source.push('#');
+                    char_diff += 1;
                     new_source += &line[offset..];
                     if i != line_count - 1 { new_source.push('\n'); }
+
+                    if i == start_line {
+                        *mut_start_index(&mut ccursor_range) += 1;
+                    }
                 } else {
                     new_source += line;
                     if i != line_count - 1 { new_source.push('\n'); }
@@ -641,17 +674,33 @@ impl App<'_> {
                 new_source += line.chars()
                     .skip(offset + 1)
                     .collect::<String>().as_str();
+                char_diff -= 1;
                 if i != line_count - 1 { new_source.push('\n'); }
+
+                if i == start_line {
+                    *mut_start_index(&mut ccursor_range) -= 1;
+                }
             }
         }
 
         self.source = new_source;
+
+        let end_index = mut_end_index(&mut ccursor_range);
+        match char_diff.cmp(&0) {
+            Ordering::Greater => *end_index += char_diff as usize,
+            Ordering::Less => *end_index -= (-char_diff) as usize,
+            _ => {}
+        }
+
+        self.set_input_text_edit_ccursor_range(ctx, ccursor_range);
     }
 
-    fn surround_selection_with_brackets(&mut self, cursor_range: CursorRange) {
+    fn surround_selection_with_brackets(&mut self, ctx: &Context, cursor_range: CursorRange) {
         // Check that we have a range spanning only one line
         let primary = &cursor_range.primary.pcursor;
         let secondary = &cursor_range.secondary.pcursor;
+
+        let mut ccursor_range = cursor_range.as_ccursor_range();
 
         if (*primary == *secondary) || (primary.paragraph != secondary.paragraph) {
             return;
@@ -678,7 +727,11 @@ impl App<'_> {
             }
         }
 
+        ccursor_range.primary.index += 1;
+        ccursor_range.secondary.index += 1;
+
         self.source = new_source;
+        self.set_input_text_edit_ccursor_range(ctx, ccursor_range);
     }
 
     fn copy_result(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
@@ -870,13 +923,13 @@ impl eframe::App for App<'_> {
                 ui.menu_button("Edit", |ui| {
                     let shortcut = ui.ctx().format_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT);
                     if shortcut_button(ui, "Surround selection with brackets", &shortcut).clicked() {
-                        self.surround_selection_with_brackets(self.input_text_cursor_range);
+                        self.surround_selection_with_brackets(ctx, self.input_text_cursor_range);
                         ui.close_menu();
                     }
 
                     let shortcut = ui.ctx().format_shortcut(&TOGGLE_COMMENTATION_SHORTCUT);
                     if shortcut_button(ui, "(Un)Comment selected lines", &shortcut).clicked() {
-                        self.toggle_commentation(self.input_text_cursor_range);
+                        self.toggle_commentation(ctx, self.input_text_cursor_range);
                         ui.close_menu();
                     }
 
