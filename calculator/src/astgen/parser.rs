@@ -260,23 +260,15 @@ impl<'a> Parser<'a> {
         let first_arg_text = first_arg.text.clone();
         let first_arg_range = first_arg.range();
 
-        let mut unit_range: Option<Range<usize>> = None;
         let unit = self.try_accept_unit()
             .and_then(|unit| {
                 unit.map_or_else(|e| {
                     first_error = Some(e);
                     None
-                }, |(unit, range)| {
-                    unit_range = Some(range);
-                    Some(unit)
-                })
+                }, |unit| Some(unit))
             });
-        let mut range = first_arg_range;
-        if let Some(unit_range) = unit_range {
-            range.end = unit_range.end;
-        }
 
-        let mut args = vec![(first_arg_text, unit, range)];
+        let mut args = vec![(first_arg_text, unit, first_arg_range)];
 
         let _close_bracket = Token::empty_from_type(CloseBracket);
         loop {
@@ -294,23 +286,14 @@ impl<'a> Parser<'a> {
                         }
                     }
 
-                    let mut unit_range: Option<Range<usize>> = None;
                     let unit = self.try_accept_unit()
                         .and_then(|unit| {
                             unit.map_or_else(|e| {
                                 first_error = Some(e);
                                 None
-                            }, |(unit, range)| {
-                                unit_range = Some(range);
-                                Some(unit)
-                            })
+                            }, |unit| Some(unit))
                         });
-                    let mut range = next_arg_range;
-                    if let Some(unit_range) = unit_range {
-                        range.end = unit_range.end;
-                    }
-
-                    args.push((next_arg_text, unit, range));
+                    args.push((next_arg_text, unit, next_arg_range));
                 }
                 CloseBracket => break,
                 _ => unreachable!(),
@@ -402,10 +385,7 @@ impl<'a> Parser<'a> {
                         AstNode::new(AstNodeData::Group(group), range)
                     };
 
-                    if let Some((unit, unit_range)) = unit {
-                        node.unit = Some(unit);
-                        node.range.end = unit_range.end;
-                    }
+                    node.unit = unit;
 
                     ast!().push(node);
                     self.nesting_level -= 1;
@@ -421,10 +401,12 @@ impl<'a> Parser<'a> {
                     let AstNodeData::Operator(operator) = op.data else { unreachable!(); };
                     // RHS of `in` (unit / format)
                     if operator == Operator::In {
+                        let start = self.tokens.get(self.index).map(|t| t.range().start);
                         if let Some(unit) = self.try_accept_unit() {
-                            let (unit, range) = unit?;
+                            let end = self.tokens[self.index - 1].range().start;
+                            let unit = unit?;
                             ast!().push(op);
-                            ast!().push(AstNode::new(AstNodeData::Unit(unit), range));
+                            ast!().push(AstNode::new(AstNodeData::Unit(unit), start.unwrap()..end));
                             continue;
                         } else if let Some(format) = self.try_accept(|ty| ty.is_format()) {
                             let format = match format.ty {
@@ -560,9 +542,7 @@ impl<'a> Parser<'a> {
                 number.modifiers.append(&mut modifiers);
 
                 if let Some(unit) = self.try_accept_unit() {
-                    let (unit, unit_range) = unit?;
-                    number.unit = Some(unit);
-                    number.range.end = unit_range.end;
+                    number.unit = Some(unit?);
                 } else if let Some(power) = self.try_accept_unit_prefix() {
                     number.modifiers.push(AstNodeModifier::Power(power));
                 }
@@ -684,13 +664,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn try_accept_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
+    fn try_accept_unit(&mut self) -> Option<Result<Unit>> {
         if self.peek(is(OpenSquareBracket)).is_some() {
-            return self.accept_complex_unit();
+            return self.accept_complex_unit().map(|res| res.map(|(unit, ..)| unit));
         }
 
         let Some(numerator) = self.try_accept_single_unit() else { return None; };
-        let (numerator, numerator_range) = match numerator {
+        let numerator = match numerator {
             Ok(v) => v,
             Err(e) => return Some(Err(e)),
         };
@@ -707,16 +687,13 @@ impl<'a> Parser<'a> {
 
                 if let Some(denominator) = self.try_accept_single_unit() {
                     return match denominator {
-                        Ok((denom, denominator_range)) => {
+                        Ok(denom) => {
                             // e.g. `h/h`, which is equal to 1
                             if numerator == denom { return None; }
 
                             let mut result = Unit::Fraction(Box::new(numerator), Box::new(denom));
                             if !result.simplify() { return None; }
-                            Some(Ok((
-                                result,
-                                numerator_range.start..denominator_range.end
-                            )))
+                            Some(Ok(result))
                         }
                         Err(e) => Some(Err(e)),
                     };
@@ -726,7 +703,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Some(Ok((numerator, numerator_range)))
+        Some(Ok(numerator))
     }
 
     fn accept_complex_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
@@ -803,8 +780,10 @@ impl<'a> Parser<'a> {
                     let Some(unit) = self.try_accept_single_unit() else {
                         error!(ExpectedUnit: token_range);
                     };
-                    let (unit, unit_range) = unit?;
-                    result_range.end = unit_range.end;
+                    let unit = unit?;
+                    // try_accept_single_unit always returns a Unit::Unit, so this is safe
+                    let Unit::Unit(.., range) = &unit else { unreachable!(); };
+                    result_range.end = range.end;
 
                     if let Some(numerator) = numerator.take() {
                         result.push(Unit::Fraction(Box::new(numerator), Box::new(unit)));
@@ -831,7 +810,7 @@ impl<'a> Parser<'a> {
         Ok((result, result_range))
     }
 
-    fn try_accept_single_unit(&mut self) -> Option<Result<(Unit, Range<usize>)>> {
+    fn try_accept_single_unit(&mut self) -> Option<Result<Unit>> {
         let Some(unit) = self.peek(is(Identifier)) else { return None; };
         if !is_unit_with_prefix(&unit.text) { return None; }
 
@@ -853,7 +832,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Some(Ok((Unit::Unit(unit, power), unit_range)))
+        Some(Ok(Unit::Unit(unit, power, unit_range)))
     }
 
     fn accept_identifier(&mut self) -> Result<AstNode> {

@@ -321,11 +321,11 @@ fn unit_prefix(unit: &str) -> Option<(char, i32)> {
 }
 
 pub fn convert_units(
-    (src_unit, src_power): (&str, f64),
-    (dst_unit, dst_power): (&str, f64),
+    (src_unit, src_power, src_range): (&str, f64, Range<usize>),
+    (dst_unit, dst_power, dst_range): (&str, f64, Range<usize>),
     x: f64,
     currencies: &Currencies,
-    range: &Range<usize>,
+    range: &Range<usize>
  ) -> Result<f64> {
     if src_unit == dst_unit {
         if src_power != dst_power {
@@ -379,10 +379,10 @@ pub fn convert_units(
                     Err(ErrorType::UnknownConversion(
                         format!("{src_unit}{}", if src_power != 1.0 { format!("^{src_power}") } else { String::new() }),
                         format!("{dst_unit}{}", if dst_power != 1.0 { format!("^{dst_power}") } else { String::new() })
-                     ).with(range.clone()))
+                     ).with_multiple(vec![src_range, dst_range]))
                 }
                 else {
-                    currencies.convert(src, dst, x, range)
+                    currencies.convert(src, src_range, dst, dst_range, x)
                }
             }
         }

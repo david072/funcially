@@ -49,7 +49,14 @@ impl Currencies {
 
     pub fn update() { updating::update_currencies(None); }
 
-    pub fn convert(&self, src_curr: &str, dst_curr: &str, n: f64, range: &Range<usize>) -> Result<f64> {
+    pub fn convert(
+        &self,
+        src_curr: &str,
+        src_range: Range<usize>,
+        dst_curr: &str,
+        dst_range: Range<usize>,
+        n: f64,
+    ) -> Result<f64> {
         if src_curr == dst_curr { return Ok(n); }
 
         let base = &*self.base.lock().unwrap();
@@ -72,7 +79,7 @@ impl Currencies {
             value /= match get_currency(src_curr) {
                 Some(v) => v,
                 None => return Err(ErrorType::UnknownIdentifier(src_curr.to_owned())
-                    .with(range.clone())),
+                    .with(src_range)),
             };
         }
         // Convert from base currency to dst currency if needed
@@ -80,7 +87,7 @@ impl Currencies {
             value *= match get_currency(dst_curr) {
                 Some(v) => v,
                 None => return Err(ErrorType::UnknownIdentifier(dst_curr.to_owned())
-                    .with(range.clone())),
+                    .with(dst_range)),
             };
         }
 

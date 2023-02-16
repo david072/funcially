@@ -210,7 +210,7 @@ impl Environment {
         let args = arg_results.iter().map(|r| r.number).collect::<Vec<_>>();
 
         let as_radians = |i: usize| {
-            if let Some(Unit::Unit(str, power)) = &arg_results[i].unit {
+            if let Some(Unit::Unit(str, power, ..)) = &arg_results[i].unit {
                 if str == "°" && *power == 1.0 {
                     return args[i].to_radians();
                 }
