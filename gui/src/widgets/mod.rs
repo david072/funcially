@@ -20,13 +20,13 @@ macro_rules! storable {
     ($st:ident) => {
         impl $st {
             pub fn load(ctx: &Context, id: &str) -> $st {
-                ctx.data()
+                ctx.data_mut(|data| data
                     .get_temp(Id::new(id))
-                    .unwrap_or_default()
+                    .unwrap_or_default())
             }
 
             pub fn store(self, ctx: &Context, id: &str) {
-                ctx.data().insert_temp(Id::new(id), self)
+                ctx.data_mut(|data| data.insert_temp(Id::new(id), self))
             }
         }
     }
@@ -98,16 +98,12 @@ impl<'a> LinePickerDialog<'a> {
                             if str.parse::<usize>().is_ok() { Color32::GRAY } else { Color32::RED },
                             wrap_width,
                         );
-                        ui.fonts().layout_job(job)
+                        ui.fonts(|f| f.layout_job(job))
                     })
                     .show(ui);
                 output.response.request_focus();
 
-                let events = {
-                    // avoid deadlock when loading TextEditState
-                    let res = ui.input().events.clone();
-                    res
-                };
+                let events = ui.input(|i| i.events.clone());
                 for event in events {
                     if let Event::Key { key, .. } = event {
                         if key == Key::Escape {
@@ -278,9 +274,9 @@ pub fn output_text(ui: &mut Ui, str: &str, font_id: FontId, index: usize) -> Res
     );
     text_job.job.wrap.max_width = f32::INFINITY;
     text_job.job.halign = Align::RIGHT;
-    let galley = text_job.into_galley(&ui.fonts());
+    let galley = ui.fonts(|fonts| text_job.into_galley(fonts));
 
-    let glyph_width = ui.fonts().glyph_width(&font_id, '0');
+    let glyph_width = ui.fonts(|f| f.glyph_width(&font_id, '0'));
     let index = index.to_string();
     let index_str_width = index.len() as f32 * glyph_width;
 
@@ -341,7 +337,7 @@ pub fn output_text(ui: &mut Ui, str: &str, font_id: FontId, index: usize) -> Res
 
         let mut show_copied_text = false;
         if response.clicked() && bg_rect.contains(response.hover_pos().unwrap()) {
-            ui.output().copied_text = str.to_owned();
+            ui.output_mut(|out| out.copied_text = str.to_owned());
             show_copied_text = true;
         }
 
@@ -429,7 +425,7 @@ pub fn build_help(ui: &mut Ui) {
     });
 
     let markdown =
-r#"
+        r#"
 # Literals
 
 Literals can be specified using different representations.

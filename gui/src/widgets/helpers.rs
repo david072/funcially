@@ -84,7 +84,7 @@ impl SearchState {
 }
 
 pub fn is_key_pressed(ui: &Ui, k: Key) -> bool {
-    ui.input().events.iter().any(|event| {
+    ui.input(|input| input.events.iter().any(|event| {
         if let Event::Key { key, pressed, .. } = event {
             if *key == k && *pressed {
                 return true;
@@ -92,11 +92,11 @@ pub fn is_key_pressed(ui: &Ui, k: Key) -> bool {
         }
 
         false
-    })
+    }))
 }
 
 pub fn is_key_pressed_fn<Checker: FnMut(&Key, bool, &Modifiers) -> bool>(ui: &Ui, mut checker: Checker) -> bool {
-    ui.input().events.iter().any(|event| {
+    ui.input(|input| input.events.iter().any(|event| {
         if let Event::Key { key, pressed, modifiers, .. } = event {
             if checker(key, *pressed, modifiers) {
                 return true;
@@ -104,7 +104,7 @@ pub fn is_key_pressed_fn<Checker: FnMut(&Key, bool, &Modifiers) -> bool>(ui: &Ui
         }
 
         false
-    })
+    }))
 }
 
 pub fn section(range: Range<usize>, font_id: FontId, color: Color32) -> text::LayoutSection {

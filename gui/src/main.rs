@@ -97,7 +97,7 @@ fn main() {
         "Funcially",
         options,
         Box::new(|cc| Box::new(App::new(cc))),
-    );
+    ).expect("Failed to run application");
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -546,10 +546,10 @@ impl App<'_> {
                     ui.checkbox(&mut debug_on_hover, "Debug On Hover");
                     ui.ctx().set_debug_on_hover(debug_on_hover);
 
-                    let mut tesselation_options = ui.ctx().options().tessellation_options;
-                    ui.checkbox(&mut tesselation_options.debug_paint_clip_rects, "Paint clip rectangles");
-                    ui.checkbox(&mut tesselation_options.debug_paint_text_rects, "Paint text bounds");
-                    *ui.ctx().tessellation_options() = tesselation_options;
+                    let mut options = ui.ctx().options(|opt| opt.clone());
+                    ui.checkbox(&mut options.tessellation_options.debug_paint_clip_rects, "Paint clip rectangles");
+                    ui.checkbox(&mut options.tessellation_options.debug_paint_text_rects, "Paint text bounds");
+                    ui.ctx().options_mut(|opt| *opt = options);
                 });
                 ui.hyperlink_to("Source code", "https://github.com/david072/funcially");
 
@@ -570,7 +570,7 @@ impl App<'_> {
             .show(ctx, |ui| {
                 if let Some(debug_information) = debug_information {
                     if ui.button("📋").clicked() {
-                        ui.output().copied_text = debug_information.clone();
+                        ui.output_mut(|out| out.copied_text = debug_information.clone());
                     }
 
                     TextEdit::multiline(debug_information)
@@ -582,25 +582,25 @@ impl App<'_> {
 
     /// Handles shortcuts that modify what's inside the textedit => needs a cursor range
     fn handle_text_edit_shortcuts(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
-        if ui.input_mut().consume_shortcut(&TOGGLE_COMMENTATION_SHORTCUT) {
+        if ui.input_mut(|i| i.consume_shortcut(&TOGGLE_COMMENTATION_SHORTCUT)) {
             self.toggle_commentation(ui.ctx(), cursor_range);
         }
-        if ui.input_mut().consume_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT) {
+        if ui.input_mut(|i| i.consume_shortcut(&SURROUND_WITH_BRACKETS_SHORTCUT)) {
             self.surround_selection_with_brackets(ui.ctx(), cursor_range);
         }
-        if ui.input_mut().consume_shortcut(&COPY_RESULT_SHORTCUT) {
+        if ui.input_mut(|i| i.consume_shortcut(&COPY_RESULT_SHORTCUT)) {
             self.copy_result(ui, cursor_range);
         }
     }
 
     /// Handles shortcuts that are global => don't need a cursor range
     fn handle_shortcuts(&mut self, ui: &Ui) {
-        if ui.input_mut().consume_shortcut(&FORMAT_SHORTCUT) { self.format_source(); }
-        if ui.input_mut().consume_shortcut(&LINE_PICKER_SHORTCUT) {
+        if ui.input_mut(|i| i.consume_shortcut(&FORMAT_SHORTCUT)) { self.format_source(); }
+        if ui.input_mut(|i| i.consume_shortcut(&LINE_PICKER_SHORTCUT)) {
             self.is_ui_enabled = false;
             LinePickerDialog::set_open(ui.ctx(), true);
         }
-        if ui.input_mut().consume_shortcut(&SEARCH_SHORTCUT) {
+        if ui.input_mut(|i| i.consume_shortcut(&SEARCH_SHORTCUT)) {
             self.search_state.open = true;
             self.search_state.should_have_focus = true;
         }
@@ -737,7 +737,7 @@ impl App<'_> {
     fn copy_result(&mut self, ui: &mut Ui, cursor_range: CursorRange) {
         let line = cursor_range.primary.rcursor.row;
         if let Some(Line::Line { output_text, .. }) = self.lines.get(line) {
-            ui.output().copied_text = output_text.to_string();
+            ui.output_mut(|out| out.copied_text = output_text.to_string());
         }
     }
 
@@ -902,7 +902,7 @@ impl eframe::App for App<'_> {
                             let id = id.into();
                             if let Some(mut state) = PanelState::load(ctx, id) {
                                 state.rect.set_width(5.0);
-                                ctx.data().insert_persisted(id, state);
+                                ctx.data_mut(|data| data.insert_persisted(id, state));
                             }
                         }
 
@@ -983,7 +983,7 @@ impl eframe::App for App<'_> {
 
         TopBottomPanel::bottom("bottom_bar")
             .frame(egui::Frame {
-                inner_margin: style::Margin {
+                inner_margin: Margin {
                     left: 2.0,
                     right: 8.0,
                     top: 2.0,
@@ -1097,7 +1097,7 @@ impl eframe::App for App<'_> {
 
             let response = ScrollArea::vertical().show(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-                    let char_width = ui.fonts().glyph_width(&FONT_ID, '0') + 2.0;
+                    let char_width = ui.fonts(|f| f.glyph_width(&FONT_ID, '0')) + 2.0;
 
                     let longest_row_chars = self.line_numbers_text.lines()
                         .last()
@@ -1116,41 +1116,42 @@ impl eframe::App for App<'_> {
                     if let Some(mut input_state) = TextEditState::load(ctx, Id::new(INPUT_TEXT_EDIT_ID)) {
                         if let Some(mut cursor_range) = input_state.ccursor_range() {
                             let mut i = 0usize;
-                            let events = &mut ui.input_mut().events;
+                            ui.input_mut(|input| {
+                                const BRACKETS: [(char, char); 3] = [('(', ')'), ('[', ']'), ('{', '}')];
 
-                            const BRACKETS: [(char, char); 3] = [('(', ')'), ('[', ']'), ('{', '}')];
-
-                            while i < events.len() {
-                                if let Event::Text(text) = &events[i] {
-                                    let mut remove = false;
-                                    for (_, c) in BRACKETS {
-                                        if *text == String::from(c) &&
-                                            self.source.chars().nth(cursor_range.primary.index)
-                                                .map(|char| char == c)
-                                                .unwrap_or_default() {
-                                            cursor_range.primary.index += 1;
-                                            cursor_range.secondary.index += 1;
-                                            input_state.set_ccursor_range(Some(cursor_range));
-                                            remove = true;
+                                let events = &mut input.events;
+                                while i < events.len() {
+                                    if let Event::Text(text) = &events[i] {
+                                        let mut remove = false;
+                                        for (_, c) in BRACKETS {
+                                            if *text == String::from(c) &&
+                                                self.source.chars().nth(cursor_range.primary.index)
+                                                    .map(|char| char == c)
+                                                    .unwrap_or_default() {
+                                                cursor_range.primary.index += 1;
+                                                cursor_range.secondary.index += 1;
+                                                input_state.set_ccursor_range(Some(cursor_range));
+                                                remove = true;
+                                            }
                                         }
-                                    }
-                                    if remove {
-                                        events.remove(i);
-                                        continue;
-                                    }
-                                } else if let Event::Key { key: Key::Backspace, pressed: true, modifiers } = &events[i] {
-                                    if modifiers.is_none() {
-                                        for (opening, closing) in BRACKETS {
-                                            if self.source.chars().nth(cursor_range.primary.index) == Some(closing) &&
-                                                self.source.chars().nth(cursor_range.primary.index - 1) == Some(opening) {
-                                                self.source.remove(cursor_range.primary.index);
+                                        if remove {
+                                            events.remove(i);
+                                            continue;
+                                        }
+                                    } else if let Event::Key { key: Key::Backspace, pressed: true, modifiers, .. } = &events[i] {
+                                        if modifiers.is_none() {
+                                            for (opening, closing) in BRACKETS {
+                                                if self.source.chars().nth(cursor_range.primary.index) == Some(closing) &&
+                                                    self.source.chars().nth(cursor_range.primary.index - 1) == Some(opening) {
+                                                    self.source.remove(cursor_range.primary.index);
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                i += 1;
-                            }
+                                    i += 1;
+                                }
+                            });
                         }
 
                         input_state.store(ctx, Id::new(INPUT_TEXT_EDIT_ID));
@@ -1177,18 +1178,20 @@ impl eframe::App for App<'_> {
                     if let Some(range) = output.cursor_range {
                         self.input_text_cursor_range = range;
 
-                        for event in &ui.input().events {
-                            if let Event::Text(text) = event {
-                                if let Some(c) = match text.as_str() {
-                                    "(" => Some(')'),
-                                    "{" => Some('}'),
-                                    "[" => Some(']'),
-                                    _ => None,
-                                } {
-                                    self.source.insert(range.primary.ccursor.index, c);
+                        ui.input(|input| {
+                            for event in &input.events {
+                                if let Event::Text(text) = event {
+                                    if let Some(c) = match text.as_str() {
+                                        "(" => Some(')'),
+                                        "{" => Some('}'),
+                                        "[" => Some(']'),
+                                        _ => None,
+                                    } {
+                                        self.source.insert(range.primary.ccursor.index, c);
+                                    }
                                 }
                             }
-                        }
+                        });
 
                         if self.should_scroll_to_input_text_cursor {
                             let cursor_pos = output.galley
@@ -1389,6 +1392,6 @@ fn input_layouter(
         }
 
         job.wrap.max_width = wrap_width;
-        ui.fonts().layout_job(job)
+        ui.fonts(|fonts| fonts.layout_job(job))
     }
 }
