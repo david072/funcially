@@ -11,7 +11,7 @@ experimental = []
 
 [dependencies]
 calculator = { path = "../calculator" }
-eframe = { version = "0.20.1", features = ["persistence"] }
+eframe = { version = "0.21.3", features = ["persistence"] }
 serde = { version = "1.0.144", features = ["derive"] }
 egui_commonmark = "0.6.0"
 
