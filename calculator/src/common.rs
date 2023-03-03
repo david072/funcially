@@ -6,6 +6,7 @@
 
 use std::ops::Range;
 use std::path::PathBuf;
+
 use thiserror::Error;
 
 const CRATE_NAME: &str = "funcially";
@@ -201,14 +202,12 @@ pub fn cache_dir() -> PathBuf { dirs::cache_dir().unwrap().join(CRATE_NAME) }
 pub fn data_dir() -> PathBuf { dirs::data_local_dir().unwrap().join(CRATE_NAME) }
 
 pub mod math {
-    pub fn factorial(num: i64) -> i64 {
-        match num {
-            0 => 1,
-            1 => 1,
-            _ => {
-                let factor = if num.is_negative() { -1 } else { 1 };
-                factor * factorial(num.abs() - 1) * num
-            }
+    pub fn factorial(num: f64) -> f64 {
+        if num == 0.0 || num == 1.0 {
+            1.0
+        } else {
+            let factor = if num.is_sign_negative() { -1.0 } else { 1.0 };
+            factor * factorial(num.abs() - 1.0) * num
         }
     }
 }

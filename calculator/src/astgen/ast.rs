@@ -270,7 +270,7 @@ impl AstNode {
             match m {
                 AstNodeModifier::Factorial => {
                     expect_int!(value, self.range, m);
-                    *value = math::factorial(*value as i64) as f64;
+                    *value = math::factorial(*value);
                 }
                 AstNodeModifier::BitwiseNot => {
                     expect_int!(value, self.range, m);
