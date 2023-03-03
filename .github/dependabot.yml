@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/calculator"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(calculator)"
+  - package-ecosystem: "cargo"
+    directory: "/gui"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(gui)"
+  - package-ecosystem: "cargo"
+    directory: "/cli"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(cli)"
+  - package-ecosystem: "cargo"
+    directory: "/discord"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(discord)"
