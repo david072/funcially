@@ -334,12 +334,29 @@ impl<'a> Parser<'a> {
     }
 
     fn accept_expression(&mut self) -> Result<ParserResult> {
-        let mut group_stack: Vec<(Vec<AstNode>, Range<usize>)> = vec![(vec![], Range::default())];
+        #[derive(Default)]
+        struct GroupStackEntry {
+            ast: Vec<AstNode>,
+            modifiers: Vec<AstNodeModifier>,
+            start_range: Range<usize>,
+        }
+
+        impl GroupStackEntry {
+            pub fn new(modifiers: Vec<AstNodeModifier>, range: Range<usize>) -> Self {
+                Self {
+                    modifiers,
+                    start_range: range,
+                    ..Default::default()
+                }
+            }
+        }
+
+        let mut group_stack: Vec<GroupStackEntry> = vec![GroupStackEntry::default()];
         let mut boolean_operator: Option<(BooleanOperator, usize)> = None;
 
         /// Helper to get the current AST
         macro_rules! ast {
-            () => { group_stack.last_mut().unwrap().0 }
+            () => { group_stack.last_mut().unwrap().ast }
         }
 
         // If there is a close bracket at the beginning of the line, it is an error
@@ -349,16 +366,20 @@ impl<'a> Parser<'a> {
 
         // Accept opening brackets at the beginning of the line
         while self.index < self.tokens.len() {
+            let start_i = self.index;
+            let modifiers = self.accept_prefix_modifiers();
+
             if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
-                group_stack.push((vec![], open_bracket.range()));
+                group_stack.push(GroupStackEntry::new(modifiers, open_bracket.range()));
                 self.nesting_level += 1;
             } else {
+                self.index = start_i;
                 break;
             }
         }
 
         if self.index >= self.tokens.len() && group_stack.len() > 1 {
-            error!(MissingClosingBracket: group_stack.last().unwrap().1.clone());
+            error!(MissingClosingBracket: group_stack.last().unwrap().start_range.clone());
         }
 
         // Allow empty brackets, which is handled at the start of the while loop below
@@ -374,9 +395,14 @@ impl<'a> Parser<'a> {
                         error!(MissingOpeningBracket: close_bracket.range());
                     }
 
-                    let (group, open_bracket_range) = group_stack.pop().unwrap();
+                    let GroupStackEntry {
+                        ast: group,
+                        mut modifiers,
+                        start_range: open_bracket_range,
+                    } = group_stack.pop().unwrap();
                     let range = open_bracket_range.start..close_bracket.range().end;
 
+                    modifiers.append(&mut self.accept_suffix_modifiers());
                     let unit = self.try_accept_unit().transpose()?;
 
                     let mut node = if group.is_empty() {
@@ -385,6 +411,7 @@ impl<'a> Parser<'a> {
                         AstNode::new(AstNodeData::Group(group), range)
                     };
 
+                    node.modifiers = modifiers;
                     node.unit = unit;
 
                     ast!().push(node);
@@ -455,10 +482,14 @@ impl<'a> Parser<'a> {
             }
 
             while self.index < self.tokens.len() {
+                let start_i = self.index;
+                let modifiers = self.accept_prefix_modifiers();
+
                 if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
-                    group_stack.push((vec![], open_bracket.range()));
+                    group_stack.push(GroupStackEntry::new(modifiers, open_bracket.range()));
                     self.nesting_level += 1;
                 } else {
+                    self.index = start_i;
                     break;
                 }
             }
@@ -471,10 +502,10 @@ impl<'a> Parser<'a> {
         }
 
         if group_stack.len() > 1 {
-            error!(MissingClosingBracket: group_stack.last().unwrap().1.clone());
+            error!(MissingClosingBracket: group_stack.last().unwrap().start_range.clone());
         }
 
-        let (result, _) = group_stack.pop().unwrap();
+        let GroupStackEntry { ast: result, .. } = group_stack.pop().unwrap();
 
         if let Some((op, index)) = boolean_operator {
             let (lhs, rhs) = result.split_at(index);
@@ -1542,6 +1573,14 @@ mod tests {
             settings: &Settings::default(),
         });
         assert_eq!(result.len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn group_with_modifiers() -> Result<()> {
+        let result = calculation!("!(4)!%");
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].modifiers.len(), 3);
         Ok(())
     }
 }
