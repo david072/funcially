@@ -265,7 +265,7 @@ impl<'a> Parser<'a> {
                 unit.map_or_else(|e| {
                     first_error = Some(e);
                     None
-                }, |unit| Some(unit))
+                }, Some)
             });
 
         let mut args = vec![(first_arg_text, unit, first_arg_range)];
@@ -291,7 +291,7 @@ impl<'a> Parser<'a> {
                             unit.map_or_else(|e| {
                                 first_error = Some(e);
                                 None
-                            }, |unit| Some(unit))
+                            }, Some)
                         });
                     args.push((next_arg_text, unit, next_arg_range));
                 }
@@ -540,6 +540,14 @@ impl<'a> Parser<'a> {
 
                 modifiers.append(&mut self.accept_suffix_modifiers());
                 number.modifiers.append(&mut modifiers);
+
+                if let Some(token) = self.peek(is(Identifier)) {
+                    if token.text != "e" && token.text != "E" &&
+                        (self.context.env.is_valid_variable(&token.text) ||
+                            self.context.env.is_valid_function(&token.text)) {
+                        return Ok(number);
+                    }
+                }
 
                 if let Some(unit) = self.try_accept_unit() {
                     number.unit = Some(unit?);
@@ -1106,8 +1114,10 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Currencies, Environment, Settings};
+    use crate::{Currencies, Environment, NumberValue, Settings};
     use crate::astgen::tokenizer::tokenize;
+    use crate::engine::Value;
+    use crate::environment::Variable;
 
     use super::*;
 
@@ -1119,6 +1129,9 @@ mod tests {
                 settings: &Settings::default(),
             })
         };
+        ($input:expr, $context:expr) => {
+            Parser::parse(&tokenize($input)?, $context)
+        }
     }
 
     macro_rules! assert_error_type {
@@ -1130,6 +1143,13 @@ mod tests {
     macro_rules! calculation {
         ($input:expr) => {
             if let ParserResult::Calculation(ast) = parse!($input)? {
+                ast
+            } else {
+                panic!("Expected ParserResult::Calculation");
+            }
+        };
+        ($input:expr, $context:expr) => {
+            if let ParserResult::Calculation(ast) = parse!($input, $context)? {
                 ast
             } else {
                 panic!("Expected ParserResult::Calculation");
@@ -1508,6 +1528,20 @@ mod tests {
     fn unknown_object() -> Result<()> {
         let err = parse!("{asdf}");
         assert_error_type!(err, UnknownObject(_));
+        Ok(())
+    }
+
+    #[test]
+    fn prefers_variables_and_functions() -> Result<()> {
+        let mut env = Environment::new();
+        env.set_variable("a", Variable(Value::Number(NumberValue::new(3.0)))).unwrap();
+
+        let result = calculation!("4a", Context {
+            env: &env,
+            currencies: &Currencies::none(),
+            settings: &Settings::default(),
+        });
+        assert_eq!(result.len(), 3);
         Ok(())
     }
 }
