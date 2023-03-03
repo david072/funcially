@@ -24,7 +24,7 @@ impl Format {
             Format::Binary => format!("{:#b}", n as i64),
             Format::Scientific => format!("{n:#e}"),
         };
-        if *self != Format::Scientific && use_thousands_separator {
+        if *self != Format::Scientific && use_thousands_separator && !n.is_infinite() {
             if *self == Format::Decimal {
                 Self::add_thousands_separator(&mut res, 3);
             } else {
@@ -89,7 +89,7 @@ impl From<TokenType> for Format {
 pub struct NumberValue {
     pub number: f64,
     pub(crate) unit: Option<Unit>,
-    pub(crate) is_long_unit: bool,
+    is_long_unit: bool,
     pub format: Format,
 }
 
@@ -103,9 +103,13 @@ impl NumberValue {
         }
     }
 
+    pub fn is_long_unit(&self) -> bool {
+        self.is_long_unit || self.number.is_infinite()
+    }
+
     pub fn unit_string(&self) -> String {
         self.unit.as_ref()
-            .map(|unit| unit.format(self.is_long_unit, self.number != 1.0))
+            .map(|unit| unit.format(self.is_long_unit(), self.number != 1.0))
             .unwrap_or_default()
     }
 }
@@ -134,7 +138,7 @@ impl Value {
         match self {
             Value::Number(number) => {
                 let mut result = number.format.format(number.number, use_thousands_separator);
-                if !matches!(number.unit, Some(Unit::Unit(..))) || number.is_long_unit { result.push(' '); }
+                if !matches!(number.unit, Some(Unit::Unit(..))) || number.is_long_unit() { result.push(' '); }
                 result + &number.unit_string()
             }
             Value::Object(object) => object.to_string(settings),
