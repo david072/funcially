@@ -374,7 +374,7 @@ impl<'a> Calculator<'a> {
 
                 new_line += &text;
             } else if token.ty.is_operator() || token.ty.is_boolean_operator() || token.ty.is_format() ||
-                token.ty == DefinitionSign {
+                token.ty == DefinitionSign || token.ty == PostfixDefinitionSign {
                 if token.ty == Plus || token.ty == Minus {
                     if i == 0 {
                         new_line += text;

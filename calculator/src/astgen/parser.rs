@@ -103,11 +103,11 @@ impl<'a> Parser<'a> {
             true,
             None,
         );
-        if let Some(name) = parser.try_accept_variable_definition_head() {
+        if let Some(name) = parser.try_accept_variable_definition_head(true) {
             let name = name?;
             let ast = parser.accept_definition_expression()?;
             Ok(ParserResult::VariableDefinition(name, ast))
-        } else if let Some(result) = parser.try_accept_function_definition_head() {
+        } else if let Some(result) = parser.try_accept_function_definition_head(true) {
             let (name, args) = result?;
 
             let vars = args.iter().map(|(arg, ..)| arg.as_str()).collect::<Vec<_>>();
@@ -195,12 +195,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn try_accept_variable_definition_head(&mut self) -> Option<Result<String>> {
+    fn try_accept_variable_definition_head(&mut self, expect_definition_sign: bool) -> Option<Result<String>> {
         let identifier = self.try_accept(is(Identifier))?;
         let identifier_range = identifier.range();
         let name = identifier.text.clone();
 
-        if self.try_accept(is(DefinitionSign)).is_none() {
+        if expect_definition_sign && self.try_accept(is(DefinitionSign)).is_none() {
             self.index = self.index.saturating_sub(2);
             return None;
         }
@@ -217,7 +217,7 @@ impl<'a> Parser<'a> {
     /// a definition sign, it returns None, discards the error and resets self.index. If it finds
     /// a definition sign, it releases the stored error if there is one, and otherwise returns the
     /// parsed data.
-    fn try_accept_function_definition_head(&mut self) -> Option<Result<(String, Vec<FunctionArgument>)>> {
+    fn try_accept_function_definition_head(&mut self, expect_definition_sign: bool) -> Option<Result<(String, Vec<FunctionArgument>)>> {
         let start_index = self.index;
 
         let mut first_error: Option<Error> = None;
@@ -301,12 +301,13 @@ impl<'a> Parser<'a> {
         }
 
         let def_sign_res = self.accept(is(DefinitionSign), UnexpectedElements);
-        if def_sign_res.is_err() {
+        if def_sign_res.is_err() && expect_definition_sign {
             self.index = start_index;
             None
         } else {
             Some(
                 if let Some(e) = first_error {
+                    self.index = start_index;
                     Err(e)
                 } else {
                     let args = args.into_iter()
@@ -388,7 +389,13 @@ impl<'a> Parser<'a> {
             ast!().push(self.accept_number()?);
         }
 
+        let mut has_postfix_definition_sign = false;
         while self.index < self.tokens.len() {
+            if group_stack.len() == 1 && self.try_accept(is(PostfixDefinitionSign)).is_some() {
+                has_postfix_definition_sign = true;
+                break;
+            }
+
             while self.index < self.tokens.len() {
                 if let Some(close_bracket) = self.try_accept(is(CloseBracket)) {
                     if group_stack.len() == 1 {
@@ -512,6 +519,24 @@ impl<'a> Parser<'a> {
         }
 
         let GroupStackEntry { ast: result, .. } = group_stack.pop().unwrap();
+
+        if has_postfix_definition_sign {
+            if boolean_operator.is_some() {
+                error!(ExpectedExpression("Boolean Expression".to_string()): 0..self.tokens[self.index - 2].range().end);
+            }
+            if self.question_mark.is_some() {
+                error!(ExpectedExpression("Equation".to_string()): 0..self.tokens[self.index - 2].range().end);
+            }
+
+            return if let Some(Ok((name, args))) = self.try_accept_function_definition_head(false) {
+                Ok(ParserResult::FunctionDefinition { name, args, ast: Some(result) })
+            } else if let Some(res) = self.try_accept_variable_definition_head(false) {
+                let name = res?;
+                Ok(ParserResult::VariableDefinition(name, Some(result)))
+            } else {
+                error!(ExpectedIdentifier: self.tokens[self.index - 1].range());
+            };
+        }
 
         if let Some((op, index)) = boolean_operator {
             let (lhs, rhs) = result.split_at(index);

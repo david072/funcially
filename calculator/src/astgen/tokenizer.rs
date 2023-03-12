@@ -51,6 +51,7 @@ pub enum TokenType {
     Identifier,
     ObjectArgs,
     DefinitionSign,
+    PostfixDefinitionSign,
     QuestionMark,
     // Boolean operators
     EqualsSign,
@@ -413,7 +414,11 @@ impl<'a> Tokenizer<'a> {
                 self.current_object_stack.pop();
                 Some(TokenType::CloseCurlyBracket)
             }
-            b'=' => Some(TokenType::EqualsSign),
+            b'=' => if self.try_accept(b':') {
+                Some(TokenType::PostfixDefinitionSign)
+            } else {
+                Some(TokenType::EqualsSign)
+            },
             b',' => Some(TokenType::Comma),
             b':' if self.try_accept(b'=') => Some(TokenType::DefinitionSign),
             b';' => Some(TokenType::Semicolon),
