@@ -1396,7 +1396,8 @@ fn input_layouter(
                         }
                     }
 
-                    if last_end != line.len() {
+                    // convert last_end to "line space" by subtracting offset
+                    if last_end.saturating_sub(offset) != line.len() {
                         let mut i_in_string = line.len() + offset;
                         add_section(i_in_string, last_end);
                         if i_in_string < string.len() {
