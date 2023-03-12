@@ -16,13 +16,15 @@ use crate::environment::units::Unit;
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Format { Decimal, Hex, Binary, Scientific }
 
+const DECIMAL_PLACES: i32 = 10;
+
 impl Format {
     pub fn format(&self, n: f64, use_thousands_separator: bool) -> String {
         let mut res = match self {
-            Format::Decimal => round_dp(n, 10),
+            Format::Decimal => round_dp(n, DECIMAL_PLACES),
             Format::Hex => format!("{:#X}", n as i64),
             Format::Binary => format!("{:#b}", n as i64),
-            Format::Scientific => format!("{n:#e}"),
+            Format::Scientific => Self::format_scientific(n),
         };
         if *self != Format::Scientific && use_thousands_separator && !n.is_infinite() {
             if *self == Format::Decimal {
@@ -37,6 +39,42 @@ impl Format {
             }
         }
         res
+    }
+
+    fn format_scientific(mut n: f64) -> String {
+        let is_negative = n.is_sign_negative();
+        if is_negative { n *= -1.0; }
+
+        let n_str = round_dp(n, DECIMAL_PLACES);
+        let mut n_str = n_str.trim_matches('0').chars().collect::<Vec<_>>();
+
+        fn count_decimal_places(chars: &[char]) -> isize {
+            if chars.iter().any(|c| *c == '.') {
+                chars.rsplit(|c| *c == '.').next().unwrap().len() as isize
+            } else {
+                0
+            }
+        }
+
+        let decimal_places = count_decimal_places(&n_str);
+
+        n_str.retain(|c| *c != '.');
+
+        // trim '0'
+        if let Some(first) = n_str.iter().position(|c| *c != '0') {
+            let Some(last) = n_str.iter().rposition(|c| *c != '0') else { unreachable!() };
+            n_str = n_str[first..last + 1].to_vec();
+        } else {
+            // We have removed everything. This only happens if "n == 0".
+            return "0e0".to_string();
+        }
+
+        n_str.insert(1, '.');
+
+        let decimal_places_after_move = count_decimal_places(&n_str);
+        let exponent = decimal_places_after_move - decimal_places;
+
+        format!("{}{}e{exponent}", if is_negative { "-" } else { "" }, n_str.into_iter().collect::<String>())
     }
 
     fn add_thousands_separator(str: &mut String, packet_size: usize) {
@@ -215,7 +253,7 @@ impl<'a> Engine<'a> {
             ast[0].apply_modifiers()?;
             let mut result = match_ast_node!(AstNodeData::Literal(res), res, ast[0]);
             let format = ast[0].format;
-            if format != Format::Decimal { result = result.trunc(); }
+            if format != Format::Decimal && format != Format::Scientific { result = result.trunc(); }
 
             Ok(Value::number(result, take(&mut ast[0].unit), false, format))
         } else if let AstNodeData::Object(object) = &ast[0].data {
