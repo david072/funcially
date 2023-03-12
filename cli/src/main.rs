@@ -157,8 +157,8 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
     match input.as_str() {
         "quit" | "exit" => return false,
         _ => {
-            match calculator.calculate(&input) {
-                Ok(res) => match res.data {
+            match calculator.calculate(&input).data {
+                Ok(res) => match res {
                     ResultData::Value(value) => {
                         println!("= {}", value.format(&calculator.settings, use_thousands_separator));
                     }

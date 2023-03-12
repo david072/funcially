@@ -22,6 +22,7 @@ use environment::{
 pub use environment::{Environment, Function};
 
 use crate::astgen::parser::ParserResult;
+use crate::astgen::tokenizer::Token;
 pub use crate::engine::Format;
 pub use crate::engine::NumberValue;
 use crate::engine::Value;
@@ -70,38 +71,8 @@ pub enum ResultData {
 }
 
 pub struct CalculatorResult {
-    pub data: ResultData,
+    pub data: Result<ResultData>,
     pub color_segments: Vec<ColorSegment>,
-}
-
-impl CalculatorResult {
-    pub fn nothing(color_segments: Vec<ColorSegment>) -> CalculatorResult {
-        Self {
-            data: ResultData::Nothing,
-            color_segments,
-        }
-    }
-
-    pub fn value(value: Value, segments: Vec<ColorSegment>) -> Self {
-        Self {
-            data: ResultData::Value(value),
-            color_segments: segments,
-        }
-    }
-
-    pub fn bool(bool: bool, segments: Vec<ColorSegment>) -> Self {
-        Self {
-            data: ResultData::Boolean(bool),
-            color_segments: segments,
-        }
-    }
-
-    pub fn function(name: String, arg_count: usize, function: Function, segments: Vec<ColorSegment>) -> Self {
-        Self {
-            data: ResultData::Function { name, arg_count, function },
-            color_segments: segments,
-        }
-    }
 }
 
 pub fn colorize_text(input: &str) -> Option<Vec<ColorSegment>> {
@@ -219,8 +190,11 @@ impl<'a> Calculator<'a> {
         }
     }
 
-    pub fn calculate(&mut self, input: &str) -> Result<CalculatorResult> {
-        let tokens = tokenize(input)?;
+    pub fn calculate(&mut self, input: &str) -> CalculatorResult {
+        let tokens = match tokenize(input) {
+            Ok(v) => v,
+            Err(e) => return CalculatorResult { data: Err(e), color_segments: vec![] },
+        };
         if matches!(self.verbosity, Verbosity::Tokens | Verbosity::Ast) {
             println!("Tokens:");
             for token in &tokens {
@@ -231,6 +205,11 @@ impl<'a> Calculator<'a> {
 
         let color_segments = ColorSegment::all(&tokens);
 
+        let data = self.calculate_impl(tokens);
+        CalculatorResult { data, color_segments }
+    }
+
+    fn calculate_impl(&mut self, tokens: Vec<Token>) -> Result<ResultData> {
         match Parser::parse(&tokens, self.context())? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
@@ -242,7 +221,7 @@ impl<'a> Calculator<'a> {
                 let result = Engine::evaluate(ast, self.context())?;
                 self.env_mut().set_ans_variable(Variable(result.clone()));
 
-                Ok(CalculatorResult::value(result, color_segments))
+                Ok(ResultData::Value(result))
             }
             ParserResult::BooleanExpression { lhs, rhs, operator } => {
                 if self.verbosity == Verbosity::Ast {
@@ -255,18 +234,18 @@ impl<'a> Calculator<'a> {
 
                 let lhs = Engine::evaluate(lhs, self.context())?;
                 let rhs = Engine::evaluate(rhs, self.context())?;
-                Ok(CalculatorResult::bool(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies), color_segments))
+                Ok(ResultData::Boolean(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies)))
             }
             ParserResult::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.context())?;
                         self.env_mut().set_variable(&name, Variable(res.clone())).unwrap();
-                        Ok(CalculatorResult::value(res, color_segments))
+                        Ok(ResultData::Value(res))
                     }
                     None => {
                         self.env_mut().remove_variable(&name).unwrap();
-                        Ok(CalculatorResult::nothing(color_segments))
+                        Ok(ResultData::Nothing)
                     }
                 }
             }
@@ -276,11 +255,11 @@ impl<'a> Calculator<'a> {
                         let arg_count = args.len();
                         let function = Function(args, ast);
                         self.env_mut().set_function(&name, function.clone()).unwrap();
-                        Ok(CalculatorResult::function(name, arg_count, function, color_segments))
+                        Ok(ResultData::Function { name, arg_count, function })
                     }
                     None => {
                         self.env_mut().remove_function(&name).unwrap();
-                        Ok(CalculatorResult::nothing(color_segments))
+                        Ok(ResultData::Nothing)
                     }
                 }
             }
@@ -315,7 +294,7 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
-                Ok(CalculatorResult::value(result, color_segments))
+                Ok(ResultData::Value(result))
             }
         }
     }

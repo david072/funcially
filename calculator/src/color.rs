@@ -61,9 +61,7 @@ impl ColorSegment {
                 Divide if last_token.is_some() &&
                     last_token.as_ref().unwrap().0 == Identifier &&
                     last_token.unwrap().1.end == token.range().start => {
-                    result.push(
-                        ColorSegment::new(token.range(), IDENTIFIER_COLOR)
-                    );
+                    result.push(ColorSegment::new(token.range(), IDENTIFIER_COLOR));
                 }
                 _ => result.push(Self::from(token)),
             }
@@ -94,10 +92,7 @@ impl ColorSegment {
             }
         };
 
-        ColorSegment {
-            range: token.range(),
-            color,
-        }
+        ColorSegment::new(token.range(), color)
     }
 }
 

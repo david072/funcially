@@ -19,7 +19,7 @@ use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 
-use calculator::{Calculator, Color, ColorSegment, DateFormat, Function as CalcFn, ResultData, Settings, Verbosity};
+use calculator::{Calculator, ColorSegment as CalcColorSegment, DateFormat, Function as CalcFn, ResultData, Settings, Verbosity};
 
 use crate::widgets::*;
 
@@ -33,7 +33,7 @@ const FONT_SIZE: f32 = 14.0;
 const FONT_ID: FontId = FontId::monospace(FONT_SIZE);
 const FOOTER_FONT_SIZE: f32 = 14.0;
 const TEXT_EDIT_MARGIN: Vec2 = Vec2::new(4.0, 2.0);
-const ERROR_COLOR: Color = Color::RED;
+const ERROR_COLOR: Color32 = Color32::RED;
 
 const INPUT_TEXT_EDIT_ID: &str = "input-text-edit";
 const PLOT_PANEL_ID: &str = "plot_panel";
@@ -127,6 +127,32 @@ struct GitHubApiResponseItem {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Function(String, usize, #[serde(skip)] CalcFn);
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ColorSegment {
+    range: Range<usize>,
+    color: Color32,
+    is_error: bool,
+}
+
+impl ColorSegment {
+    pub fn new(range: Range<usize>, color: Color32, is_error: bool) -> Self {
+        Self { range, color, is_error }
+    }
+
+    pub fn from_calculator_color_segment(seg: CalcColorSegment, is_error: bool) -> Self {
+        Self {
+            range: seg.range,
+            color: Color32::from_rgba_premultiplied(
+                seg.color.0[0],
+                seg.color.0[1],
+                seg.color.0[2],
+                seg.color.0[3],
+            ),
+            is_error,
+        }
+    }
+}
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum Line {
@@ -277,13 +303,14 @@ impl App<'_> {
         let result = self.calculator.calculate(str);
 
         let mut function: Option<Function> = None;
-        let mut color_segments: Vec<ColorSegment> = Vec::new();
+        let mut color_segments = result.color_segments.into_iter()
+            .map(|s| ColorSegment::from_calculator_color_segment(s, false))
+            .collect::<Vec<_>>();
         let mut is_error: bool = false;
 
-        let output_text = match result {
-            Ok(res) => {
-                color_segments = res.color_segments;
-                match res.data {
+        let output_text = match result.data {
+            Ok(data) => {
+                match data {
                     ResultData::Value(number) => number.format(&self.calculator.settings, self.use_thousands_separator),
                     ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
                     ResultData::Function { name, arg_count, function: f } => {
@@ -296,7 +323,10 @@ impl App<'_> {
             Err(e) => {
                 is_error = true;
                 for range in e.ranges {
-                    color_segments.push(ColorSegment::new(range, ERROR_COLOR));
+                    let i = color_segments.iter()
+                        .position(|seg| seg.range.start >= range.start)
+                        .unwrap_or_default();
+                    color_segments.insert(i, ColorSegment::new(range, ERROR_COLOR, true));
                 }
                 format!("{}", e.error)
             }
@@ -1306,19 +1336,12 @@ fn input_layouter(
                     // NOTE: We pass last_end since the clojure would otherwise borrow it, causing
                     //       issues further down
                     let mut add_section = |i_in_string: usize, last_end: usize| {
-                        let segment = segments.iter()
-                            .find(|seg| {
-                                (seg.range.start..seg.range.end)
-                                    .contains(&(i_in_string - 1))
-                            })
-                            .map(|seg| {
-                                Color32::from_rgba_premultiplied(
-                                    seg.color.0[0],
-                                    seg.color.0[1],
-                                    seg.color.0[2],
-                                    seg.color.0[3],
-                                )
-                            });
+                        let color_segment = segments.iter().find(|seg| {
+                            (seg.range.start..seg.range.end)
+                                .contains(&(i_in_string - 1))
+                        });
+                        let segment = color_segment.map(|seg| seg.color);
+
                         let highlighted = highlighted_ranges.iter()
                             // don't need to add offset here, since the highlighted_ranges already
                             // have it added
@@ -1339,6 +1362,8 @@ fn input_layouter(
                                 color: segment.unwrap_or(Color32::GRAY),
                                 underline: if highlighted {
                                     Stroke::new(3.0, Color32::GOLD)
+                                } else if color_segment.map(|s| s.is_error).unwrap_or_default() {
+                                    Stroke::new(2.0, Color32::RED)
                                 } else {
                                     Stroke::NONE
                                 },

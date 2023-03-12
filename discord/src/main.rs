@@ -323,10 +323,10 @@ mod commands {
                     None => Calculator::new(Verbosity::None, Settings::default()),
                 };
 
-                match calc.calculate(input) {
+                match calc.calculate(input).data {
                     Ok(res) => {
                         embed.description(format!("`{input}`"));
-                        match res.data {
+                        match res {
                             ResultData::Value(value) => {
                                 embed
                                     .color(Colour::GOLD)
