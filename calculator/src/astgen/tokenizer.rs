@@ -199,9 +199,9 @@ impl<'a> Tokenizer<'a> {
                         "in" => TokenType::In,
                         "mod" => TokenType::Modulo,
                         "xor" => TokenType::Xor,
-                        "decimal" => TokenType::Decimal,
+                        "decimal" | "dec" => TokenType::Decimal,
                         "hex" => TokenType::Hex,
-                        "binary" => TokenType::Binary,
+                        "binary" | "bin" => TokenType::Binary,
                         "scientific" | "sci" => TokenType::Scientific,
                         _ => ty,
                     };

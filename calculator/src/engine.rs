@@ -472,7 +472,6 @@ impl<'a> Engine<'a> {
                 _ => continue,
             };
 
-
             // TODO: Make this generic!?
             let mut first_arg: Option<NumberValue> = None;
             if func_name == "abs" && arg_asts.len() == 1 {
