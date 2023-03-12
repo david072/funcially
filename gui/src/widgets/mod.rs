@@ -701,19 +701,19 @@ funcially supports currencies from [exchangerate.host](https://exchangerate.host
 These can be used the same way as units. funcially updates the exchange rates on every startup and saves them
 for when there is no internet connection available.
 
-## Converting between representations with "in"
+## "in" operator
 
-Syntax: `<expr> in <decimal/binary/hex>`
+The `in operator` can be used to convert between units and formats.
 
-This is valid everywhere in a line, but only has an effect if it is at the end.
-
-If the left hand side has a unit, the unit's number is converted and the unit is kept.
+Syntax: `<expr> in <dec/decimal/bin/binary/hex/sci/scientific> <unit>`
+where **either** the format or the unit can be left out.
 
 ```
 0xFF in decimal	    => 255 (default)
 255 in hex		    => 0xFF
 6 in binary	        => 0b110
-255km in hex	    => 0xFF Kilometers
+255km in mi         => 158.4496540205mi
+255km in sci mi	    => 1.58e2mi
 ```
 
 # Settings

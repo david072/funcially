@@ -429,13 +429,9 @@ impl<'a> Parser<'a> {
                     // RHS of `in` (unit / format)
                     if operator == Operator::In {
                         let start = self.tokens.get(self.index).map(|t| t.range().start);
-                        if let Some(unit) = self.try_accept_unit() {
-                            let end = self.tokens[self.index - 1].range().start;
-                            let unit = unit?;
-                            ast!().push(op);
-                            ast!().push(AstNode::new(AstNodeData::Unit(unit), start.unwrap()..end));
-                            continue;
-                        } else if let Some(format) = self.try_accept(|ty| ty.is_format()) {
+
+                        let mut found_rhs = false;
+                        if let Some(format) = self.try_accept(|ty| ty.is_format()) {
                             let format = match format.ty {
                                 Decimal => Format::Decimal,
                                 Binary => Format::Binary,
@@ -444,17 +440,27 @@ impl<'a> Parser<'a> {
                                 _ => unreachable!(),
                             };
                             ast!().last_mut().unwrap().format = format;
-                            continue;
+                            found_rhs = true;
+                        }
+
+                        if let Some(unit) = self.try_accept_unit() {
+                            let end = self.tokens[self.index - 1].range().start;
+                            let unit = unit?;
+                            ast!().push(op);
+                            ast!().push(AstNode::new(AstNodeData::Unit(unit), start.unwrap()..end));
+                            found_rhs = true;
+                        }
+
+                        if found_rhs { continue; }
+
+                        let last = self.tokens.last().unwrap();
+                        let range = if last.ty == In {
+                            let range = last.range();
+                            range.end - 1..range.end
                         } else {
-                            let last = self.tokens.last().unwrap();
-                            let range = if last.ty == In {
-                                let range = last.range();
-                                range.end - 1..range.end
-                            } else {
-                                last.range()
-                            };
-                            error!(ExpectedUnit: range);
+                            last.range()
                         };
+                        error!(ExpectedUnit: range);
                     }
 
                     ast!().push(op);

@@ -26,12 +26,12 @@ Scientific notation can be used to input big numbers more easily.
 
 ### Basic
 
-| Name           | Operator     |
-|----------------|--------------|
-| Addition       | `+`          |
-| Subtraction    | `-`          |
-| Multiplication | `*`          |
-| Division       | `/`          |
+| Name           | Operator |
+|----------------|----------|
+| Addition       | `+`      |
+| Subtraction    | `-`      |
+| Multiplication | `*`      |
+| Division       | `/`      |
 
 ### Extended
 
@@ -44,7 +44,7 @@ Scientific notation can be used to input big numbers more easily.
 | Right Shift                     | `&#62;&#62;` |
 | Modulo                          | `mod`        |
 | Taking a percentage of a number | `of`         |
-| Unit conversion                 | `in`         |
+| Unit / format conversion        | `in`         |
 
 ### Modifiers
 
@@ -180,7 +180,8 @@ x :=
 
 ## Equality checks
 
-An equals sign ("=") marks this line as an equality check. funcially then returns `True` or `False`, depending on whether
+An equals sign ("=") marks this line as an equality check. funcially then returns `True` or `False`, depending on
+whether
 the two expressions evaluate to the same value (including units).
 
 The equals sign **must** be at the top level and there can only be one equals sign in a line.
@@ -214,11 +215,11 @@ Units and unit prefixes are case-sensitive.
 
 | Prefix | Value |
 |--------|-------|
-| `y`    | 1e-24  |
-| `z`    | 1e-21  |
-| `a`    | 1e-18  |
-| `f`    | 1e-15  |
-| `p`    | 1e-12  |
+| `y`    | 1e-24 |
+| `z`    | 1e-21 |
+| `a`    | 1e-18 |
+| `f`    | 1e-15 |
+| `p`    | 1e-12 |
 | `n`    | 1e-9  |
 | `m`    | 1e-3  |
 | `c`    | 1e-2  |
@@ -257,19 +258,19 @@ funcially supports currencies from [exchangerates.host](https://exchangerates.ho
 These can be used the same way as units. funcially updates the exchange rates on every startup and saves them
 for when there is no internet connection available.
 
-### Converting between representations with "in"
+### "in" operator
 
-Syntax: `<expr> in <decimal/binary/hex>`
+The `in operator` can be used to convert between units and formats.
 
-This is valid everywhere in a line, but only has an effect if it is at the end.
-
-If the left hand side has a unit, the unit's number is converted and the unit is kept.
+Syntax: `<expr> in <dec/decimal/bin/binary/hex/sci/scientific> <unit>`
+where **either** the format or the unit can be left out.
 
 ```
 0xFF in decimal	    => 255 (default)
 255 in hex		    => 0xFF
 6 in binary	        => 0b110
-255km in hex	    => 0xFF Kilometers
+255km in mi         => 158.4496540205mi
+255km in sci mi	    => 1.58e2mi
 ```
 
 ## GUI
