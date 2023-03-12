@@ -1153,10 +1153,10 @@ impl eframe::App for App<'_> {
                                 while i < events.len() {
                                     if let Event::Text(text) = &events[i] {
                                         let mut remove = false;
-                                        for (_, c) in BRACKETS {
-                                            if *text == String::from(c) &&
+                                        for (_, closing) in BRACKETS {
+                                            if *text == String::from(closing) &&
                                                 self.source.chars().nth(cursor_range.primary.index)
-                                                    .map(|char| char == c)
+                                                    .map(|char| char == closing)
                                                     .unwrap_or_default() {
                                                 cursor_range.primary.index += 1;
                                                 cursor_range.secondary.index += 1;
@@ -1217,7 +1217,12 @@ impl eframe::App for App<'_> {
                                         "[" => Some(']'),
                                         _ => None,
                                     } {
-                                        self.source.insert(range.primary.ccursor.index, c);
+                                        if self.source.chars()
+                                            .nth(range.primary.ccursor.index)
+                                            .map(|char| char.is_whitespace())
+                                            .unwrap_or(true) {
+                                            self.source.insert(range.primary.ccursor.index, c);
+                                        }
                                     }
                                 }
                             }
