@@ -471,8 +471,12 @@ impl<'a> Engine<'a> {
     }
 
     pub fn check_boolean_operator(lhs: &Value, rhs: &Value, operator: BooleanOperator, currencies: &Currencies) -> bool {
+        use crate::common::math::round;
+
         match (lhs, rhs) {
             (Value::Number(lhs), Value::Number(rhs)) => {
+                let lhs_number = round(lhs.number, DECIMAL_PLACES);
+                let rhs_number = round(rhs.number, DECIMAL_PLACES);
                 let lhs_unit = &lhs.unit;
                 let rhs_unit = &rhs.unit;
 
@@ -483,15 +487,18 @@ impl<'a> Engine<'a> {
                     match convert_units(
                         rhs_unit.as_ref().unwrap(),
                         lhs_unit.as_ref().unwrap(),
-                        rhs.number,
+                        rhs_number,
                         currencies,
                         &range,
                     ) {
-                        Ok(rhs) => operator.check(lhs.number, rhs),
+                        Ok(mut rhs) => {
+                            rhs = round(rhs, DECIMAL_PLACES);
+                            operator.check(lhs_number, rhs)
+                        },
                         Err(_) => false,
                     }
                 } else {
-                    operator.check(lhs.number, rhs.number)
+                    operator.check(lhs_number, rhs_number)
                 }
             }
             (Value::Object(lhs), Value::Object(rhs)) => operator.check(lhs, rhs),

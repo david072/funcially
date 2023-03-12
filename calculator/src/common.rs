@@ -202,6 +202,11 @@ pub fn cache_dir() -> PathBuf { dirs::cache_dir().unwrap().join(CRATE_NAME) }
 pub fn data_dir() -> PathBuf { dirs::data_local_dir().unwrap().join(CRATE_NAME) }
 
 pub mod math {
+    pub fn round(num: f64, dp: i32) -> f64 {
+        let multiplier = 10f64.powi(dp);
+        (num * multiplier).round() / multiplier
+    }
+
     pub fn factorial(num: f64) -> f64 {
         if num == 0.0 || num == 1.0 {
             1.0
