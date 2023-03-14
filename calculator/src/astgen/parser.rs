@@ -611,12 +611,6 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                if let Some(unit) = self.try_accept_unit() {
-                    number.unit = Some(unit?);
-                } else if let Some(power) = self.try_accept_unit_prefix() {
-                    number.modifiers.push(AstNodeModifier::Power(power));
-                }
-
                 if let Some(identifier) = self.peek(is(Identifier)) {
                     if identifier.text == "e" || identifier.text == "E" {
                         self.index += 1;
@@ -632,6 +626,12 @@ impl<'a> Parser<'a> {
 
                         if let Ok(mut exponent) = self.accept_literal() {
                             exponent.modifiers = modifiers;
+
+                            if let Some(unit) = self.try_accept_unit() {
+                                number.unit = Some(unit?);
+                            } else if let Some(power) = self.try_accept_unit_prefix() {
+                                number.modifiers.push(AstNodeModifier::Power(power));
+                            }
 
                             let range = number.range.clone();
                             let group = vec![
@@ -649,6 +649,12 @@ impl<'a> Parser<'a> {
                             self.index -= 1;
                         }
                     }
+                }
+
+                if let Some(unit) = self.try_accept_unit() {
+                    number.unit = Some(unit?);
+                } else if let Some(power) = self.try_accept_unit_prefix() {
+                    number.modifiers.push(AstNodeModifier::Power(power));
                 }
 
                 Ok(number)
