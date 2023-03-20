@@ -8,7 +8,7 @@ rust-version = "1.65.0"
 [dependencies]
 thiserror = "1.0.32"
 phf = { version = "0.11.1", features = ["macros"] }
-dirs = "4.0.0"
+dirs = "5.0.0"
 reqwest = { version = "0.11.12", features = ["json", "default"] }
 serde = { version = "1.0.144", features = ["derive"] }
 chrono = { version = "0.4.23", features = ["serde"] }
