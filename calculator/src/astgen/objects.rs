@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use chrono::{Duration, Local, NaiveDate};
 
-use crate::{Context, DateFormat, error, Settings};
+use crate::{Context, DateFormat, error, NumberValue, Settings};
 use crate::astgen::ast::{AstNode, AstNodeData, Operator};
 use crate::common::{ErrorType, Result};
 use crate::engine::{Engine, Value};
@@ -59,10 +59,24 @@ impl CalculatorObject {
         matches!(name, "date")
     }
 
+    pub fn is_callable(&self) -> bool {
+        match self {
+            Self::Date(_) => false,
+            Self::Vector(_) => true,
+        }
+    }
+
     pub fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_in_rhs: bool) -> Result<AstNode> {
         match self {
             Self::Date(date) => date.apply(self_range, op, other, self_in_rhs),
             Self::Vector(vec) => vec.apply(self_range, op, other, self_in_rhs),
+        }
+    }
+
+    pub fn call(&self, self_range: Range<usize>, args: &[(NumberValue, Range<usize>)], args_range: Range<usize>) -> Result<AstNode> {
+        match self {
+            Self::Date(date) => date.call(self_range, args, args_range),
+            Self::Vector(vec) => vec.call(self_range, args, args_range),
         }
     }
 
@@ -80,6 +94,8 @@ trait Object: Sized {
     fn parse(given_args: Vec<ObjectArgument>, context: Context, full_range: Range<usize>) -> Result<Self>;
 
     fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_is_rhs: bool) -> Result<AstNode>;
+
+    fn call(&self, self_range: Range<usize>, args: &[(NumberValue, Range<usize>)], args_range: Range<usize>) -> Result<AstNode>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
@@ -271,6 +287,8 @@ impl Object for DateObject {
             _ => Err(ErrorType::UnsupportedOperation.with(op.1))
         }
     }
+
+    fn call(&self, _: Range<usize>, _: &[(NumberValue, Range<usize>)], _: Range<usize>) -> Result<AstNode> { unreachable!(); }
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Clone, serde::Serialize, serde::Deserialize)]
@@ -331,5 +349,19 @@ impl Object for Vector {
             }
             _ => error!(UnsupportedOperation: op.1),
         }
+    }
+
+    fn call(&self, self_range: Range<usize>, args: &[(NumberValue, Range<usize>)], args_range: Range<usize>) -> Result<AstNode> {
+        if args.len() > 1 { error!(WrongNumberOfArguments(1): args_range); }
+
+        if let (number, range) = &args[0] {
+            if number.number.fract() != 0.0 { error!(ExpectedInteger(number.number): range.clone()); }
+            return match self.numbers.get(number.number as usize) {
+                Some(n) => Ok(AstNode::new(AstNodeData::Literal(*n), self_range)),
+                None => Ok(AstNode::new(AstNodeData::Literal(f64::NAN), self_range)),
+            };
+        }
+
+        error!(ExpectedNumber: args[0].1.clone());
     }
 }

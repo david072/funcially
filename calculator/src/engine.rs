@@ -8,7 +8,7 @@ use std::fmt::{Display, Formatter};
 use std::mem::{replace, take};
 use std::ops::Range;
 
-use crate::{astgen::ast::{AstNode, AstNodeData, Operator}, astgen::tokenizer::TokenType, common::*, Context, Currencies, environment::{Environment, units::convert as convert_units, Variable}, match_ast_node, Settings};
+use crate::{astgen::ast::{AstNode, AstNodeData, Operator}, astgen::tokenizer::TokenType, common::*, Context, Currencies, environment::{Environment, units::convert as convert_units, Variable}, error, match_ast_node, Settings};
 use crate::astgen::ast::BooleanOperator;
 use crate::astgen::objects::CalculatorObject;
 use crate::environment::units::Unit;
@@ -237,8 +237,8 @@ impl<'a> Engine<'a> {
         }
 
         let mut engine = Engine::new(&mut ast, context);
-        engine.eval_functions()?;
         engine.eval_variables()?;
+        engine.eval_functions()?;
         engine.eval_groups()?;
         // extended operators
         engine.eval_operators(&[
@@ -528,75 +528,86 @@ impl<'a> Engine<'a> {
         let mut i = 0usize;
 
         while i < self.ast.len() - 1 {
-            let Some([identifier, call_op, args]) = self.ast.get_mut(i..=i + 2) else {
+            let Some([receiver, call_op, args_node]) = self.ast.get_mut(i..=i + 2) else {
                 i += 2;
                 continue;
             };
 
-            let mut func_name: &str = "";
-            let mut arg_asts: &Vec<Vec<AstNode>> = &Default::default();
-
-            let is_valid = 'blk: {
-                if call_op.data != AstNodeData::Operator(Operator::Call) { break 'blk false; }
-                let AstNodeData::Identifier(_func_name) = &identifier.data else { break 'blk false; };
-                let AstNodeData::Arguments(_arg_asts) = &args.data else { break 'blk false; };
-                func_name = _func_name.as_str();
-                arg_asts = _arg_asts;
-                true
+            if call_op.data != AstNodeData::Operator(Operator::Call) {
+                i += 2;
+                continue;
+            }
+            let AstNodeData::Arguments(arg_asts) = &args_node.data else {
+                i += 2;
+                continue;
             };
-            if !is_valid {
+
+            let new_node: AstNode;
+            if let AstNodeData::Identifier(func_name) = &receiver.data {
+                // TODO: Make this generic!?
+                let mut first_arg: Option<NumberValue> = None;
+                if func_name == "abs" && arg_asts.len() == 1 {
+                    match Self::evaluate(arg_asts[0].clone(), self.context)? {
+                        Value::Number(number) => first_arg = Some(number),
+                        Value::Object(CalculatorObject::Vector(vector)) => {
+                            let result = vector.length();
+                            let new_node = AstNode::from(receiver, AstNodeData::Literal(result));
+                            let _ = replace(receiver, new_node);
+                            self.ast.remove(i + 1);
+                            self.ast.remove(i + 1);
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+
+                let mut args = if let Some(arg) = first_arg { vec![arg] } else { vec![] };
+                for ast in arg_asts {
+                    args.push(Self::evaluate_to_number(ast.clone(), self.context)?);
+                }
+
+                new_node = match self.context.env.resolve_function(func_name, &args) {
+                    Ok(res) => {
+                        let mut new_node = AstNode::from(receiver, AstNodeData::Literal(res.0));
+                        if new_node.unit.is_none() { new_node.unit = res.1; }
+                        new_node
+                    }
+                    Err(ty) => match ty {
+                        ErrorType::UnknownFunction(_) => {
+                            let args = args.into_iter()
+                                .zip(arg_asts.iter().map(|ast| full_range(ast)))
+                                .collect::<Vec<_>>();
+                            let res = self.context.env.resolve_custom_function(
+                                func_name,
+                                &args,
+                                receiver.range.clone(),
+                                self.context,
+                            )?;
+                            res.to_ast_node_from(receiver)
+                        }
+                        _ => {
+                            return Err(ty.with(receiver.range.clone()));
+                        }
+                    }
+                };
+            } else if let AstNodeData::Object(object) = &receiver.data {
+                if !object.is_callable() { error!(NotCallable: receiver.range.clone()); }
+                let mut args = vec![];
+                for ast in arg_asts {
+                    args.push((Self::evaluate_to_number(ast.clone(), self.context)?, full_range(ast)));
+                }
+
+                new_node = object.call(
+                    receiver.range.clone(),
+                    &args,
+                    args_node.range.clone(),
+                )?;
+            } else {
                 i += 2;
                 continue;
             }
 
-            // TODO: Make this generic!?
-            let mut first_arg: Option<NumberValue> = None;
-            if func_name == "abs" && arg_asts.len() == 1 {
-                match Self::evaluate(arg_asts[0].clone(), self.context)? {
-                    Value::Number(number) => first_arg = Some(number),
-                    Value::Object(CalculatorObject::Vector(vector)) => {
-                        let result = vector.length();
-                        let new_node = AstNode::from(identifier, AstNodeData::Literal(result));
-                        let _ = replace(identifier, new_node);
-                        self.ast.remove(i + 1);
-                        self.ast.remove(i + 1);
-                        continue;
-                    }
-                    _ => {}
-                }
-            }
-
-            let mut args = if let Some(arg) = first_arg { vec![arg] } else { vec![] };
-            for ast in arg_asts {
-                args.push(Self::evaluate_to_number(ast.clone(), self.context)?);
-            }
-
-            let new_node = match self.context.env.resolve_function(func_name, &args) {
-                Ok(res) => {
-                    let mut new_node = AstNode::from(identifier, AstNodeData::Literal(res.0));
-                    if new_node.unit.is_none() { new_node.unit = res.1; }
-                    new_node
-                }
-                Err(ty) => match ty {
-                    ErrorType::UnknownFunction(_) => {
-                        let args = args.into_iter()
-                            .zip(arg_asts.iter().map(|ast| full_range(ast)))
-                            .collect::<Vec<_>>();
-                        let res = self.context.env.resolve_custom_function(
-                            func_name,
-                            &args,
-                            identifier.range.clone(),
-                            self.context,
-                        )?;
-                        res.to_ast_node_from(identifier)
-                    }
-                    _ => {
-                        return Err(ty.with(identifier.range.clone()));
-                    }
-                }
-            };
-
-            let _ = replace(identifier, new_node);
+            let _ = replace(receiver, new_node);
             self.ast.remove(i + 1);
             self.ast.remove(i + 1);
         }

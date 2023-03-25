@@ -925,7 +925,7 @@ impl<'a> Parser<'a> {
         } else if self.context.env.is_valid_function(&name) {
             let open_bracket_token = self.peek(is(OpenBracket));
             let open_bracket_range = open_bracket_token.map(|t| t.range()).unwrap_or_default();
-            let arguments = self.accept_function_arguments(&name)?;
+            let arguments = self.accept_call_arguments(&name)?;
             let close_bracket_range = self.tokens[self.index - 1].range();
 
             let args_range = open_bracket_range.start + 1..close_bracket_range.start;
@@ -1000,7 +1000,26 @@ impl<'a> Parser<'a> {
             self.context,
             full_range_start..close_bracket_range.end,
         )?;
-        Ok(AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end))
+
+        let is_callable = object.is_callable();
+        let object_node = AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end);
+        if is_callable {
+            if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
+                let open_bracket_range = open_bracket.range();
+                let tokens = self.accept_separated(open_bracket_range.clone(), Comma, CloseBracket)?;
+                let args = self.parse_arguments(tokens, false)?;
+
+                let close_bracket = self.accept(is(CloseBracket), ExpectedCloseBracket)?;
+
+                return Ok(AstNode::new(AstNodeData::Group(vec![
+                    object_node,
+                    AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range.clone()),
+                    AstNode::new(AstNodeData::Arguments(args), open_bracket_range.start + 1..close_bracket.range().start),
+                ]), full_range_start..close_bracket.range().end));
+            }
+        }
+
+        Ok(object_node)
     }
 
     fn accept_object_arguments(&mut self) -> Result<Vec<AstNode>> {
@@ -1068,10 +1087,25 @@ impl<'a> Parser<'a> {
             }))
             .collect::<Result<Vec<f64>>>()?;
 
-        Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Vector { numbers })), full_range))
+        let vector = AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Vector { numbers })), full_range.clone());
+        if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
+            let open_bracket_range = open_bracket.range();
+            let tokens = self.accept_separated(open_bracket_range.clone(), Comma, CloseBracket)?;
+            let args = self.parse_arguments(tokens, false)?;
+
+            let close_bracket_range = self.tokens[self.index - 1].range();
+
+            return Ok(AstNode::new(AstNodeData::Group(vec![
+                vector,
+                AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range.clone()),
+                AstNode::new(AstNodeData::Arguments(args), open_bracket_range.start + 1..close_bracket_range.start),
+            ]), full_range.start..close_bracket_range.end));
+        }
+
+        Ok(vector)
     }
 
-    fn accept_function_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {
+    fn accept_call_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {
         let open_bracket_token = self.accept(is(OpenBracket), MissingOpeningBracket)?;
         let open_bracket_range = open_bracket_token.range();
 
@@ -1091,6 +1125,10 @@ impl<'a> Parser<'a> {
 
         let allow_question_mark = !self.context.env.is_standard_function(function_name);
 
+        self.parse_arguments(arguments, allow_question_mark)
+    }
+
+    fn parse_arguments(&self, arguments: Vec<&'a [Token]>, allow_question_mark: bool) -> Result<Vec<Vec<AstNode>>> {
         let mut result = Vec::new();
         for tokens in arguments {
             let mut parser = Self::new(
@@ -1106,7 +1144,6 @@ impl<'a> Parser<'a> {
             let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
             result.push(ast);
         }
-
         Ok(result)
     }
 

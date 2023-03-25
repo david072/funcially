@@ -157,6 +157,8 @@ pub enum ErrorType {
     DateTooBig,
     #[error("The operands are in the wrong order")]
     WrongOrder,
+    #[error("This is not callable")]
+    NotCallable,
     /// This should never happen
     #[error("Invalid AST (this is a bug!)")]
     InvalidAst,
