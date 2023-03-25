@@ -1056,6 +1056,7 @@ impl<'a> Parser<'a> {
             parser.set_extra_allowed_variables(vars);
         }
         let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+        self.question_mark = parser.question_mark;
         Ok(ast)
     }
 
@@ -1078,6 +1079,7 @@ impl<'a> Parser<'a> {
                 );
                 if let Some(vars) = self.extra_allowed_variables { parser.set_extra_allowed_variables(vars); }
                 let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+                self.question_mark = parser.question_mark;
                 Ok(ast)
             })
             .map(|ast| ast.and_then(|ast| {
@@ -1110,7 +1112,6 @@ impl<'a> Parser<'a> {
         }
 
         let allow_question_mark = !self.context.env.is_standard_function(function_name);
-
         self.parse_arguments(arguments, allow_question_mark)
     }
 
@@ -1132,7 +1133,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_arguments(&self, arguments: Vec<&'a [Token]>, allow_question_mark: bool) -> Result<Vec<Vec<AstNode>>> {
+    fn parse_arguments(&mut self, arguments: Vec<&'a [Token]>, allow_question_mark: bool) -> Result<Vec<Vec<AstNode>>> {
         let mut result = Vec::new();
         for tokens in arguments {
             let mut parser = Self::new(
@@ -1146,6 +1147,7 @@ impl<'a> Parser<'a> {
                 parser.set_extra_allowed_variables(vars);
             }
             let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+            self.question_mark = parser.question_mark;
             result.push(ast);
         }
         Ok(result)

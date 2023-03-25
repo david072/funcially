@@ -323,7 +323,12 @@ impl<'a> Engine<'a> {
                         return Ok(Some(unit));
                     }
                     AstNodeData::Group(ast) => {
-                        if let Some(unit) = validate_and_get_unit(ast, env, is_surrounded_by_exponentiation, None)? {
+                        if let Some(unit) = validate_and_get_unit(
+                            ast,
+                            env,
+                            is_surrounded_by_exponentiation,
+                            None,
+                        )? {
                             return Ok(Some(unit));
                         }
                     }
@@ -423,7 +428,12 @@ impl<'a> Engine<'a> {
             ast
         }
 
-        let question_mark_unit = match validate_and_get_unit(&unknown_side, context.env, false, None)? {
+        let question_mark_unit = match validate_and_get_unit(
+            &unknown_side,
+            context.env,
+            false,
+            None,
+        )? {
             Some(unit) => unit,
             None => return Err(ErrorType::ExpectedQuestionMark.with(full_range(&unknown_side))),
         };
