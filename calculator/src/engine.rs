@@ -300,7 +300,8 @@ impl<'a> Engine<'a> {
             // The name of a variable that "contains" the question mark (e.g. function arg name)
             question_mark_variable_name: Option<&str>,
         ) -> Result<Option<Option<Unit>>> {
-            for i in 0..ast.len() {
+            let mut i = 0usize;
+            while i < ast.len() {
                 fn map_fn(node: &AstNode) -> bool {
                     matches!(node.data, AstNodeData::Operator(Operator::Exponentiation))
                 }
@@ -321,24 +322,18 @@ impl<'a> Engine<'a> {
                         let unit = ast[i].unit.clone();
                         return Ok(Some(unit));
                     }
-                    AstNodeData::VariableReference(name) => {
-                        if question_mark_variable_name.is_none() ||
-                            question_mark_variable_name.unwrap() != name { continue; }
-
-                        if is_surrounded_by_exponentiation {
-                            // TODO: Better error range (power sign)
-                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
-                        }
-
-                        let unit = ast[i].unit.clone();
-                        return Ok(Some(unit));
-                    }
                     AstNodeData::Group(ast) => {
                         if let Some(unit) = validate_and_get_unit(ast, env, is_surrounded_by_exponentiation, None)? {
                             return Ok(Some(unit));
                         }
                     }
-                    AstNodeData::FunctionInvocation(name, args) => {
+                    AstNodeData::Identifier(name)
+                    if ast.len() > i + 2 &&
+                        ast[i + 1].data == AstNodeData::Operator(Operator::Call) &&
+                        matches!(ast[i + 2].data, AstNodeData::Arguments(_)) => 'blk: {
+                        let AstNodeData::Arguments(args) = &ast[i + 2].data else { break 'blk; };
+                        i += 2;
+
                         let f = env.get_function(name).unwrap();
 
                         let mut question_mark_arg_name: Option<&str> = None;
@@ -381,8 +376,22 @@ impl<'a> Engine<'a> {
                             return Ok(None);
                         }
                     }
+                    AstNodeData::Identifier(name) => {
+                        if question_mark_variable_name.is_none() ||
+                            question_mark_variable_name.unwrap() != name { continue; }
+
+                        if is_surrounded_by_exponentiation {
+                            // TODO: Better error range (power sign)
+                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
+                        }
+
+                        let unit = ast[i].unit.clone();
+                        return Ok(Some(unit));
+                    }
                     _ => {}
                 }
+
+                i += 1;
             }
 
             Ok(None)
@@ -397,7 +406,12 @@ impl<'a> Engine<'a> {
                             return;
                         }
                         AstNodeData::Group(ref mut ast) => replace(ast, value),
-                        AstNodeData::FunctionInvocation(_, ref mut args) => {
+                        AstNodeData::Identifier(_) => 'blk: {
+                            if ast.len() <= i + 2 { break 'blk; }
+                            if ast[i + 1].data != AstNodeData::Operator(Operator::Call) { break 'blk; }
+
+                            let AstNodeData::Arguments(args) = &mut ast[i + 2].data else { break 'blk; };
+
                             for arg in args { replace(arg, value); }
                         }
                         _ => {}
@@ -494,7 +508,7 @@ impl<'a> Engine<'a> {
                         Ok(mut rhs) => {
                             rhs = round(rhs, DECIMAL_PLACES);
                             operator.check(lhs_number, rhs)
-                        },
+                        }
                         Err(_) => false,
                     }
                 } else {
@@ -511,11 +525,29 @@ impl<'a> Engine<'a> {
     }
 
     fn eval_functions(&mut self) -> Result<()> {
-        for node in self.ast.iter_mut() {
-            let (func_name, arg_asts) = match node.data {
-                AstNodeData::FunctionInvocation(ref name, ref args) => (name, args),
-                _ => continue,
+        let mut i = 0usize;
+
+        while i < self.ast.len() - 1 {
+            let Some([identifier, call_op, args]) = self.ast.get_mut(i..=i + 2) else {
+                i += 2;
+                continue;
             };
+
+            let mut func_name: &str = "";
+            let mut arg_asts: &Vec<Vec<AstNode>> = &Default::default();
+
+            let is_valid = 'blk: {
+                if call_op.data != AstNodeData::Operator(Operator::Call) { break 'blk false; }
+                let AstNodeData::Identifier(_func_name) = &identifier.data else { break 'blk false; };
+                let AstNodeData::Arguments(_arg_asts) = &args.data else { break 'blk false; };
+                func_name = _func_name.as_str();
+                arg_asts = _arg_asts;
+                true
+            };
+            if !is_valid {
+                i += 2;
+                continue;
+            }
 
             // TODO: Make this generic!?
             let mut first_arg: Option<NumberValue> = None;
@@ -524,9 +556,11 @@ impl<'a> Engine<'a> {
                     Value::Number(number) => first_arg = Some(number),
                     Value::Object(CalculatorObject::Vector(vector)) => {
                         let result = vector.length();
-                        let new_node = AstNode::from(node, AstNodeData::Literal(result));
-                        let _ = replace(node, new_node);
-                        return Ok(());
+                        let new_node = AstNode::from(identifier, AstNodeData::Literal(result));
+                        let _ = replace(identifier, new_node);
+                        self.ast.remove(i + 1);
+                        self.ast.remove(i + 1);
+                        continue;
                     }
                     _ => {}
                 }
@@ -539,7 +573,7 @@ impl<'a> Engine<'a> {
 
             let new_node = match self.context.env.resolve_function(func_name, &args) {
                 Ok(res) => {
-                    let mut new_node = AstNode::from(node, AstNodeData::Literal(res.0));
+                    let mut new_node = AstNode::from(identifier, AstNodeData::Literal(res.0));
                     if new_node.unit.is_none() { new_node.unit = res.1; }
                     new_node
                 }
@@ -551,18 +585,20 @@ impl<'a> Engine<'a> {
                         let res = self.context.env.resolve_custom_function(
                             func_name,
                             &args,
-                            node.range.clone(),
+                            identifier.range.clone(),
                             self.context,
                         )?;
-                        res.to_ast_node_from(node)
+                        res.to_ast_node_from(identifier)
                     }
                     _ => {
-                        return Err(ty.with(node.range.clone()));
+                        return Err(ty.with(identifier.range.clone()));
                     }
                 }
             };
 
-            let _ = replace(node, new_node);
+            let _ = replace(identifier, new_node);
+            self.ast.remove(i + 1);
+            self.ast.remove(i + 1);
         }
 
         Ok(())
@@ -571,7 +607,7 @@ impl<'a> Engine<'a> {
     fn eval_variables(&mut self) -> Result<()> {
         for node in self.ast.iter_mut() {
             let var_name = match node.data {
-                AstNodeData::VariableReference(ref name) => name.as_str(),
+                AstNodeData::Identifier(ref name) => name.as_str(),
                 _ => continue,
             };
 

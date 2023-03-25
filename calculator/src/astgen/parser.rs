@@ -921,15 +921,20 @@ impl<'a> Parser<'a> {
             if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
                 return question_mark;
             }
-            return Ok(AstNode::new(AstNodeData::VariableReference(name), range));
+            return Ok(AstNode::new(AstNodeData::Identifier(name), range));
         } else if self.context.env.is_valid_function(&name) {
+            let open_bracket_token = self.peek(is(OpenBracket));
+            let open_bracket_range = open_bracket_token.map(|t| t.range()).unwrap_or_default();
             let arguments = self.accept_function_arguments(&name)?;
             let close_bracket_range = self.tokens[self.index - 1].range();
 
-            return Ok(AstNode::new(
-                AstNodeData::FunctionInvocation(name, arguments),
-                range.start..close_bracket_range.end),
-            );
+            let args_range = open_bracket_range.start + 1..close_bracket_range.start;
+
+            return Ok(AstNode::new(AstNodeData::Group(vec![
+                AstNode::new(AstNodeData::Identifier(name), range.clone()),
+                AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range),
+                AstNode::new(AstNodeData::Arguments(arguments), args_range),
+            ]), range.start..close_bracket_range.end));
         }
 
         if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
@@ -1351,7 +1356,7 @@ mod tests {
     fn variables() -> Result<()> {
         let ast = calculation!("pi");
         match ast[0].data {
-            AstNodeData::VariableReference(ref s) => {
+            AstNodeData::Identifier(ref s) => {
                 assert_eq!("pi".to_string(), *s);
             }
             _ => unreachable!(),
@@ -1362,14 +1367,12 @@ mod tests {
     #[test]
     fn functions() -> Result<()> {
         let ast = calculation!("sin(30)");
-        match ast[0].data {
-            AstNodeData::FunctionInvocation(ref name, ref args) => {
-                assert_eq!("sin".to_string(), *name);
-                assert!(args.len() == 1 && args[0].len() == 1);
-                assert!(matches!(args[0][0].data, AstNodeData::Literal(_)));
-            }
-            _ => unreachable!(),
-        }
+        assert_eq!(ast.len(), 1);
+        let AstNodeData::Group(ast) = &ast.first().unwrap().data else { unreachable!(); };
+        assert_eq!(ast.len(), 3);
+        assert!(matches!(ast[0].data, AstNodeData::Identifier(_)));
+        assert!(matches!(ast[1].data, AstNodeData::Operator(Operator::Call)));
+        assert!(matches!(ast[2].data, AstNodeData::Arguments(_)));
         Ok(())
     }
 
@@ -1466,7 +1469,7 @@ mod tests {
         assert_eq!(args, vec![("x".into(), None)]);
         assert!(ast.is_some());
         assert_eq!(ast.as_ref().unwrap().len(), 1);
-        assert_eq!(ast.unwrap()[0].data, AstNodeData::VariableReference("x".to_owned()));
+        assert_eq!(ast.unwrap()[0].data, AstNodeData::Identifier("x".to_owned()));
 
         let (name, args, ast) = func_definition!("f(x, y) := x");
         assert_eq!(name, "f");
@@ -1501,7 +1504,7 @@ mod tests {
 
         let ast = calculation!("1e");
         assert_eq!(ast.len(), 3);
-        assert!(matches!(ast[2].data, AstNodeData::VariableReference(_)));
+        assert!(matches!(ast[2].data, AstNodeData::Identifier(_)));
         Ok(())
     }
 

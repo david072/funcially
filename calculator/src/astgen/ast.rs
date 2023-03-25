@@ -53,6 +53,7 @@ pub enum Operator {
     Of,
     In,
     Modulo,
+    Call,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
@@ -60,11 +61,11 @@ pub enum AstNodeData {
     Literal(f64),
     Operator(Operator),
     Group(Vec<AstNode>),
-    VariableReference(String),
-    FunctionInvocation(String, Vec<Vec<AstNode>>),
+    Identifier(String),
     Unit(Unit),
     QuestionMark,
     Object(CalculatorObject),
+    Arguments(Vec<Vec<AstNode>>),
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
@@ -253,8 +254,8 @@ impl AstNode {
                     ExpectedPercentage, self.range);
                 *lhs *= rhs_value;
             }
-            Operator::In => {}
             Operator::Modulo => *lhs %= rhs_value,
+            Operator::In | Operator::Call => {}
         }
 
         Ok(())
@@ -370,19 +371,17 @@ impl Display for AstNode {
                 }
                 Ok(())
             }
-            AstNodeData::VariableReference(name) => write!(f, "VariableRef: {p}{name}{s} {unit} ({fmt})",
-                                                           p = self.prefix_modifiers(),
-                                                           name = name,
-                                                           s = self.suffix_modifiers(),
-                                                           unit = self.unit(),
-                                                           fmt = self.format),
-            AstNodeData::FunctionInvocation(name, args) => {
-                writeln!(f, "FunctionInv: {p}{name}{s} {unit} ({fmt}):",
-                         p = self.prefix_modifiers(),
-                         name = name,
-                         s = self.suffix_modifiers(),
-                         unit = self.unit(),
-                         fmt = self.format)?;
+            AstNodeData::Identifier(name) => write!(f, "Identifier: {p}{name}{s} {unit} ({fmt})",
+                                                    p = self.prefix_modifiers(),
+                                                    name = name,
+                                                    s = self.suffix_modifiers(),
+                                                    unit = self.unit(),
+                                                    fmt = self.format),
+            AstNodeData::Unit(name) => write!(f, "Unit: {name}"),
+            AstNodeData::QuestionMark => write!(f, "QuestionMark"),
+            AstNodeData::Object(object) => write!(f, "Object: {object:?}"),
+            AstNodeData::Arguments(args) => {
+                writeln!(f, "Arguments: ")?;
                 for arg in args {
                     for node in arg {
                         for _ in 0..f.width().unwrap_or(0) + 4 {
@@ -394,9 +393,6 @@ impl Display for AstNode {
 
                 Ok(())
             }
-            AstNodeData::Unit(name) => write!(f, "Unit: {name}"),
-            AstNodeData::QuestionMark => write!(f, "QuestionMark"),
-            AstNodeData::Object(object) => write!(f, "Object: {object:?}"),
         }
     }
 }
