@@ -11,7 +11,7 @@ use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator,
 use crate::astgen::objects::{CalculatorObject, ObjectArgument, Vector};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{Error, ErrorType::*, ErrorType, Result};
-use crate::engine::Engine;
+use crate::engine::{Engine, Value};
 use crate::environment::{ArgCount, FunctionArgument};
 use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
 
@@ -916,12 +916,28 @@ impl<'a> Parser<'a> {
         let name = identifier.text.clone();
         let range = identifier.range();
 
-        if self.context.env.is_valid_variable(&name) ||
-            self.extra_allowed_variables.map_or(false, |vars| vars.contains(&name.as_str())) {
+        if self.context.env.is_valid_variable(&name) {
+            let v = self.context.env.resolve_variable(&name).unwrap();
+            let node = AstNode::new(AstNodeData::Identifier(name.clone()), range.clone());
+
+            return match &v.0 {
+                Value::Object(object) if object.is_callable() => {
+                    self.maybe_with_call(node, range.start)
+                }
+                _ => {
+                    if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
+                        return question_mark;
+                    }
+                    return Ok(node);
+                }
+            };
+        }
+        if self.extra_allowed_variables.map_or(false, |vars| vars.contains(&name.as_str())) {
+            let node = AstNode::new(AstNodeData::Identifier(name.clone()), range.clone());
             if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
                 return question_mark;
             }
-            return Ok(AstNode::new(AstNodeData::Identifier(name), range));
+            return Ok(node);
         } else if self.context.env.is_valid_function(&name) {
             let open_bracket_token = self.peek(is(OpenBracket));
             let open_bracket_range = open_bracket_token.map(|t| t.range()).unwrap_or_default();
@@ -1003,23 +1019,7 @@ impl<'a> Parser<'a> {
 
         let is_callable = object.is_callable();
         let object_node = AstNode::new(AstNodeData::Object(object), full_range_start..close_bracket_range.end);
-        if is_callable {
-            if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
-                let open_bracket_range = open_bracket.range();
-                let tokens = self.accept_separated(open_bracket_range.clone(), Comma, CloseBracket)?;
-                let args = self.parse_arguments(tokens, false)?;
-
-                let close_bracket = self.accept(is(CloseBracket), ExpectedCloseBracket)?;
-
-                return Ok(AstNode::new(AstNodeData::Group(vec![
-                    object_node,
-                    AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range.clone()),
-                    AstNode::new(AstNodeData::Arguments(args), open_bracket_range.start + 1..close_bracket.range().start),
-                ]), full_range_start..close_bracket.range().end));
-            }
-        }
-
-        Ok(object_node)
+        if is_callable { self.maybe_with_call(object_node, full_range_start) } else { Ok(object_node) }
     }
 
     fn accept_object_arguments(&mut self) -> Result<Vec<AstNode>> {
@@ -1088,21 +1088,7 @@ impl<'a> Parser<'a> {
             .collect::<Result<Vec<f64>>>()?;
 
         let vector = AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Vector { numbers })), full_range.clone());
-        if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
-            let open_bracket_range = open_bracket.range();
-            let tokens = self.accept_separated(open_bracket_range.clone(), Comma, CloseBracket)?;
-            let args = self.parse_arguments(tokens, false)?;
-
-            let close_bracket_range = self.tokens[self.index - 1].range();
-
-            return Ok(AstNode::new(AstNodeData::Group(vec![
-                vector,
-                AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range.clone()),
-                AstNode::new(AstNodeData::Arguments(args), open_bracket_range.start + 1..close_bracket_range.start),
-            ]), full_range.start..close_bracket_range.end));
-        }
-
-        Ok(vector)
+        self.maybe_with_call(vector, full_range.start)
     }
 
     fn accept_call_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {
@@ -1126,6 +1112,24 @@ impl<'a> Parser<'a> {
         let allow_question_mark = !self.context.env.is_standard_function(function_name);
 
         self.parse_arguments(arguments, allow_question_mark)
+    }
+
+    fn maybe_with_call(&mut self, node: AstNode, range_start: usize) -> Result<AstNode> {
+        if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
+            let open_bracket_range = open_bracket.range();
+            let tokens = self.accept_separated(open_bracket_range.clone(), Comma, CloseBracket)?;
+            let args = self.parse_arguments(tokens, false)?;
+
+            let close_bracket_range = self.tokens[self.index - 1].range();
+
+            Ok(AstNode::new(AstNodeData::Group(vec![
+                node,
+                AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range.clone()),
+                AstNode::new(AstNodeData::Arguments(args), open_bracket_range.start + 1..close_bracket_range.start),
+            ]), range_start..close_bracket_range.start))
+        } else {
+            Ok(node)
+        }
     }
 
     fn parse_arguments(&self, arguments: Vec<&'a [Token]>, allow_question_mark: bool) -> Result<Vec<Vec<AstNode>>> {

@@ -621,6 +621,7 @@ impl<'a> Engine<'a> {
                 AstNodeData::Identifier(ref name) => name.as_str(),
                 _ => continue,
             };
+            if !self.context.env.is_valid_variable(var_name) { continue; }
 
             let Variable(value) = self.context.env.resolve_variable(var_name)
                 .map_err(|ty| ty.with(node.range.clone()))?;

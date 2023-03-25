@@ -354,14 +354,12 @@ impl Object for Vector {
     fn call(&self, self_range: Range<usize>, args: &[(NumberValue, Range<usize>)], args_range: Range<usize>) -> Result<AstNode> {
         if args.len() > 1 { error!(WrongNumberOfArguments(1): args_range); }
 
-        if let (number, range) = &args[0] {
-            if number.number.fract() != 0.0 { error!(ExpectedInteger(number.number): range.clone()); }
-            return match self.numbers.get(number.number as usize) {
-                Some(n) => Ok(AstNode::new(AstNodeData::Literal(*n), self_range)),
-                None => Ok(AstNode::new(AstNodeData::Literal(f64::NAN), self_range)),
-            };
-        }
-
-        error!(ExpectedNumber: args[0].1.clone());
+        let (number, range) = &args[0];
+        if number.number.fract() != 0.0 { error!(ExpectedInteger(number.number): range.clone()); }
+        if number.number.is_sign_negative() { return Ok(AstNode::new(AstNodeData::Literal(f64::NAN), self_range)); }
+        return match self.numbers.get(number.number as usize) {
+            Some(n) => Ok(AstNode::new(AstNodeData::Literal(*n), self_range)),
+            None => Ok(AstNode::new(AstNodeData::Literal(f64::NAN), self_range)),
+        };
     }
 }
