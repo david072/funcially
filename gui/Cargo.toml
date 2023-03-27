@@ -27,4 +27,4 @@ tracing-wasm = "0.2.1"
 wasm-bindgen-futures = "0.4"
 
 [target.'cfg(windows)'.build-dependencies]
-embed-resource = "1.7.3"
+embed-resource = "2.0.0"
