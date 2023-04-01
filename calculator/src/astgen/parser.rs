@@ -1703,6 +1703,19 @@ mod tests {
         let result = calculation!("!(4)!%");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].modifiers.len(), 3);
+
+        let result = calculation!("3 + !(1)%");
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[2].modifiers.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn empty_group() -> Result<()> {
+        let result = calculation!("()");
+        assert_eq!(result.len(), 1);
+        let AstNodeData::Literal(n) = result[0].data else { unreachable!(); };
+        assert_eq!(n, 1.0);
         Ok(())
     }
 }
