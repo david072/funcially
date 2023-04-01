@@ -714,7 +714,7 @@ mod tests {
                     settings: &SET,
                 };
                 Engine::evaluate(
-                    if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, CONTEXT)? { ast }
+                    if let ParserResult::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse()? { ast }
                     else { panic!("Expected ParserResult::Calculation"); },
                     CONTEXT,
                 ).and_then(|res| res.to_number().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))
@@ -734,7 +734,7 @@ mod tests {
                     settings: &SET,
                 };
                 Engine::evaluate(
-                    if let ParserResult::Calculation(ast) = Parser::parse(&tokenize($str)?, CONTEXT)? { ast }
+                    if let ParserResult::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse()? { ast }
                     else { panic!("Expected ParserResult::Calculation"); },
                     CONTEXT,
                 ).and_then(|res| res.to_object().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))

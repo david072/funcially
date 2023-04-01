@@ -56,6 +56,8 @@ pub enum ErrorType {
     MissingEqualsSign,
     #[error("Boolean operators are only allowed at the top level")]
     UnexpectedBooleanOperator,
+    #[error("Boolean operators and definitions are not allowed")]
+    DisallowedBooleanOperator,
     #[error("Second boolean operator")]
     UnexpectedSecondBooleanOperator,
     #[error("Unknown function \"{0}\"")]
@@ -76,6 +78,8 @@ pub enum ErrorType {
     UnexpectedComma,
     #[error("Definitions are only allowed at the top level")]
     UnexpectedDefinition,
+    #[error("Postfix definition disallowed since normal definition was used")]
+    DisallowedPostfixDefinitionNormalDefinitionWasUsed,
     #[error("Expected expression, found {0}")]
     ExpectedExpression(String),
     #[error("Expected opening bracket")]

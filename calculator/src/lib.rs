@@ -210,7 +210,7 @@ impl<'a> Calculator<'a> {
     }
 
     fn calculate_impl(&mut self, tokens: Vec<Token>) -> Result<ResultData> {
-        match Parser::parse(&tokens, self.context())? {
+        match Parser::from_tokens(&tokens, self.context()).parse()? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
@@ -460,7 +460,7 @@ impl<'a> Calculator<'a> {
         }
 
         if verbosity == Verbosity::Ast {
-            match Parser::parse(&tokens, self.context()) {
+            match Parser::from_tokens(&tokens, self.context()).parse() {
                 Ok(parser_result) => match parser_result {
                     ParserResult::Calculation(ast) => {
                         writeln!(&mut output, "AST:").unwrap();

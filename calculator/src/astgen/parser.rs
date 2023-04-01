@@ -77,10 +77,23 @@ impl std::fmt::Display for ParserResult {
     }
 }
 
+#[derive(Debug)]
+enum DefinitionInfo {
+    Variable(String),
+    Function(String, Vec<FunctionArgument>),
+}
+
 #[derive(Debug, Clone)]
 pub struct QuestionMarkInfo {
     is_in_lhs: bool,
     variable: Option<(String, Range<usize>)>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BooleanOperatorInfo {
+    operator: BooleanOperator,
+    ast_index: usize,
+    token_index: usize,
 }
 
 pub struct Parser<'a> {
@@ -88,44 +101,21 @@ pub struct Parser<'a> {
     index: usize,
     nesting_level: usize,
     context: Context<'a>,
-    extra_allowed_variables: Option<&'a [&'a str]>,
+    extra_allowed_variables: Option<Vec<String>>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
+    boolean_operator: Option<BooleanOperatorInfo>,
     did_find_equals_sign: bool,
 }
 
 impl<'a> Parser<'a> {
-    pub(crate) fn parse(tokens: &'a [Token], context: Context) -> Result<ParserResult> {
-        let mut parser = Parser::new(
-            tokens,
-            context,
-            0,
-            true,
-            None,
-        );
-        if let Some(name) = parser.try_accept_variable_definition_head(true) {
-            let name = name?;
-            let ast = parser.accept_definition_expression()?;
-            Ok(ParserResult::VariableDefinition(name, ast))
-        } else if let Some(result) = parser.try_accept_function_definition_head(true) {
-            let (name, args) = result?;
-
-            let vars = args.iter().map(|(arg, ..)| arg.as_str()).collect::<Vec<_>>();
-            parser.set_extra_allowed_variables(&vars);
-            let ast = parser.accept_definition_expression()?;
-
-            Ok(ParserResult::FunctionDefinition { name, args, ast })
-        } else {
-            parser.accept_expression()
-        }
-    }
-
     pub(crate) fn new(
         tokens: &'a [Token],
         context: Context<'a>,
         nesting_level: usize,
         allow_question_mark: bool,
         question_mark: Option<QuestionMarkInfo>,
+        boolean_operator: Option<BooleanOperatorInfo>,
     ) -> Self {
         Self {
             tokens,
@@ -136,10 +126,35 @@ impl<'a> Parser<'a> {
             allow_question_mark,
             question_mark,
             did_find_equals_sign: false,
+            boolean_operator,
         }
     }
 
-    pub fn set_extra_allowed_variables(&mut self, variables: &'a [&'a str]) {
+    pub(crate) fn from_tokens(tokens: &'a [Token], context: Context<'a>) -> Self {
+        Self::new(
+            tokens,
+            context,
+            0,
+            true,
+            None,
+            None,
+        )
+    }
+
+    fn new_sub(&self, tokens: &'a [Token], allow_question_mark: bool) -> Self {
+        Self {
+            tokens,
+            index: 0,
+            nesting_level: self.nesting_level + 1,
+            allow_question_mark,
+            did_find_equals_sign: false,
+            question_mark: self.question_mark.clone(),
+            extra_allowed_variables: self.extra_allowed_variables.clone(),
+            ..*self
+        }
+    }
+
+    pub fn set_extra_allowed_variables(&mut self, variables: Vec<String>) {
         self.extra_allowed_variables = Some(variables);
     }
 
@@ -319,22 +334,33 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn accept_definition_expression(&mut self) -> Result<Option<Vec<AstNode>>> {
-        let expr_start = self.index;
-        if expr_start >= self.tokens.len() {
-            Ok(None)
+    fn accept_definition_info(&mut self, expect_definition_sign: bool) -> Result<Option<DefinitionInfo>> {
+        if let Some(name) = self.try_accept_variable_definition_head(expect_definition_sign) {
+            Ok(Some(DefinitionInfo::Variable(name?)))
+        } else if let Some(result) = self.try_accept_function_definition_head(expect_definition_sign) {
+            let (name, args) = result?;
+            Ok(Some(DefinitionInfo::Function(name, args)))
         } else {
-            match self.accept_expression()? {
-                ParserResult::Calculation(ast) => Ok(Some(ast)),
-                res => {
-                    let range = self.tokens[expr_start].range().start..self.tokens.last().unwrap().range().end;
-                    error!(ExpectedExpression(res.to_string()): range)
-                }
-            }
+            Ok(None)
         }
     }
 
-    fn accept_expression(&mut self) -> Result<ParserResult> {
+    pub(crate) fn parse(&mut self) -> Result<ParserResult> {
+        let mut definition_info = self.accept_definition_info(true)?;
+
+        if self.index >= self.tokens.len() {
+            return match definition_info {
+                Some(DefinitionInfo::Variable(name)) => Ok(ParserResult::VariableDefinition(name, None)),
+                Some(DefinitionInfo::Function(name, args)) => Ok(ParserResult::FunctionDefinition { name, args, ast: None }),
+                None => error!(ExpectedElements: self.error_range_at_end()),
+            };
+        }
+
+        if let Some(DefinitionInfo::Function(_, args)) = &definition_info {
+            let args = args.iter().map(|arg| arg.0.clone()).collect::<Vec<_>>();
+            self.set_extra_allowed_variables(args);
+        }
+
         #[derive(Default)]
         struct GroupStackEntry {
             ast: Vec<AstNode>,
@@ -353,7 +379,6 @@ impl<'a> Parser<'a> {
         }
 
         let mut group_stack: Vec<GroupStackEntry> = vec![GroupStackEntry::default()];
-        let mut boolean_operator: Option<(BooleanOperator, usize)> = None;
 
         /// Helper to get the current AST
         macro_rules! ast {
@@ -379,27 +404,29 @@ impl<'a> Parser<'a> {
             }
         }
 
+        // Check if we're at the end
         if self.index >= self.tokens.len() && group_stack.len() > 1 {
             error!(MissingClosingBracket: group_stack.last().unwrap().start_range.clone());
         }
 
         // Allow empty brackets, which is handled at the start of the while loop below
+        // The accept_expression() function will exit immediately in this case, meaning it will
+        // be handled further down.
         // NOTE: () = 1
         if self.peek(is(CloseBracket)).is_none() {
             ast!().push(self.accept_number()?);
         }
 
-        let mut has_postfix_definition_sign = false;
         while self.index < self.tokens.len() {
-            if group_stack.len() == 1 && self.try_accept(is(PostfixDefinitionSign)).is_some() {
-                has_postfix_definition_sign = true;
-                break;
-            }
+            self.accept_expression(&mut ast!())?;
+            if self.index >= self.tokens.len() { break; }
 
-            while self.index < self.tokens.len() {
-                if let Some(close_bracket) = self.try_accept(is(CloseBracket)) {
+            // The accept_expression() function will exit on these tokens:
+            let token = self.try_accept(any(&[CloseBracket, PostfixDefinitionSign]));
+            match token.map(|t| t.ty) {
+                Some(CloseBracket) => {
                     if group_stack.len() == 1 {
-                        error!(MissingOpeningBracket: close_bracket.range());
+                        error!(MissingOpeningBracket: token.unwrap().range());
                     }
 
                     let GroupStackEntry {
@@ -407,7 +434,7 @@ impl<'a> Parser<'a> {
                         mut modifiers,
                         start_range: open_bracket_range,
                     } = group_stack.pop().unwrap();
-                    let range = open_bracket_range.start..close_bracket.range().end;
+                    let range = open_bracket_range.start..token.unwrap().range().end;
 
                     modifiers.append(&mut self.accept_suffix_modifiers());
                     let unit = self.try_accept_unit().transpose()?;
@@ -423,12 +450,91 @@ impl<'a> Parser<'a> {
 
                     ast!().push(node);
                     self.nesting_level -= 1;
-                } else {
-                    break;
+                }
+                Some(PostfixDefinitionSign) => {
+                    if definition_info.is_some() {
+                        error!(DisallowedPostfixDefinitionNormalDefinitionWasUsed: token.unwrap().range());
+                    }
+
+                    if self.boolean_operator.is_some() {
+                        error!(ExpectedExpression("Boolean Expression".to_string()): 0..self.tokens[self.index - 2].range().end);
+                    }
+                    if self.question_mark.is_some() {
+                        error!(ExpectedExpression("Equation".to_string()): 0..self.tokens[self.index - 2].range().end);
+                    }
+
+                    definition_info = self.accept_definition_info(false)?;
+                    if definition_info.is_none() {
+                        error!(ExpectedIdentifier: self.tokens[self.index - 1].range());
+                    }
+                    if self.index < self.tokens.len() {
+                        error!(UnexpectedElements: self.tokens[self.index].range());
+                    }
+                }
+                _ => {
+                    // The function exited because of an open bracket. We can't directly accept()
+                    // it though, because there might be prefix modifiers.
+                    let modifiers = self.accept_prefix_modifiers();
+                    let open_bracket = self.accept(is(OpenBracket), ExpectedElements)?;
+                    group_stack.push(GroupStackEntry::new(modifiers, open_bracket.range()));
+                    self.nesting_level += 1;
+                    ast!().push(self.accept_number()?);
                 }
             }
+        }
 
-            if self.index >= self.tokens.len() { break; }
+        if group_stack.len() > 1 {
+            error!(MissingClosingBracket: group_stack.last().unwrap().start_range.clone());
+        }
+
+        let GroupStackEntry { ast: result, .. } = group_stack.pop().unwrap();
+
+        if let Some(BooleanOperatorInfo {
+                        operator,
+                        ast_index,
+                        token_index,
+                    }) = self.boolean_operator {
+            if definition_info.is_some() {
+                error!(DisallowedBooleanOperator: self.tokens[token_index].range());
+            }
+
+            let (lhs, rhs) = result.split_at(ast_index);
+            if let Some(info) = std::mem::take(&mut self.question_mark) {
+                Ok(ParserResult::Equation {
+                    lhs: lhs.to_vec(),
+                    rhs: rhs.to_vec(),
+                    is_question_mark_in_lhs: info.is_in_lhs,
+                    output_variable: info.variable,
+                })
+            } else {
+                Ok(ParserResult::BooleanExpression {
+                    lhs: lhs.to_vec(),
+                    rhs: rhs.to_vec(),
+                    operator,
+                })
+            }
+        } else {
+            match definition_info {
+                Some(DefinitionInfo::Variable(name)) => Ok(ParserResult::VariableDefinition(name, Some(result))),
+                Some(DefinitionInfo::Function(name, args)) => Ok(ParserResult::FunctionDefinition { name, args, ast: Some(result) }),
+                None => {
+                    if self.nesting_level == 0 && self.question_mark.is_some() {
+                        let last = self.tokens.last().unwrap().range();
+                        let range = last.end - 1..last.end;
+                        error!(MissingEqualsSign: range);
+                    }
+
+                    Ok(ParserResult::Calculation(result))
+                }
+            }
+        }
+    }
+
+    fn accept_expression(&mut self, ast: &mut Vec<AstNode>) -> Result<()> {
+        while self.index < self.tokens.len() {
+            if self.peek(any(&[CloseBracket, PostfixDefinitionSign])).is_some() {
+                break;
+            }
 
             match self.accept_operator() {
                 Ok(op) => {
@@ -446,15 +552,15 @@ impl<'a> Parser<'a> {
                                 Scientific => Format::Scientific,
                                 _ => unreachable!(),
                             };
-                            ast!().last_mut().unwrap().format = format;
+                            ast.last_mut().unwrap().format = format;
                             found_rhs = true;
                         }
 
                         if let Some(unit) = self.try_accept_unit() {
                             let end = self.tokens[self.index - 1].range().start;
                             let unit = unit?;
-                            ast!().push(op);
-                            ast!().push(AstNode::new(AstNodeData::Unit(unit), start.unwrap()..end));
+                            ast.push(op);
+                            ast.push(AstNode::new(AstNodeData::Unit(unit), start.unwrap()..end));
                             found_rhs = true;
                         }
 
@@ -470,16 +576,16 @@ impl<'a> Parser<'a> {
                         error!(ExpectedUnit: range);
                     }
 
-                    ast!().push(op);
+                    ast.push(op);
                 }
                 Err(error) => {
                     // Try to infer multiplication
                     if self.peek(any(&[OpenBracket, Identifier])).is_some() {
-                        ast!().push(AstNode::new(AstNodeData::Operator(Operator::Multiply), 0..1));
+                        ast.push(AstNode::new(AstNodeData::Operator(Operator::Multiply), 0..1));
                     } else if let Some((op, range)) = self.try_accept_boolean_operator() {
                         if self.nesting_level != 0 {
                             error!(UnexpectedBooleanOperator: range);
-                        } else if boolean_operator.is_some() {
+                        } else if self.boolean_operator.is_some() {
                             error!(UnexpectedSecondBooleanOperator: range);
                         }
 
@@ -487,82 +593,39 @@ impl<'a> Parser<'a> {
                             self.did_find_equals_sign = true;
                         }
 
-                        boolean_operator = Some((op, ast!().len()));
+                        self.boolean_operator = Some(BooleanOperatorInfo {
+                            operator: op,
+                            ast_index: ast.len(),
+                            token_index: self.index - 1,
+                        });
                     } else {
                         return Err(error);
                     }
                 }
             }
 
-            while self.index < self.tokens.len() {
+            // Check if we need to exit because of an open bracket. To do this, we need to try to
+            // accept prefix modifiers and check after them. We then reset our index back to where
+            // we were before.
+            {
                 let start_i = self.index;
-                let modifiers = self.accept_prefix_modifiers();
-
-                if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
-                    group_stack.push(GroupStackEntry::new(modifiers, open_bracket.range()));
-                    self.nesting_level += 1;
-                } else {
+                self.accept_prefix_modifiers();
+                if self.peek(is(OpenBracket)).is_some() {
                     self.index = start_i;
                     break;
+                } else {
+                    self.index = start_i
                 }
             }
 
-            // Allow empty groups. This will be handled at the start of this loop.
+            // Allow empty groups
             // NOTE: () = 1
             if self.peek(is(CloseBracket)).is_some() &&
-                self.tokens[self.index - 1].ty == OpenBracket { continue; }
-            ast!().push(self.accept_number()?);
+                self.tokens[self.index - 1].ty == OpenBracket { break; }
+            ast.push(self.accept_number()?);
         }
 
-        if group_stack.len() > 1 {
-            error!(MissingClosingBracket: group_stack.last().unwrap().start_range.clone());
-        }
-
-        let GroupStackEntry { ast: result, .. } = group_stack.pop().unwrap();
-
-        if has_postfix_definition_sign {
-            if boolean_operator.is_some() {
-                error!(ExpectedExpression("Boolean Expression".to_string()): 0..self.tokens[self.index - 2].range().end);
-            }
-            if self.question_mark.is_some() {
-                error!(ExpectedExpression("Equation".to_string()): 0..self.tokens[self.index - 2].range().end);
-            }
-
-            return if let Some(Ok((name, args))) = self.try_accept_function_definition_head(false) {
-                Ok(ParserResult::FunctionDefinition { name, args, ast: Some(result) })
-            } else if let Some(res) = self.try_accept_variable_definition_head(false) {
-                let name = res?;
-                Ok(ParserResult::VariableDefinition(name, Some(result)))
-            } else {
-                error!(ExpectedIdentifier: self.tokens[self.index - 1].range());
-            };
-        }
-
-        if let Some((op, index)) = boolean_operator {
-            let (lhs, rhs) = result.split_at(index);
-            if let Some(info) = std::mem::take(&mut self.question_mark) {
-                Ok(ParserResult::Equation {
-                    lhs: lhs.to_vec(),
-                    rhs: rhs.to_vec(),
-                    is_question_mark_in_lhs: info.is_in_lhs,
-                    output_variable: info.variable,
-                })
-            } else {
-                Ok(ParserResult::BooleanExpression {
-                    lhs: lhs.to_vec(),
-                    rhs: rhs.to_vec(),
-                    operator: op,
-                })
-            }
-        } else {
-            if self.nesting_level == 0 && self.question_mark.is_some() {
-                let last = self.tokens.last().unwrap().range();
-                let range = last.end - 1..last.end;
-                error!(MissingEqualsSign: range);
-            }
-
-            Ok(ParserResult::Calculation(result))
-        }
+        Ok(())
     }
 
     fn try_accept_boolean_operator(&mut self) -> Option<(BooleanOperator, Range<usize>)> {
@@ -932,7 +995,7 @@ impl<'a> Parser<'a> {
                 }
             };
         }
-        if self.extra_allowed_variables.map_or(false, |vars| vars.contains(&name.as_str())) {
+        if self.extra_allowed_variables.as_ref().map_or(false, |vars| vars.contains(&name)) {
             let node = AstNode::new(AstNodeData::Identifier(name.clone()), range.clone());
             if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, &range) {
                 return question_mark;
@@ -1045,17 +1108,8 @@ impl<'a> Parser<'a> {
         }
 
         let tokens = &self.tokens[start..self.index - 1];
-        let mut parser = Self::new(
-            tokens,
-            self.context,
-            self.nesting_level + 1,
-            false,
-            self.question_mark.clone(),
-        );
-        if let Some(vars) = self.extra_allowed_variables {
-            parser.set_extra_allowed_variables(vars);
-        }
-        let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+        let mut parser = self.new_sub(tokens, false);
+        let ParserResult::Calculation(ast) = parser.parse()? else { unreachable!(); };
         self.question_mark = parser.question_mark;
         Ok(ast)
     }
@@ -1068,26 +1122,20 @@ impl<'a> Parser<'a> {
 
         let full_range = open_bracket_range.start..self.tokens[self.index - 1].range().end;
 
-        let numbers = tokens.into_iter()
-            .map(|tokens| {
-                let mut parser = Self::new(
-                    tokens,
-                    self.context,
-                    self.nesting_level + 1,
-                    false,
-                    self.question_mark.clone(),
-                );
-                if let Some(vars) = self.extra_allowed_variables { parser.set_extra_allowed_variables(vars); }
-                let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
-                self.question_mark = parser.question_mark;
-                Ok(ast)
-            })
-            .map(|ast| ast.and_then(|ast| {
-                let _full_range = crate::engine::full_range(&ast);
-                let Ok(crate::engine::NumberValue { number, .. }) = Engine::evaluate_to_number(ast, self.context) else { error!(ExpectedNumber: _full_range); };
-                Ok(number)
-            }))
-            .collect::<Result<Vec<f64>>>()?;
+        let mut numbers = vec![];
+        for tokens in tokens {
+            // parse
+            let mut parser = self.new_sub(tokens, false);
+            let ParserResult::Calculation(ast) = parser.parse()? else { unreachable!(); };
+            self.question_mark = parser.question_mark;
+
+            // evaluate
+            let _full_range = crate::engine::full_range(&ast);
+            let Ok(crate::engine::NumberValue { number, .. }) =
+                Engine::evaluate_to_number(ast, self.context)
+                else { error!(ExpectedNumber: _full_range); };
+            numbers.push(number);
+        }
 
         let vector = AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Vector { numbers })), full_range.clone());
         self.maybe_with_call(vector, full_range.start)
@@ -1136,17 +1184,8 @@ impl<'a> Parser<'a> {
     fn parse_arguments(&mut self, arguments: Vec<&'a [Token]>, allow_question_mark: bool) -> Result<Vec<Vec<AstNode>>> {
         let mut result = Vec::new();
         for tokens in arguments {
-            let mut parser = Self::new(
-                tokens,
-                self.context,
-                self.nesting_level + 1,
-                allow_question_mark,
-                self.question_mark.clone(),
-            );
-            if let Some(vars) = self.extra_allowed_variables {
-                parser.set_extra_allowed_variables(vars);
-            }
-            let ParserResult::Calculation(ast) = parser.accept_expression()? else { unreachable!(); };
+            let mut parser = self.new_sub(tokens, allow_question_mark);
+            let ParserResult::Calculation(ast) = parser.parse()? else { unreachable!(); };
             self.question_mark = parser.question_mark;
             result.push(ast);
         }
@@ -1239,14 +1278,14 @@ mod tests {
 
     macro_rules! parse {
         ($input:expr) => {
-            Parser::parse(&tokenize($input)?, Context {
+            Parser::from_tokens(&tokenize($input)?, Context {
                 env: &Environment::new(),
                 currencies: &Currencies::none(),
                 settings: &Settings::default(),
-            })
+            }).parse()
         };
         ($input:expr, $context:expr) => {
-            Parser::parse(&tokenize($input)?, $context)
+            Parser::from_tokens(&tokenize($input)?, $context).parse()
         }
     }
 
