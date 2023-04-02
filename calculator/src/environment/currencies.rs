@@ -5,13 +5,13 @@
  */
 
 use std::collections::HashMap;
-use std::ops::Range;
 use std::sync::Mutex;
 
 use crate::{
     common::{ErrorType, Result},
     environment::default_currencies,
 };
+use crate::common::SourceRange;
 
 pub fn is_currency(str: &str) -> bool {
     default_currencies::CURRENCIES.contains_key(str)
@@ -52,9 +52,9 @@ impl Currencies {
     pub fn convert(
         &self,
         src_curr: &str,
-        src_range: Range<usize>,
+        src_range: SourceRange,
         dst_curr: &str,
-        dst_range: Range<usize>,
+        dst_range: SourceRange,
         n: f64,
     ) -> Result<f64> {
         if src_curr == dst_curr { return Ok(n); }

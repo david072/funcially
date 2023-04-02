@@ -5,9 +5,9 @@
  */
 
 use std::f64::consts::{E, PI, TAU};
-use std::ops::Range;
 
 use crate::{astgen::ast::AstNode, common::ErrorType, Context, Engine, Format};
+use crate::common::SourceRange;
 use crate::engine::{NumberValue, Value};
 use crate::environment::units::{convert, Unit};
 
@@ -294,8 +294,8 @@ impl Environment {
     pub(crate) fn resolve_custom_function(
         &self,
         f: &str,
-        args: &[(NumberValue, Range<usize>)],
-        full_range: Range<usize>,
+        args: &[(NumberValue, SourceRange)],
+        full_range: SourceRange,
         context: Context,
     ) -> crate::common::Result<Value> {
         for (name, func) in &self.functions {
@@ -310,8 +310,8 @@ impl Environment {
     pub fn resolve_specific_function(
         &self,
         f: &Function,
-        call_side_args: &[(NumberValue, Range<usize>)],
-        full_range: Range<usize>,
+        call_side_args: &[(NumberValue, SourceRange)],
+        full_range: SourceRange,
         context: Context,
     ) -> crate::common::Result<Value> {
         let mut temp_env = self.clone();
@@ -319,7 +319,7 @@ impl Environment {
             let definition_arg = &f.0[i];
 
             let call_side_arg_value = if arg.unit.is_some() && definition_arg.1.is_some() {
-                convert(arg.unit.as_ref().unwrap(), definition_arg.1.as_ref().unwrap(), arg.number, context.currencies, range)?
+                convert(arg.unit.as_ref().unwrap(), definition_arg.1.as_ref().unwrap(), arg.number, context.currencies, *range)?
             } else {
                 arg.number
             };

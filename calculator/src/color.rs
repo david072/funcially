@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use std::ops::Range;
-
 use crate::astgen::tokenizer::{Token, TokenType};
+use crate::common::SourceRange;
 
 use self::TokenType::*;
 
@@ -22,19 +21,18 @@ const BRACKET_COLORS: [Color; 5] = [
 
 #[derive(Debug, Clone)]
 pub struct ColorSegment {
-    pub range: Range<usize>,
+    pub range: SourceRange,
     pub color: Color,
 }
 
 impl ColorSegment {
-    pub fn new(range: Range<usize>, color: Color) -> Self {
+    pub fn new(range: SourceRange, color: Color) -> Self {
         Self { range, color }
     }
 
     pub fn all(tokens: &[Token]) -> Vec<ColorSegment> {
         let mut result = Vec::new();
 
-        let mut last_token: Option<(TokenType, Range<usize>)> = None;
         let mut bracket_colors = Vec::<Color>::new();
 
         let mut nesting = 0usize;
@@ -48,25 +46,18 @@ impl ColorSegment {
             match token.ty {
                 OpenBracket | OpenSquareBracket | OpenCurlyBracket => {
                     let color = bracket_color(nesting);
-                    result.push(ColorSegment::new(token.range(), color));
+                    result.push(ColorSegment::new(token.range, color));
                     bracket_colors.push(color);
                     nesting += 1;
                 }
                 CloseBracket | CloseSquareBracket | CloseCurlyBracket => {
                     let color = bracket_colors.pop().unwrap_or(Color::WHITE);
-                    result.push(ColorSegment::new(token.range(), color));
+                    result.push(ColorSegment::new(token.range, color));
 
                     nesting = nesting.saturating_sub(1);
                 }
-                Divide if last_token.is_some() &&
-                    last_token.as_ref().unwrap().0 == Identifier &&
-                    last_token.unwrap().1.end == token.range().start => {
-                    result.push(ColorSegment::new(token.range(), IDENTIFIER_COLOR));
-                }
                 _ => result.push(Self::from(token)),
             }
-
-            last_token = Some((token.ty, token.range()));
         }
 
         result
@@ -92,7 +83,7 @@ impl ColorSegment {
             }
         };
 
-        ColorSegment::new(token.range(), color)
+        ColorSegment::new(token.range, color)
     }
 }
 

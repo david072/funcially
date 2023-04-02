@@ -6,7 +6,6 @@
 
 use std::fmt::{Display, Formatter};
 use std::mem::{replace, take};
-use std::ops::Range;
 
 use crate::{astgen::ast::{AstNode, AstNodeData, Operator}, astgen::tokenizer::TokenType, common::*, Context, Currencies, environment::{Environment, units::convert as convert_units, Variable}, error, match_ast_node, Settings};
 use crate::astgen::ast::BooleanOperator;
@@ -272,7 +271,7 @@ impl<'a> Engine<'a> {
         context: Context,
     ) -> Result<Value> {
         if lhs.is_empty() || rhs.is_empty() {
-            return Err(ErrorType::InvalidAst.with(0..1));
+            return Err(ErrorType::InvalidAst.with(SourceRange::empty()));
         }
 
         let rhs_range = full_range(&rhs);
@@ -342,7 +341,7 @@ impl<'a> Engine<'a> {
                         let f = env.get_function(name).unwrap();
 
                         let mut question_mark_arg_name: Option<&str> = None;
-                        let mut question_mark_range: Option<Range<usize>> = None;
+                        let mut question_mark_range: Option<SourceRange> = None;
                         let mut question_mark_unit: Option<Unit> = None;
 
                         for (i, arg) in args.iter().enumerate() {
@@ -372,8 +371,8 @@ impl<'a> Engine<'a> {
                                     // TODO: Maybe somehow show the corresponding variable
                                     //  reference in the function source in addition to this.
                                     let range = question_mark_range.unwrap();
-                                    e.ranges.first_mut().unwrap().start = range.start;
-                                    e.ranges.first_mut().unwrap().end = range.end;
+                                    e.ranges.first_mut().unwrap().start_char = range.start_char;
+                                    e.ranges.first_mut().unwrap().end_char = range.end_char;
                                     return Err(e);
                                 }
                             }
@@ -463,7 +462,7 @@ impl<'a> Engine<'a> {
                 &y1_unit,
                 target_value,
                 context.currencies,
-                &rhs_range,
+                rhs_range,
             ) {
                 Ok(n) => n,
                 Err(_) => return Err(ErrorType::WrongUnit(y1_unit.to_string()).with(rhs_range)),
@@ -507,13 +506,12 @@ impl<'a> Engine<'a> {
                 if (lhs_unit.is_some() && rhs_unit.is_none()) || (lhs_unit.is_none() && rhs_unit.is_some()) {
                     false
                 } else if lhs_unit.is_some() && rhs_unit.is_some() {
-                    let range: Range<usize> = 0..1; // this doesn't matter since we discard the error
                     match convert_units(
                         rhs_unit.as_ref().unwrap(),
                         lhs_unit.as_ref().unwrap(),
                         rhs_number,
                         currencies,
-                        &range,
+                        SourceRange::empty(), // this doesn't matter since we discard the error
                     ) {
                         Ok(mut rhs) => {
                             rhs = round(rhs, DECIMAL_PLACES);
@@ -590,7 +588,7 @@ impl<'a> Engine<'a> {
                             let res = self.context.env.resolve_custom_function(
                                 func_name,
                                 &args,
-                                receiver.range.clone(),
+                                receiver.range,
                                 self.context,
                             )?;
                             res.to_ast_node_from(receiver)
@@ -688,8 +686,8 @@ impl<'a> Engine<'a> {
     }
 }
 
-pub fn full_range(ast: &[AstNode]) -> Range<usize> {
-    ast.first().unwrap().range.start..ast.last().unwrap().range.end
+pub fn full_range(ast: &[AstNode]) -> SourceRange {
+    ast.first().unwrap().range.extend(ast.last().unwrap().range)
 }
 
 #[cfg(test)]
@@ -717,7 +715,7 @@ mod tests {
                     if let ParserResult::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse()? { ast }
                     else { panic!("Expected ParserResult::Calculation"); },
                     CONTEXT,
-                ).and_then(|res| res.to_number().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))
+                ).and_then(|res| res.to_number().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(SourceRange::empty()))))
             }
         }
     }
@@ -737,7 +735,7 @@ mod tests {
                     if let ParserResult::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse()? { ast }
                     else { panic!("Expected ParserResult::Calculation"); },
                     CONTEXT,
-                ).and_then(|res| res.to_object().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(0..1))))
+                ).and_then(|res| res.to_object().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(SourceRange::empty()))))
             }
         }
     }

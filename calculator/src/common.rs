@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use std::ops::Range;
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -170,15 +170,66 @@ pub enum ErrorType {
     InvalidToken,
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct SourceRange {
+    pub start_line: usize,
+    pub start_char: usize,
+    pub end_line: usize,
+    pub end_char: usize,
+}
+
+impl SourceRange {
+    pub fn new(start_line: usize, start: usize, end_line: usize, end: usize) -> Self {
+        Self { start_line, start_char: start, end_line, end_char: end }
+    }
+
+    pub fn line(line: usize, start: usize, end: usize) -> Self {
+        Self { start_line: line, end_line: line + 1, start_char: start, end_char: end }
+    }
+
+    pub fn empty() -> Self { Self::default() }
+
+    pub fn extend(self, other: SourceRange) -> Self {
+        Self {
+            start_line: self.start_line,
+            start_char: self.start_char,
+            end_char: self.end_char.max(other.end_char),
+            end_line: self.end_line.max(other.end_line),
+        }
+    }
+}
+
+impl Default for SourceRange {
+    fn default() -> Self {
+        Self { start_line: 0, start_char: 0, end_line: 1, end_char: 1 }
+    }
+}
+
+impl Display for SourceRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}..{}:{}", self.start_line, self.start_char, self.end_line, self.end_char)
+    }
+}
+
+#[macro_export]
+macro_rules! range {
+    ($start_line:expr, $start_char:expr ; $end_line:expr, $end_char:expr) => {
+        SourceRange::new($start_line, $start_char, $end_line, $end_char)
+    };
+    (line $line:expr => $char_range:expr) => {
+        SourceRange::line($line, $char_range.start, $char_range.end)
+    }
+}
+
 impl ErrorType {
-    pub fn with(self, range: Range<usize>) -> Error {
+    pub fn with(self, range: SourceRange) -> Error {
         Error {
             error: self,
             ranges: vec![range],
         }
     }
 
-    pub fn with_multiple(self, ranges: Vec<Range<usize>>) -> Error {
+    pub fn with_multiple(self, ranges: Vec<SourceRange>) -> Error {
         Error {
             error: self,
             ranges,
@@ -189,7 +240,7 @@ impl ErrorType {
 #[derive(Debug, Clone)]
 pub struct Error {
     pub error: ErrorType,
-    pub ranges: Vec<Range<usize>>,
+    pub ranges: Vec<SourceRange>,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

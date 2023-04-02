@@ -6,13 +6,12 @@
 
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::ops::Range;
 
 use chrono::{Duration, Local, NaiveDate};
 
-use crate::{Context, DateFormat, error, NumberValue, Settings};
+use crate::{Context, DateFormat, error, NumberValue, range, Settings};
 use crate::astgen::ast::{AstNode, AstNodeData, Operator};
-use crate::common::{ErrorType, Result};
+use crate::common::{ErrorType, Result, SourceRange};
 use crate::engine::{Engine, Value};
 use crate::environment::currencies::Currencies;
 use crate::environment::units;
@@ -20,12 +19,12 @@ use crate::environment::units::Unit;
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectArgument {
-    Ast(Vec<AstNode>, Range<usize>),
-    String(String, Range<usize>),
+    Ast(Vec<AstNode>, SourceRange),
+    String(String, SourceRange),
 }
 
 impl ObjectArgument {
-    pub fn range(&self) -> &Range<usize> {
+    pub fn range(&self) -> &SourceRange {
         match self {
             Self::Ast(_, r) | Self::String(_, r) => r,
         }
@@ -44,10 +43,10 @@ pub enum CalculatorObject {
 
 impl CalculatorObject {
     pub(crate) fn parse(
-        (name, name_range): (String, Range<usize>),
+        (name, name_range): (String, SourceRange),
         args: Vec<ObjectArgument>,
         context: Context,
-        range: Range<usize>,
+        range: SourceRange,
     ) -> Result<Self> {
         match name.as_str() {
             "date" => Ok(Self::Date(DateObject::parse(args, context, range)?)),
@@ -66,14 +65,14 @@ impl CalculatorObject {
         }
     }
 
-    pub fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_in_rhs: bool) -> Result<AstNode> {
+    pub fn apply(&self, self_range: SourceRange, op: (Operator, SourceRange), other: &AstNode, self_in_rhs: bool) -> Result<AstNode> {
         match self {
             Self::Date(date) => date.apply(self_range, op, other, self_in_rhs),
             Self::Vector(vec) => vec.apply(self_range, op, other, self_in_rhs),
         }
     }
 
-    pub fn call(&self, self_range: Range<usize>, args: &[(NumberValue, Range<usize>)], args_range: Range<usize>) -> Result<AstNode> {
+    pub fn call(&self, self_range: SourceRange, args: &[(NumberValue, SourceRange)], args_range: SourceRange) -> Result<AstNode> {
         match self {
             Self::Date(date) => date.call(self_range, args, args_range),
             Self::Vector(vec) => vec.call(self_range, args, args_range),
@@ -91,11 +90,11 @@ impl CalculatorObject {
 trait Object: Sized {
     fn to_string(&self, settings: &Settings) -> String;
 
-    fn parse(given_args: Vec<ObjectArgument>, context: Context, full_range: Range<usize>) -> Result<Self>;
+    fn parse(given_args: Vec<ObjectArgument>, context: Context, full_range: SourceRange) -> Result<Self>;
 
-    fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_is_rhs: bool) -> Result<AstNode>;
+    fn apply(&self, self_range: SourceRange, op: (Operator, SourceRange), other: &AstNode, self_is_rhs: bool) -> Result<AstNode>;
 
-    fn call(&self, self_range: Range<usize>, args: &[(NumberValue, Range<usize>)], args_range: Range<usize>) -> Result<AstNode>;
+    fn call(&self, self_range: SourceRange, args: &[(NumberValue, SourceRange)], args_range: SourceRange) -> Result<AstNode>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
@@ -116,7 +115,7 @@ impl Object for DateObject {
     fn parse(
         given_args: Vec<ObjectArgument>,
         context: Context,
-        full_range: Range<usize>,
+        full_range: SourceRange,
     ) -> Result<Self> {
         if given_args.is_empty() {
             error!(ExpectedElements: full_range);
@@ -126,10 +125,12 @@ impl Object for DateObject {
             let s = s.trim().to_lowercase();
             if s.starts_with("now") {
                 if s.len() > 3 {
-                    error!(UnexpectedElements: range.start + 3..range.end);
+                    let mut range = *range;
+                    range.start_char += 3;
+                    error!(UnexpectedElements: range);
                 }
                 if given_args.len() > 1 {
-                    error!(UnexpectedElements: given_args[1].range().start..given_args.last().unwrap().range().end);
+                    error!(UnexpectedElements: given_args[1].range().extend(*given_args.last().unwrap().range()));
                 }
 
                 return Ok(Self { date: Local::now().date_naive() });
@@ -137,7 +138,7 @@ impl Object for DateObject {
         }
 
         if given_args.len() > 5 {
-            let range = given_args[5].range().start..given_args.last().unwrap().range().end;
+            let range = given_args[5].range().extend(*given_args.last().unwrap().range());
             error!(UnexpectedElements: range);
         }
 
@@ -146,17 +147,19 @@ impl Object for DateObject {
             match arg {
                 ObjectArgument::Ast(..) => args.push(arg),
                 ObjectArgument::String(str, range) => {
-                    let mut range_offset = range.start;
+                    let mut range_offset = range.start_char;
+
                     args.append(&mut str.split(context.settings.date.delimiter)
                         .map(|s| {
-                            let mut range = range_offset..(range_offset + s.len()).max(range_offset + 1);
-                            range_offset = range.end + 1;
+                            let char_range = range_offset..(range_offset + s.len()).max(range_offset + 1);
+                            let mut range = range!(line range.start_line => char_range);
+                            range_offset = range.end_char + 1;
                             let prev_len = s.len();
                             let s = s.trim_start();
-                            range.start += s.len().saturating_sub(prev_len);
+                            range.start_char += s.len().saturating_sub(prev_len);
                             let prev_len = s.len();
                             let s = s.trim_end();
-                            range.end -= s.len().saturating_sub(prev_len);
+                            range.end_char -= s.len().saturating_sub(prev_len);
                             (s.to_owned(), range)
                         })
                         .map(|(s, range)| ObjectArgument::String(s, range))
@@ -173,7 +176,7 @@ impl Object for DateObject {
                         args.remove(i + 1);
                     } else {
                         let range = args[i].range();
-                        let range = range.end..range.end + 1;
+                        let range = range!(line range.start_line => range.end_char..range.end_char + 1);
                         error!(ExpectedDot: range);
                     }
                 }
@@ -183,7 +186,7 @@ impl Object for DateObject {
                         continue;
                     } else {
                         let range = args[i].range();
-                        let range = range.start - 1..range.start;
+                        let range = range!(line range.start_line => range.end_char..range.end_char + 1);
                         error!(ExpectedDot: range);
                     }
                 }
@@ -193,7 +196,7 @@ impl Object for DateObject {
 
         if let Some(range) = args.iter().find_map(|arg| {
             match arg {
-                ObjectArgument::String(s, range) if s.is_empty() => Some(range.clone()),
+                ObjectArgument::String(s, range) if s.is_empty() => Some(*range),
                 _ => None,
             }
         }) {
@@ -202,25 +205,26 @@ impl Object for DateObject {
 
         match args.len().cmp(&3) {
             Ordering::Greater => {
-                error!(UnexpectedElements: args[3].range().start..args.last().unwrap().range().end)
+                error!(UnexpectedElements: args[3].range().extend(*args.last().unwrap().range()))
             }
             Ordering::Less => {
-                let last = args.last().unwrap();
-                error!(ExpectedElements: last.range().end..last.range().end + 1);
+                let last = args.last().unwrap().range();
+                let range = range!(line last.start_line => last.end_char..last.end_char + 1);
+                error!(ExpectedElements: range);
             }
             _ => {}
         }
 
         let as_number = |arg: &ObjectArgument| {
             match arg {
-                ObjectArgument::String(s, range) => s.parse::<i32>().map_err(|err| ErrorType::InvalidNumber(err.to_string()).with(range.clone())),
+                ObjectArgument::String(s, range) => s.parse::<i32>().map_err(|err| ErrorType::InvalidNumber(err.to_string()).with(*range)),
                 ObjectArgument::Ast(ast, range) => {
                     match Engine::evaluate(ast.clone(), context)? {
                         Value::Number(res) => {
-                            if res.number.fract() != 0.0 { return Err(ErrorType::ExpectedInteger(res.number).with(range.clone())); }
+                            if res.number.fract() != 0.0 { return Err(ErrorType::ExpectedInteger(res.number).with(*range)); }
                             Ok(res.number as i32)
                         }
-                        Value::Object(_) => Err(ErrorType::ExpectedNumber.with(range.clone())),
+                        Value::Object(_) => Err(ErrorType::ExpectedNumber.with(*range)),
                     }
                 }
             }
@@ -228,26 +232,26 @@ impl Object for DateObject {
 
         let year = as_number(&args[context.settings.date.format.year_index()])?;
         let month = as_number(&args[context.settings.date.format.month_index()])?;
-        let month: u32 = month.try_into().map_err(|_| ErrorType::NotU32(month).with(args[1].range().clone()))?;
+        let month: u32 = month.try_into().map_err(|_| ErrorType::NotU32(month).with(*args[1].range()))?;
         let day = as_number(&args[context.settings.date.format.day_index()])?;
-        let day: u32 = day.try_into().map_err(|_| ErrorType::NotU32(day).with(args[0].range().clone()))?;
+        let day: u32 = day.try_into().map_err(|_| ErrorType::NotU32(day).with(*args[0].range()))?;
 
         let Some(date) = NaiveDate::from_ymd_opt(year, month, day) else {
-            let range = args.first().unwrap().range().start..args.last().unwrap().range().end;
+            let range = args.first().unwrap().range().extend(*args.last().unwrap().range());
             error!(InvalidDate: range);
         };
         Ok(Self { date })
     }
 
-    fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_is_rhs: bool) -> Result<AstNode> {
-        fn as_nanoseconds(unit: Option<&Unit>, n: f64, range: Range<usize>) -> Result<f64> {
+    fn apply(&self, self_range: SourceRange, op: (Operator, SourceRange), other: &AstNode, self_is_rhs: bool) -> Result<AstNode> {
+        fn as_nanoseconds(unit: Option<&Unit>, n: f64, range: SourceRange) -> Result<f64> {
             unit.and_then(|unit| {
                 units::convert(
                     unit,
                     &Unit::from("ns"),
                     n,
                     &Currencies::none(),
-                    &range,
+                    range,
                 ).ok()
             }).map_or_else(|| Err(ErrorType::ExpectedTimeValue.with(range)), Ok)
         }
@@ -255,23 +259,23 @@ impl Object for DateObject {
         match op.0 {
             Operator::Plus => match other.data {
                 AstNodeData::Literal(n) => {
-                    let n = as_nanoseconds(other.unit.as_ref(), n, other.range.clone())? as i64;
+                    let n = as_nanoseconds(other.unit.as_ref(), n, other.range)? as i64;
                     let Some(new_date) = self.date.checked_add_signed(Duration::nanoseconds(n)) else {
-                        return Err(ErrorType::DateTooBig.with(self_range.start..other.range.end));
+                        return Err(ErrorType::DateTooBig.with(self_range.extend(other.range)));
                     };
-                    Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Date(DateObject { date: new_date })), 0usize..1usize))
+                    Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Date(DateObject { date: new_date })), SourceRange::empty()))
                 }
-                _ => Err(ErrorType::InvalidSide.with(other.range.clone()))
+                _ => Err(ErrorType::InvalidSide.with(other.range))
             }
             Operator::Minus => match other.data {
                 AstNodeData::Literal(n) => {
                     if self_is_rhs {
-                        return Err(ErrorType::WrongOrder.with_multiple(vec![other.range.clone(), self_range]));
+                        return Err(ErrorType::WrongOrder.with_multiple(vec![other.range, self_range]));
                     }
 
-                    let n = as_nanoseconds(other.unit.as_ref(), n, other.range.clone())? as i64;
+                    let n = as_nanoseconds(other.unit.as_ref(), n, other.range)? as i64;
                     let Some(new_date) = self.date.checked_sub_signed(Duration::nanoseconds(n)) else {
-                        return Err(ErrorType::DateTooBig.with(self_range.start..other.range.end));
+                        return Err(ErrorType::DateTooBig.with(self_range.extend(other.range)));
                     };
                     Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Date(DateObject { date: new_date })), self_range))
                 }
@@ -282,13 +286,13 @@ impl Object for DateObject {
                     result.unit = Some(Unit::from("d"));
                     Ok(result)
                 }
-                _ => Err(ErrorType::InvalidSide.with(other.range.clone()))
+                _ => Err(ErrorType::InvalidSide.with(other.range))
             }
             _ => Err(ErrorType::UnsupportedOperation.with(op.1))
         }
     }
 
-    fn call(&self, _: Range<usize>, _: &[(NumberValue, Range<usize>)], _: Range<usize>) -> Result<AstNode> { unreachable!(); }
+    fn call(&self, _: SourceRange, _: &[(NumberValue, SourceRange)], _: SourceRange) -> Result<AstNode> { unreachable!(); }
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Clone, serde::Serialize, serde::Deserialize)]
@@ -311,24 +315,24 @@ impl Object for Vector {
         result + "]"
     }
 
-    fn parse(_: Vec<ObjectArgument>, _: Context, _: Range<usize>) -> Result<Self> {
+    fn parse(_: Vec<ObjectArgument>, _: Context, _: SourceRange) -> Result<Self> {
         // This object cannot be constructed using the object syntax
         unreachable!()
     }
 
-    fn apply(&self, self_range: Range<usize>, op: (Operator, Range<usize>), other: &AstNode, self_is_rhs: bool) -> Result<AstNode> {
+    fn apply(&self, self_range: SourceRange, op: (Operator, SourceRange), other: &AstNode, self_is_rhs: bool) -> Result<AstNode> {
         let numbers = self.numbers.clone();
 
         match op.0 {
             Operator::Multiply => {
-                let AstNodeData::Literal(n) = other.data else { error!(ExpectedNumber: other.range.clone()); };
+                let AstNodeData::Literal(n) = other.data else { error!(ExpectedNumber: other.range); };
                 let numbers = numbers.into_iter().map(|num| num * n).collect::<Vec<_>>();
                 Ok(AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Self { numbers })), self_range))
             }
             Operator::Plus | Operator::Minus => {
-                let AstNodeData::Object(CalculatorObject::Vector(other_vec)) = &other.data else { error!(ExpectedVector: other.range.clone()); };
+                let AstNodeData::Object(CalculatorObject::Vector(other_vec)) = &other.data else { error!(ExpectedVector: other.range); };
                 if numbers.len() != other_vec.numbers.len() {
-                    error!(VectorLengthsNotMatching: self_range, other.range.clone());
+                    error!(VectorLengthsNotMatching: self_range, other.range);
                 }
 
                 let numbers = numbers.into_iter()
@@ -351,11 +355,11 @@ impl Object for Vector {
         }
     }
 
-    fn call(&self, self_range: Range<usize>, args: &[(NumberValue, Range<usize>)], args_range: Range<usize>) -> Result<AstNode> {
+    fn call(&self, self_range: SourceRange, args: &[(NumberValue, SourceRange)], args_range: SourceRange) -> Result<AstNode> {
         if args.len() > 1 { error!(WrongNumberOfArguments(1): args_range); }
 
         let (number, range) = &args[0];
-        if number.number.fract() != 0.0 { error!(ExpectedInteger(number.number): range.clone()); }
+        if number.number.fract() != 0.0 { error!(ExpectedInteger(number.number): *range); }
         if number.number.is_sign_negative() { return Ok(AstNode::new(AstNodeData::Literal(f64::NAN), self_range)); }
         return match self.numbers.get(number.number as usize) {
             Some(n) => Ok(AstNode::new(AstNodeData::Literal(*n), self_range)),

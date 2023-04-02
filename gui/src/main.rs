@@ -19,7 +19,7 @@ use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 
-use calculator::{Calculator, ColorSegment as CalcColorSegment, DateFormat, Function as CalcFn, ResultData, Settings, Verbosity};
+use calculator::{Calculator, ColorSegment as CalcColorSegment, DateFormat, Function as CalcFn, ResultData, Settings, SourceRange, Verbosity};
 
 use crate::widgets::*;
 
@@ -130,13 +130,13 @@ pub struct Function(String, usize, #[serde(skip)] CalcFn);
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ColorSegment {
-    range: Range<usize>,
+    range: SourceRange,
     color: Color32,
     is_error: bool,
 }
 
 impl ColorSegment {
-    pub fn new(range: Range<usize>, color: Color32, is_error: bool) -> Self {
+    pub fn new(range: SourceRange, color: Color32, is_error: bool) -> Self {
         Self { range, color, is_error }
     }
 
@@ -324,7 +324,7 @@ impl App<'_> {
                 is_error = true;
                 for range in e.ranges {
                     let i = color_segments.iter()
-                        .position(|seg| seg.range.start >= range.start)
+                        .position(|seg| seg.range.start_char >= range.start_char)
                         .unwrap_or_default();
                     color_segments.insert(i, ColorSegment::new(range, ERROR_COLOR, true));
                 }
@@ -1324,16 +1324,16 @@ fn input_layouter(
                     let segments = segments.iter()
                         .map(|seg| {
                             let mut seg = seg.clone();
-                            seg.range.start += offset;
-                            seg.range.end += offset;
+                            seg.range.start_char += offset;
+                            seg.range.end_char += offset;
                             seg
                         })
                         .collect::<Vec<_>>();
 
                     let iter_over_all_ranges = || {
-                        segments.iter().map(|s| &s.range)
-                            .chain(highlighted_ranges.iter())
-                            .chain(selection_preview_vec.iter())
+                        segments.iter().map(|s| s.range.start_char..s.range.end_char)
+                            .chain(highlighted_ranges.iter().cloned())
+                            .chain(selection_preview_vec.iter().cloned())
                     };
 
                     // Adds a section. It finds out what color it needs to have, as well as whether
@@ -1343,7 +1343,7 @@ fn input_layouter(
                     //       issues further down
                     let mut add_section = |i_in_string: usize, last_end: usize| {
                         let color_segment = segments.iter().find(|seg| {
-                            (seg.range.start..seg.range.end)
+                            (seg.range.start_char..seg.range.end_char)
                                 .contains(&(i_in_string - 1))
                         });
                         let segment = color_segment.map(|seg| seg.color);

@@ -170,11 +170,11 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
                 Err(mut error) => {
                     eprintln!("{}: {}", "Error".red(), error.error);
 
-                    error.ranges.sort_by(|r1, r2| r1.clone().cmp(r2.clone().into_iter()));
+                    error.ranges.sort();
                     let ranges = &error.ranges;
 
-                    let slice_start = std::cmp::max(0, ranges.first().unwrap().start as isize - 5) as usize;
-                    let slice_end = std::cmp::min(input.len(), ranges.last().unwrap().end + 5);
+                    let slice_start = std::cmp::max(0, ranges.first().unwrap().start_char as isize - 5) as usize;
+                    let slice_end = std::cmp::min(input.len(), ranges.last().unwrap().end_char + 5);
                     let slice = &input[slice_start..slice_end];
                     eprintln!("{slice}");
 
@@ -182,7 +182,7 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
 
                     for range in ranges {
                         // Offset the range so that it is in the range of our slice
-                        let range = range.start - slice_start..range.end - slice_start;
+                        let range = range.start_char - slice_start..range.end_char - slice_start;
 
                         for _ in last_end..range.start {
                             eprint!(" ");

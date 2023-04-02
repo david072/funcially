@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use std::ops::Range;
-
 use crate::common::*;
+use crate::range;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Whitespace,
+    Newline,
     Dot,
     Comma,
     Semicolon,
@@ -113,7 +113,7 @@ impl TokenType {
 pub struct Token {
     pub ty: TokenType,
     pub text: String,
-    range: Range<usize>,
+    pub range: SourceRange,
 }
 
 impl Token {
@@ -121,12 +121,8 @@ impl Token {
         Self {
             ty,
             text: String::new(),
-            range: 0..1,
+            range: SourceRange::empty(),
         }
-    }
-
-    pub fn range(&self) -> Range<usize> {
-        self.range.clone()
     }
 }
 
@@ -214,10 +210,11 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
 
+                let range = range!(line 0 => start..std::cmp::max(0, end));
                 Ok(Some(Token {
                     ty,
                     text: slice,
-                    range: start..std::cmp::max(0, end),
+                    range,
                 }))
             }
             None => {
@@ -229,7 +226,7 @@ impl<'a> Tokenizer<'a> {
 
                 Err(ErrorType::InvalidCharacter(
                     String::from_utf8(self.string[start..end].to_owned()).unwrap_or_default()
-                ).with(start..end))
+                ).with(range!(line 0 => start..end)))
             }
         }
     }
@@ -456,11 +453,17 @@ impl<'a> Tokenizer<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Range;
+
     use super::*;
 
     impl Token {
         fn new(ty: TokenType, text: &str, range: Range<usize>) -> Token {
-            Token { ty, text: text.to_owned(), range }
+            Token {
+                ty,
+                text: text.to_owned(),
+                range: SourceRange::line(0, range.start, range.end),
+            }
         }
     }
 

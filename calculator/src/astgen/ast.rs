@@ -5,7 +5,6 @@
  */
 
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::Range;
 
 use crate::{common::*, environment::{
     currencies::Currencies,
@@ -105,7 +104,7 @@ pub struct AstNode {
     pub modifiers: Vec<AstNodeModifier>,
     pub unit: Option<Unit>,
     pub format: Format,
-    pub range: Range<usize>,
+    pub range: SourceRange,
     #[serde(skip)]
     did_apply_modifiers: bool,
 }
@@ -143,7 +142,7 @@ macro_rules! expect_int {
 }
 
 impl AstNode {
-    pub fn new(data: AstNodeData, range: Range<usize>) -> AstNode {
+    pub fn new(data: AstNodeData, range: SourceRange) -> AstNode {
         AstNode {
             data,
             modifiers: Vec::new(),
@@ -169,7 +168,7 @@ impl AstNode {
         self.apply_modifiers()?;
         rhs.apply_modifiers()?;
 
-        let full_range = self.range.start..rhs.range.end;
+        let full_range = self.range.extend(rhs.range);
 
         let lhs = match_ast_node!(AstNodeData::Literal(ref mut lhs), lhs, self);
         let op = match_ast_node!(AstNodeData::Operator(op), op, operator);
@@ -186,7 +185,7 @@ impl AstNode {
                 rhs_value,
                 *lhs,
                 currencies,
-                &full_range,
+                full_range,
             )?;
             self.unit = Some(rhs_value.clone());
             return Ok(());
@@ -204,7 +203,7 @@ impl AstNode {
                 self.unit.as_ref().unwrap(),
                 rhs_value,
                 currencies,
-                &full_range,
+                full_range,
             ) {
                 rhs_value = rhs;
             } else {

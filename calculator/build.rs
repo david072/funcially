@@ -276,10 +276,10 @@ mod unit_data {
             file_content += r#"// this file is generated in build.rs. Make changes there!
 
 use std::f64::consts::PI;
-use std::ops::Range;
 use crate::{
     common::Result,
     common::ErrorType,
+    common::SourceRange,
     environment::currencies::{Currencies, is_currency},
     environment::units::{PREFIXES, prefix_to_string, is_unit},
 };
@@ -321,11 +321,11 @@ fn unit_prefix(unit: &str) -> Option<(char, i32)> {
 }
 
 pub fn convert_units(
-    (src_unit, src_power, src_range): (&str, f64, Range<usize>),
-    (dst_unit, dst_power, dst_range): (&str, f64, Range<usize>),
+    (src_unit, src_power, src_range): (&str, f64, SourceRange),
+    (dst_unit, dst_power, dst_range): (&str, f64, SourceRange),
     x: f64,
     currencies: &Currencies,
-    range: &Range<usize>
+    range: &SourceRange
  ) -> Result<f64> {
     if src_unit == dst_unit {
         if src_power != dst_power {

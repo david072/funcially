@@ -12,7 +12,7 @@ use astgen::{
     tokenizer::{tokenize, TokenType},
 };
 pub use color::{Color, ColorSegment};
-pub use common::data_dir;
+pub use common::{data_dir, SourceRange};
 use common::Result;
 use engine::Engine;
 use environment::{

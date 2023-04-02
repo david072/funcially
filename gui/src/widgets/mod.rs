@@ -10,7 +10,7 @@ use eframe::egui::text_edit::TextEditState;
 use eframe::epaint::Shadow;
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 
-use calculator::Calculator;
+use calculator::{Calculator, SourceRange};
 
 use crate::Line;
 
@@ -244,8 +244,8 @@ pub fn plot(ui: &mut Ui, lines: &Vec<Line>, calculator: &Calculator) -> InnerRes
                             plot::PlotPoints::from_explicit_callback(move |x| {
                                 match env.resolve_specific_function(
                                     &f,
-                                    &[(calculator::NumberValue::new(x), 0..1)],
-                                    0..1,
+                                    &[(calculator::NumberValue::new(x), SourceRange::empty())],
+                                    SourceRange::empty(),
                                     calculator::Context {
                                         env: &env,
                                         currencies: &currencies,

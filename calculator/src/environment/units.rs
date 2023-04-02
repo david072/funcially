@@ -4,19 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use std::ops::Range;
-
 use crate::{common::{ErrorType, Result}, environment::currencies::{Currencies, is_currency}, environment::unit_conversion::{convert_units, format_unit, UNITS}, error};
+use crate::common::SourceRange;
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Unit {
     Product(Vec<Unit>),
     Fraction(Box<Unit>, Box<Unit>),
-    Unit(String, f64, Range<usize>),
+    Unit(String, f64, SourceRange),
 }
 
 impl Unit {
-    pub fn new(str: &str, power: f64, range: Range<usize>) -> Unit { Unit::Unit(str.to_string(), power, range) }
+    pub fn new(str: &str, power: f64, range: SourceRange) -> Unit { Unit::Unit(str.to_string(), power, range) }
 
     pub fn push_unit(&mut self, other: Unit) {
         match self {
@@ -175,7 +174,7 @@ impl Unit {
                 {
                     let units_value = std::mem::take(units);
 
-                    let mut unique_units: Vec<(String, f64, Range<usize>)> = vec![];
+                    let mut unique_units: Vec<(String, f64, SourceRange)> = vec![];
                     let mut remaining_units = vec![];
                     for unit in units_value {
                         if let Unit::Unit(unit, power, range) = unit {
@@ -296,7 +295,7 @@ fn format_unit_power(pow: f64) -> String {
 }
 
 impl From<&str> for Unit {
-    fn from(value: &str) -> Self { Self::new(value, 1.0, 0..1) }
+    fn from(value: &str) -> Self { Self::new(value, 1.0, SourceRange::empty()) }
 }
 
 impl std::fmt::Display for Unit {
@@ -353,10 +352,10 @@ pub fn get_prefix_power(c: char) -> Option<i32> {
     None
 }
 
-pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies, range: &Range<usize>) -> Result<f64> {
+pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies, range: SourceRange) -> Result<f64> {
     match src_unit {
         Unit::Product(src_units) => {
-            let Unit::Product(dst_units) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
+            let Unit::Product(dst_units) = dst_unit else { error!(UnitsNotMatching: range); };
             src_units.iter()
                 .zip(dst_units)
                 .try_fold(n, |n, (src, dst)| {
@@ -364,16 +363,16 @@ pub fn convert(src_unit: &Unit, dst_unit: &Unit, n: f64, currencies: &Currencies
                 })
         }
         Unit::Fraction(src_numerator, src_denominator) => {
-            let Unit::Fraction(dst_numerator, dst_denominator) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
+            let Unit::Fraction(dst_numerator, dst_denominator) = dst_unit else { error!(UnitsNotMatching: range); };
             let numerator = convert(src_numerator, dst_numerator, n, currencies, range)?;
             let denominator = convert(src_denominator, dst_denominator, 1.0, currencies, range)?;
             Ok(numerator / denominator)
         }
         Unit::Unit(src, power, range) => {
-            let Unit::Unit(dst, dst_power, dst_range) = dst_unit else { error!(UnitsNotMatching: range.clone()); };
+            let Unit::Unit(dst, dst_power, dst_range) = dst_unit else { error!(UnitsNotMatching: *range); };
             convert_units(
-                (src, *power, range.clone()),
-                (dst, *dst_power, dst_range.clone()),
+                (src, *power, *range),
+                (dst, *dst_power, *dst_range),
                 n,
                 currencies,
                 range,
