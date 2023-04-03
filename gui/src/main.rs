@@ -19,7 +19,7 @@ use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 
-use calculator::{Calculator, ColorSegment as CalcColorSegment, DateFormat, Function as CalcFn, ResultData, Settings, SourceRange, Verbosity};
+use calculator::{Calculator, CalculatorResult, ColorSegment as CalcColorSegment, DateFormat, Function as CalcFn, ResultData, Settings, Verbosity};
 
 use crate::widgets::*;
 
@@ -130,19 +130,19 @@ pub struct Function(String, usize, #[serde(skip)] CalcFn);
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ColorSegment {
-    range: SourceRange,
+    range: Range<usize>,
     color: Color32,
     is_error: bool,
 }
 
 impl ColorSegment {
-    pub fn new(range: SourceRange, color: Color32, is_error: bool) -> Self {
+    pub fn new(range: Range<usize>, color: Color32, is_error: bool) -> Self {
         Self { range, color, is_error }
     }
 
     pub fn from_calculator_color_segment(seg: CalcColorSegment, is_error: bool) -> Self {
         Self {
-            range: seg.range,
+            range: seg.range.start_char..seg.range.end_char,
             color: Color32::from_rgba_premultiplied(
                 seg.color.0[0],
                 seg.color.0[1],
@@ -297,50 +297,6 @@ impl App<'_> {
         }).detach();
     }
 
-    fn calculate(&mut self, str: &str) -> Line {
-        if str.trim().is_empty() { return Line::Empty; }
-
-        let result = self.calculator.calculate(str);
-
-        let mut function: Option<Function> = None;
-        let mut color_segments = result.color_segments.into_iter()
-            .map(|s| ColorSegment::from_calculator_color_segment(s, false))
-            .collect::<Vec<_>>();
-        let mut is_error: bool = false;
-
-        let output_text = match result.data {
-            Ok(data) => {
-                match data {
-                    ResultData::Value(number) => number.format(&self.calculator.settings, self.use_thousands_separator),
-                    ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
-                    ResultData::Function { name, arg_count, function: f } => {
-                        function = Some(Function(name, arg_count, f));
-                        String::new()
-                    }
-                    ResultData::Nothing => String::new(),
-                }
-            }
-            Err(e) => {
-                is_error = true;
-                for range in e.ranges {
-                    let i = color_segments.iter()
-                        .position(|seg| seg.range.start_char >= range.start_char)
-                        .unwrap_or_default();
-                    color_segments.insert(i, ColorSegment::new(range, ERROR_COLOR, true));
-                }
-                format!("{}", e.error)
-            }
-        };
-
-        Line::Line {
-            output_text,
-            function,
-            color_segments,
-            is_error,
-            show_in_plot: false,
-        }
-    }
-
     fn get_debug_info_for_current_line(&mut self) {
         let input_text_paragraph = self.input_text_cursor_range.primary.pcursor.paragraph;
         for (i, line) in self.source.lines().enumerate() {
@@ -393,74 +349,94 @@ impl App<'_> {
         }
 
         let max_line_number_length = self.source.split('\n').count().to_string().len();
+        let format_line_number = |n: usize| {
+            format!("{: >width$}", n, width = max_line_number_length)
+        };
 
-        let mut line = String::new();
-        let mut line_index = 1usize;
-        let mut did_add_line_index = false;
-        let mut empty_lines = 0usize;
-        for (i, row) in galley.rows.iter().enumerate() {
-            line += row.glyphs.iter().map(|g| g.chr).collect::<String>().as_str();
+        let mut results = self.calculator.calculate(&self.source);
 
-            if !row.ends_with_newline {
-                if !did_add_line_index {
-                    self.line_numbers_text += &format!("{: >width$}", line_index.to_string(), width = max_line_number_length);
-                    did_add_line_index = true;
-                    line_index += 1;
+        fn line_range(res: &CalculatorResult) -> Range<usize> {
+            match &res.data {
+                Ok((_, range)) => range.clone(),
+                Err(e) => {
+                    let lines = e.ranges.iter().flat_map(|r| vec![r.start_line, r.end_line]);
+                    let start = lines.clone().min().unwrap();
+                    let end = lines.max().unwrap();
+                    start..end
                 }
-                self.line_numbers_text.push('\n');
+            }
+        }
 
-                if i != galley.rows.len() - 1 { empty_lines += 1; }
-                continue;
+        let mut current_line = 0usize;
+        let mut current_line_range: Option<Range<usize>> = None;
+        self.line_numbers_text = format_line_number(1);
+
+        for row in galley.rows.iter() {
+            if let Some(i) = results.iter().position(|res| line_range(res).start == current_line) {
+                let result = results.remove(i);
+                current_line_range = Some(line_range(&result));
+                let mut line = self.calculator_result_to_line(result);
+
+                if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut line {
+                    if let Some(i) = functions.iter().position(|(n, _)| n == name) {
+                        *show_in_plot = functions[i].1;
+                        functions.remove(i);
+                    }
+                }
+                self.lines.push(line);
+            } else if current_line_range.as_ref().map(|r| r.contains(&current_line)).unwrap_or_default() {
+                self.lines.push(Line::WrappedLine);
             } else {
-                if !did_add_line_index {
-                    self.line_numbers_text += &format!("{: >width$}", line_index.to_string(), width = max_line_number_length);
-                    line_index += 1;
-                }
-                self.line_numbers_text.push('\n');
-                did_add_line_index = false;
+                self.lines.push(Line::Empty);
+            }
 
-                if !line.starts_with('#') {
-                    let actual_line = if let Some(index) = line.find('#') {
-                        &line[0..index]
-                    } else { &line };
-
-                    let mut res = self.calculate(actual_line);
-                    if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
-                        if let Some(i) = functions.iter().position(|(n, _)| n == name) {
-                            *show_in_plot = functions[i].1;
-                            functions.remove(i);
-                        }
-                    }
-                    self.lines.push(res);
-                    for _ in 0..empty_lines {
-                        self.lines.push(Line::WrappedLine);
-                    }
-                    empty_lines = 0;
-                } else {
-                    self.lines.push(Line::Empty);
-                }
-
-                line.clear();
+            if row.ends_with_newline {
+                current_line += 1;
+                self.line_numbers_text += &format!("\n{}", format_line_number(current_line + 1));
+                current_line_range = None;
+            } else {
+                self.line_numbers_text += "\n";
             }
         }
+    }
 
-        if !line.is_empty() && !line.starts_with('#') {
-            let actual_line = if let Some(index) = line.find('#') {
-                &line[0..index]
-            } else { &line };
+    fn calculator_result_to_line(&self, result: CalculatorResult) -> Line {
+        let mut function: Option<Function> = None;
+        let mut color_segments = result.color_segments.into_iter()
+            .map(|s| ColorSegment::from_calculator_color_segment(s, false))
+            .collect::<Vec<_>>();
+        let mut is_error: bool = false;
 
-            let mut res = self.calculate(actual_line);
-            if let Line::Line { function: Some(Function(name, ..)), show_in_plot, .. } = &mut res {
-                if let Some(i) = functions.iter().position(|(n, _)| n == name) {
-                    *show_in_plot = functions[i].1;
-                    functions.remove(i);
+        let output_text = match result.data {
+            Ok(data) => {
+                match data.0 {
+                    ResultData::Value(number) => number.format(&self.calculator.settings, self.use_thousands_separator),
+                    ResultData::Boolean(b) => (if b { "True" } else { "False" }).to_string(),
+                    ResultData::Function { name, arg_count, function: f } => {
+                        function = Some(Function(name, arg_count, f));
+                        String::new()
+                    }
+                    ResultData::Nothing => String::new(),
                 }
             }
-            self.lines.push(res);
-        }
+            Err(e) => {
+                is_error = true;
+                for range in e.ranges {
+                    let i = color_segments.iter()
+                        .position(|seg| seg.range.start >= range.start_char)
+                        .unwrap_or_default();
+                    color_segments.insert(i, ColorSegment::new(range.start_char..range.end_char, ERROR_COLOR, true));
+                }
+                format!("{}", e.error)
+            }
+        };
 
-        if self.line_numbers_text.is_empty() {
-            self.line_numbers_text = "1".to_string();
+        Line::Line {
+            output_text,
+            function,
+            color_segments,
+            is_error,
+            show_in_plot: false,
         }
     }
 
@@ -1297,7 +1273,7 @@ fn input_layouter(
                 i
             };
 
-            'outer: for line in string.lines() {
+            for line in string.lines() {
                 if line_counter > lines.len() { break; }
 
                 let trimmed_line = line.trim();
@@ -1311,10 +1287,10 @@ fn input_layouter(
                         // NOTE: We use `Line::Empty`s for empty lines and `Line::WrappedLine` to
                         //  add spacing if the line spans multiple rows. We have to skip these
                         //  lines here to get to the actual color segments.
-                        while matches!(lines.get(line_counter), Some(Line::Empty | Line::WrappedLine)) { line_counter += 1; }
+                        while matches!(lines.get(line_counter), Some(Line::WrappedLine)) { line_counter += 1; }
 
                         let Some(Line::Line { color_segments: segments, .. }) =
-                            lines.get(line_counter) else { break 'outer; };
+                            lines.get(line_counter) else { break 'blk EMPTY; };
                         &segments[..]
                     };
 
@@ -1324,16 +1300,16 @@ fn input_layouter(
                     let segments = segments.iter()
                         .map(|seg| {
                             let mut seg = seg.clone();
-                            seg.range.start_char += offset;
-                            seg.range.end_char += offset;
+                            seg.range.start += offset;
+                            seg.range.end += offset;
                             seg
                         })
                         .collect::<Vec<_>>();
 
                     let iter_over_all_ranges = || {
-                        segments.iter().map(|s| s.range.start_char..s.range.end_char)
-                            .chain(highlighted_ranges.iter().cloned())
-                            .chain(selection_preview_vec.iter().cloned())
+                        segments.iter().map(|s| &s.range)
+                            .chain(highlighted_ranges.iter())
+                            .chain(selection_preview_vec.iter())
                     };
 
                     // Adds a section. It finds out what color it needs to have, as well as whether
@@ -1343,8 +1319,7 @@ fn input_layouter(
                     //       issues further down
                     let mut add_section = |i_in_string: usize, last_end: usize| {
                         let color_segment = segments.iter().find(|seg| {
-                            (seg.range.start_char..seg.range.end_char)
-                                .contains(&(i_in_string - 1))
+                            seg.range.contains(&(i_in_string - 1))
                         });
                         let segment = color_segment.map(|seg| seg.color);
 

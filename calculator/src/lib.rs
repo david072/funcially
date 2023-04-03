@@ -5,6 +5,7 @@
  */
 
 use std::fmt::Write;
+use std::ops::Range;
 use std::str::FromStr;
 
 use astgen::{
@@ -58,6 +59,7 @@ impl FromStr for Verbosity {
 }
 
 /// A struct containing information about the calculated result
+#[derive(Debug)]
 pub enum ResultData {
     Nothing,
     Value(Value),
@@ -70,8 +72,9 @@ pub enum ResultData {
     },
 }
 
+#[derive(Debug)]
 pub struct CalculatorResult {
-    pub data: Result<ResultData>,
+    pub data: Result<(ResultData, Range<usize>)>,
     pub color_segments: Vec<ColorSegment>,
 }
 
@@ -190,27 +193,34 @@ impl<'a> Calculator<'a> {
         }
     }
 
-    pub fn calculate(&mut self, input: &str) -> CalculatorResult {
+    pub fn calculate(&mut self, input: &str) -> Vec<CalculatorResult> {
         let tokens = match tokenize(input) {
             Ok(v) => v,
-            Err(e) => return CalculatorResult { data: Err(e), color_segments: vec![] },
+            Err(e) => return vec![CalculatorResult { data: Err(e), color_segments: vec![] }],
         };
-        if matches!(self.verbosity, Verbosity::Tokens | Verbosity::Ast) {
-            println!("Tokens:");
-            for token in &tokens {
-                println!("{} => {:?}", token.text, token.ty);
-            }
-            println!();
-        }
 
-        let color_segments = ColorSegment::all(&tokens);
+        tokens.split(|t| t.ty == TokenType::Newline)
+            .filter(|tokens| !tokens.is_empty())
+            .map(|tokens| {
+                if matches!(self.verbosity, Verbosity::Tokens | Verbosity::Ast) {
+                    println!("Tokens:");
+                    for token in tokens {
+                        println!("{} => {:?}", token.text, token.ty);
+                    }
+                    println!();
+                }
 
-        let data = self.calculate_impl(tokens);
-        CalculatorResult { data, color_segments }
+                let color_segments = ColorSegment::all(tokens);
+
+                let line_range = tokens.first().unwrap().range.start_line..tokens.last().unwrap().range.end_line;
+                let data = self.calculate_impl(tokens).map(|res| (res, line_range));
+                CalculatorResult { data, color_segments }
+            })
+            .collect::<Vec<_>>()
     }
 
-    fn calculate_impl(&mut self, tokens: Vec<Token>) -> Result<ResultData> {
-        match Parser::from_tokens(&tokens, self.context()).parse()? {
+    fn calculate_impl(&mut self, tokens: &[Token]) -> Result<ResultData> {
+        match Parser::from_tokens(tokens, self.context()).parse()? {
             ParserResult::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");

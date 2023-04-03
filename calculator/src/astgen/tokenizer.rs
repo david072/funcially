@@ -144,7 +144,7 @@ const NUMBERS: &str = "0123456789_";
 const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'‘’`\"";
 const HEXADECIMAL_CHARS: &str = "0123456789abcdefABCDEF_";
 const BINARY_DIGITS: &str = "01_";
-const WHITESPACE: &str = " \t\r\n";
+const WHITESPACE: &str = " \t\r";
 
 fn any_of(chars: &str) -> impl Fn(u8) -> bool + '_ {
     move |c| chars.contains(c as char)
@@ -159,6 +159,8 @@ struct Tokenizer<'a> {
     source: &'a str,
     string: &'a [u8],
     index: usize,
+    line_index: usize,
+    current_line: usize,
     current_object_stack: Vec<ObjectInformation>,
 }
 
@@ -168,6 +170,8 @@ impl<'a> Tokenizer<'a> {
             source,
             string: source.as_bytes(),
             index: 0,
+            line_index: 0,
+            current_line: 0,
             current_object_stack: vec![],
         }
     }
@@ -177,9 +181,11 @@ impl<'a> Tokenizer<'a> {
             return Ok(None);
         }
 
-        let start = self.index;
+        let (start, start_char) = (self.index, self.line_index);
         let next_ty = self.next_type();
         let end = self.index;
+        self.line_index += end - start;
+        let end_char = self.line_index;
 
         match next_ty {
             Some(mut ty) => {
@@ -210,7 +216,12 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
 
-                let range = range!(line 0 => start..std::cmp::max(0, end));
+                let range = range!(line self.current_line => start_char..std::cmp::max(0, end_char));
+                if ty == TokenType::Newline {
+                    self.current_line += 1;
+                    self.line_index = 0;
+                }
+
                 Ok(Some(Token {
                     ty,
                     text: slice,
@@ -219,14 +230,16 @@ impl<'a> Tokenizer<'a> {
             }
             None => {
                 // Move end to a char boundary
+                let offset = end - end_char;
                 let mut end = end;
                 while !self.source.is_char_boundary(end) {
                     end += 1;
                 }
+                let end_char = end - offset;
 
                 Err(ErrorType::InvalidCharacter(
                     String::from_utf8(self.string[start..end].to_owned()).unwrap_or_default()
-                ).with(range!(line 0 => start..end)))
+                ).with(range!(line self.current_line => start_char..end_char)))
             }
         }
     }
@@ -324,6 +337,7 @@ impl<'a> Tokenizer<'a> {
         let c = self.string[self.index];
         self.index += 1;
         let res = match c {
+            b'\n' => Some(TokenType::Newline),
             b'0'..=b'9' => {
                 if c == b'0' && self.index < self.string.len() {
                     // check next character for different representation
