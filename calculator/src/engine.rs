@@ -259,7 +259,7 @@ impl<'a> Engine<'a> {
             Ok(Value::Object(object.clone()))
         } else {
             // We should never get here!
-            Err(ErrorType::InvalidAst.with(ast[0].range.clone()))
+            Err(ErrorType::InvalidAst.with(ast[0].range))
         }
     }
 
@@ -315,7 +315,7 @@ impl<'a> Engine<'a> {
                     AstNodeData::QuestionMark => {
                         if is_surrounded_by_exponentiation {
                             // TODO: Better error range (power sign)
-                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
+                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range));
                         }
 
                         let unit = ast[i].unit.clone();
@@ -386,7 +386,7 @@ impl<'a> Engine<'a> {
 
                         if is_surrounded_by_exponentiation {
                             // TODO: Better error range (power sign)
-                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range.clone()));
+                            return Err(ErrorType::ForbiddenExponentiation.with(ast[i].range));
                         }
 
                         let unit = ast[i].unit.clone();
@@ -594,21 +594,21 @@ impl<'a> Engine<'a> {
                             res.to_ast_node_from(receiver)
                         }
                         _ => {
-                            return Err(ty.with(receiver.range.clone()));
+                            return Err(ty.with(receiver.range));
                         }
                     }
                 };
             } else if let AstNodeData::Object(object) = &receiver.data {
-                if !object.is_callable() { error!(NotCallable: receiver.range.clone()); }
+                if !object.is_callable() { error!(NotCallable: receiver.range); }
                 let mut args = vec![];
                 for ast in arg_asts {
                     args.push((Self::evaluate_to_number(ast.clone(), self.context)?, full_range(ast)));
                 }
 
                 new_node = object.call(
-                    receiver.range.clone(),
+                    receiver.range,
                     &args,
-                    args_node.range.clone(),
+                    args_node.range,
                 )?;
             } else {
                 i += 2;
@@ -632,7 +632,7 @@ impl<'a> Engine<'a> {
             if !self.context.env.is_valid_variable(var_name) { continue; }
 
             let Variable(value) = self.context.env.resolve_variable(var_name)
-                .map_err(|ty| ty.with(node.range.clone()))?;
+                .map_err(|ty| ty.with(node.range))?;
 
             let new_node = value.to_ast_node_from(node);
             let _ = replace(node, new_node);
@@ -665,10 +665,10 @@ impl<'a> Engine<'a> {
 
             if operators.contains(&op) {
                 if let AstNodeData::Object(object) = &lhs.data {
-                    let new_lhs = object.apply(lhs.range.clone(), (op, operator.range.clone()), rhs, false)?;
+                    let new_lhs = object.apply(lhs.range, (op, operator.range), rhs, false)?;
                     let _ = replace(lhs, new_lhs);
                 } else if let AstNodeData::Object(object) = &rhs.data {
-                    let new_lhs = object.apply(rhs.range.clone(), (op, operator.range.clone()), lhs, true)?;
+                    let new_lhs = object.apply(rhs.range, (op, operator.range), lhs, true)?;
                     let _ = replace(lhs, new_lhs);
                 } else {
                     lhs.apply(operator, rhs, self.context.currencies)?;
@@ -694,7 +694,7 @@ pub fn full_range(ast: &[AstNode]) -> SourceRange {
 mod tests {
     use chrono::NaiveDate;
 
-    use crate::{Parser, ParserResult, tokenize};
+    use crate::{Parser, ParserResultData, tokenize};
     use crate::astgen::objects::DateObject;
     use crate::common::Result;
 
@@ -712,8 +712,8 @@ mod tests {
                     settings: &SET,
                 };
                 Engine::evaluate(
-                    if let ParserResult::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse()? { ast }
-                    else { panic!("Expected ParserResult::Calculation"); },
+                    if let ParserResultData::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse_single()?.data { ast }
+                    else { panic!("Expected ParserResultData::Calculation"); },
                     CONTEXT,
                 ).and_then(|res| res.to_number().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(SourceRange::empty()))))
             }
@@ -732,8 +732,8 @@ mod tests {
                     settings: &SET,
                 };
                 Engine::evaluate(
-                    if let ParserResult::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse()? { ast }
-                    else { panic!("Expected ParserResult::Calculation"); },
+                    if let ParserResultData::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse_single()?.data { ast }
+                    else { panic!("Expected ParserResultData::Calculation"); },
                     CONTEXT,
                 ).and_then(|res| res.to_object().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(SourceRange::empty()))))
             }

@@ -75,7 +75,7 @@ impl ColorSegment {
             IDENTIFIER_COLOR
         } else {
             match token.ty {
-                Whitespace => Color::TRANSPARENT,
+                Whitespace | Newline => Color::TRANSPARENT,
                 OpenBracket | OpenSquareBracket | OpenCurlyBracket | CloseBracket | CloseSquareBracket | CloseCurlyBracket |
                 ExclamationMark | PercentSign |
                 Comma | Semicolon | EqualsSign | DefinitionSign | PostfixDefinitionSign => Color::WHITE,

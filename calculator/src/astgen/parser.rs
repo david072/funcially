@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::ops::Range;
+
 use crate::{Context, error, Format};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
 use crate::astgen::objects::{CalculatorObject, ObjectArgument, Vector};
@@ -38,11 +40,19 @@ fn any(types: &[TokenType]) -> impl Fn(&TokenType) -> bool + '_ {
     |other| types.contains(other)
 }
 
-fn all() -> impl Fn(&TokenType) -> bool {
-    |_| true
+fn all_except_newline() -> impl Fn(&TokenType) -> bool {
+    |ty| *ty != Newline
 }
 
-pub enum ParserResult {
+#[derive(Debug)]
+pub struct ParserResult {
+    pub data: ParserResultData,
+    pub line_range: Range<usize>,
+    pub token_range: Range<usize>,
+}
+
+#[derive(Debug)]
+pub enum ParserResultData {
     Calculation(Vec<AstNode>),
     BooleanExpression {
         lhs: Vec<AstNode>,
@@ -63,14 +73,32 @@ pub enum ParserResult {
     },
 }
 
-impl std::fmt::Display for ParserResult {
+impl std::fmt::Display for ParserResultData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParserResult::Calculation(_) => write!(f, "Calculation"),
-            ParserResult::BooleanExpression { .. } => write!(f, "Boolean Expression"),
-            ParserResult::VariableDefinition(..) => write!(f, "Variable Definition"),
-            ParserResult::FunctionDefinition { .. } => write!(f, "Function Definition"),
-            ParserResult::Equation { .. } => write!(f, "Equation"),
+            ParserResultData::Calculation(_) => write!(f, "Calculation"),
+            ParserResultData::BooleanExpression { .. } => write!(f, "Boolean Expression"),
+            ParserResultData::VariableDefinition(..) => write!(f, "Variable Definition"),
+            ParserResultData::FunctionDefinition { .. } => write!(f, "Function Definition"),
+            ParserResultData::Equation { .. } => write!(f, "Equation"),
+        }
+    }
+}
+
+macro_rules! result {
+    ($name:ident($($arg:expr),+) with tr: $token_range:expr, lr: $line_range:expr) => {
+        ParserResult {
+            data: ParserResultData::$name($($arg),+),
+            line_range: $line_range,
+            token_range: $token_range,
+        }
+    };
+    ($name:ident { $($arg_name:ident: $arg_value:expr),+ } with tr: $token_range:expr, lr: $line_range:expr) => {
+        #[allow(clippy::redundant_field_names)]
+        ParserResult {
+            data: ParserResultData::$name { $($arg_name: $arg_value),+ },
+            line_range: $line_range,
+            token_range: $token_range,
         }
     }
 }
@@ -104,6 +132,7 @@ pub struct Parser<'a> {
     question_mark: Option<QuestionMarkInfo>,
     boolean_operator: Option<BooleanOperatorInfo>,
     did_find_equals_sign: bool,
+    skip_newline_stack: Vec<bool>,
 }
 
 impl<'a> Parser<'a> {
@@ -114,6 +143,7 @@ impl<'a> Parser<'a> {
         allow_question_mark: bool,
         question_mark: Option<QuestionMarkInfo>,
         boolean_operator: Option<BooleanOperatorInfo>,
+        skip_newline_stack: Vec<bool>,
     ) -> Self {
         Self {
             tokens,
@@ -125,6 +155,7 @@ impl<'a> Parser<'a> {
             question_mark,
             did_find_equals_sign: false,
             boolean_operator,
+            skip_newline_stack,
         }
     }
 
@@ -136,10 +167,13 @@ impl<'a> Parser<'a> {
             true,
             None,
             None,
+            vec![false],
         )
     }
 
     fn new_sub(&self, tokens: &'a [Token], allow_question_mark: bool) -> Self {
+        let mut skip_newline_stack = self.skip_newline_stack.clone();
+        skip_newline_stack.push(true);
         Self {
             tokens,
             index: 0,
@@ -148,12 +182,30 @@ impl<'a> Parser<'a> {
             did_find_equals_sign: false,
             question_mark: self.question_mark.clone(),
             extra_allowed_variables: self.extra_allowed_variables.clone(),
+            skip_newline_stack,
             ..*self
         }
     }
 
     pub fn set_extra_allowed_variables(&mut self, variables: Vec<String>) {
         self.extra_allowed_variables = Some(variables);
+    }
+
+    fn skip_newline(&self) -> bool { *self.skip_newline_stack.last().unwrap() }
+
+    fn set_skip_newline(&mut self, skip: bool) {
+        self.skip_newline_stack = vec![skip];
+    }
+
+    fn push_skip_newline(&mut self, skip: bool) {
+        self.skip_newline_stack.push(skip);
+    }
+
+    fn pop_skip_newline(&mut self) {
+        if self.skip_newline_stack.len() == 1 {
+            panic!("skip_newline_stack cannot be empty!");
+        }
+        self.skip_newline_stack.pop();
     }
 
     fn error_range_at_end(&self) -> SourceRange {
@@ -166,30 +218,37 @@ impl<'a> Parser<'a> {
 
     fn accept<Predicate>(&mut self, predicate: Predicate, error_type: ErrorType) -> Result<&Token>
         where Predicate: Fn(&TokenType) -> bool {
-        if self.index >= self.tokens.len() {
-            return Err(error_type.with(self.error_range_at_end()));
-        }
-
-        let token = &self.tokens[self.index];
+        let token = self.tokens.get(self.index).ok_or_else(|| error_type.clone().with(self.error_range_at_end()))?;
         if predicate(&token.ty) {
             self.index += 1;
             Ok(token)
         } else {
+            if self.skip_newline() && token.ty == Newline {
+                let token = self.tokens.get(self.index + 1).ok_or_else(|| error_type.clone().with(self.error_range_at_end()))?;
+                if predicate(&token.ty) {
+                    self.index += 2;
+                    return Ok(token);
+                }
+            }
+
             Err(error_type.with(token.range))
         }
     }
 
     fn try_accept<Predicate>(&mut self, predicate: Predicate) -> Option<&Token>
         where Predicate: Fn(&TokenType) -> bool {
-        if self.index >= self.tokens.len() {
-            return None;
-        }
-
-        let token = &self.tokens[self.index];
+        let token = &self.tokens.get(self.index)?;
         if predicate(&token.ty) {
             self.index += 1;
             Some(token)
         } else {
+            if self.skip_newline() && token.ty == Newline {
+                let token = self.tokens.get(self.index + 1)?;
+                if predicate(&token.ty) {
+                    self.index += 2;
+                    return Some(token);
+                }
+            }
             None
         }
     }
@@ -197,14 +256,14 @@ impl<'a> Parser<'a> {
     /// Get the next token, if it matches `predicate`
     fn peek<Predicate>(&self, predicate: Predicate) -> Option<&Token>
         where Predicate: Fn(&TokenType) -> bool {
-        if self.index >= self.tokens.len() {
-            return None;
-        }
-
-        let token = &self.tokens[self.index];
+        let token = self.tokens.get(self.index)?;
         if predicate(&token.ty) {
             Some(token)
         } else {
+            if self.skip_newline() && token.ty == Newline {
+                let token = self.tokens.get(self.index + 1)?;
+                if predicate(&token.ty) { return Some(token); }
+            }
             None
         }
     }
@@ -215,7 +274,7 @@ impl<'a> Parser<'a> {
         let name = identifier.text.clone();
 
         if expect_definition_sign && self.try_accept(is(DefinitionSign)).is_none() {
-            self.index = self.index.saturating_sub(2);
+            self.index = self.index.saturating_sub(1);
             return None;
         }
 
@@ -269,6 +328,7 @@ impl<'a> Parser<'a> {
         }
 
         try_token!(self.accept(is(OpenBracket), ExpectedOpenBracket));
+        self.push_skip_newline(true);
 
         let first_arg = try_token!(self.accept(is(Identifier), ExpectedIdentifier), _identifier);
         let first_arg_text = first_arg.text.clone();
@@ -309,7 +369,10 @@ impl<'a> Parser<'a> {
                         });
                     args.push((next_arg_text, unit, next_arg_range));
                 }
-                CloseBracket => break,
+                CloseBracket => {
+                    self.pop_skip_newline();
+                    break;
+                },
                 _ => unreachable!(),
             }
         }
@@ -344,13 +407,47 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Result<ParserResult> {
-        let mut definition_info = self.accept_definition_info(true)?;
+    pub(crate) fn parse(&mut self) -> Vec<Result<ParserResult>> {
+        let mut results = vec![];
+        while self.index < self.tokens.len() {
+            self.set_skip_newline(false);
+            if self.try_accept(is(Newline)).is_some() { continue; }
 
-        if self.index >= self.tokens.len() {
+            let new = self.parse_single();
+            if new.is_err() {
+                // Skip to next line since we can't recover from errors (yet)
+                while self.try_accept(all_except_newline()).is_some() {}
+            }
+            results.push(new);
+        }
+        results
+    }
+
+    fn current_tokens_end_line(&self) -> usize {
+        self.tokens.get(self.index).map(|t| t.range.end_line).unwrap_or_default()
+    }
+
+    fn has_reached_end(&self) -> bool {
+        self.index >= self.tokens.len() || (!self.skip_newline() && self.tokens[self.index].ty == Newline)
+    }
+
+    // Extract into separate function to allow the use of the error!() macro and easier handling
+    // with `return`.
+    pub(crate) fn parse_single(&mut self) -> Result<ParserResult> {
+        let start_line = self.tokens.get(self.index).map(|t| t.range.start_line).unwrap_or_default();
+        let start_token_index = self.index;
+
+        let mut definition_info = self.accept_definition_info(true)?;
+        // let mut definition_info = None;
+
+        if self.has_reached_end() {
+            let line_range = start_line..self.current_tokens_end_line();
+            let token_range = start_token_index..self.index;
             return match definition_info {
-                Some(DefinitionInfo::Variable(name)) => Ok(ParserResult::VariableDefinition(name, None)),
-                Some(DefinitionInfo::Function(name, args)) => Ok(ParserResult::FunctionDefinition { name, args, ast: None }),
+                Some(DefinitionInfo::Variable(name)) =>
+                    Ok(result!(VariableDefinition(name, None) with tr: token_range, lr: line_range)),
+                Some(DefinitionInfo::Function(name, args)) =>
+                    Ok(result!(FunctionDefinition { name: name, args: args, ast: None } with tr: token_range, lr: line_range)),
                 None => error!(ExpectedElements: self.error_range_at_end()),
             };
         }
@@ -390,12 +487,13 @@ impl<'a> Parser<'a> {
         }
 
         // Accept opening brackets at the beginning of the line
-        while self.index < self.tokens.len() {
+        while !self.has_reached_end() {
             let start_i = self.index;
             let modifiers = self.accept_prefix_modifiers();
 
             if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
                 group_stack.push(GroupStackEntry::new(modifiers, open_bracket.range));
+                self.set_skip_newline(true);
                 self.nesting_level += 1;
             } else {
                 self.index = start_i;
@@ -404,7 +502,7 @@ impl<'a> Parser<'a> {
         }
 
         // Check if we're at the end
-        if self.index >= self.tokens.len() && group_stack.len() > 1 {
+        if self.has_reached_end() && group_stack.len() > 1 {
             error!(MissingClosingBracket: group_stack.last().unwrap().start_range);
         }
 
@@ -416,9 +514,10 @@ impl<'a> Parser<'a> {
             ast!().push(self.accept_number()?);
         }
 
-        while self.index < self.tokens.len() {
+        while !self.has_reached_end() {
+            self.set_skip_newline(group_stack.len() > 1);
             self.accept_expression(&mut ast!())?;
-            if self.index >= self.tokens.len() { break; }
+            if self.has_reached_end() { break; }
 
             // The accept_expression() function will exit on these tokens:
             let token = self.try_accept(any(&[CloseBracket, PostfixDefinitionSign]));
@@ -449,6 +548,9 @@ impl<'a> Parser<'a> {
 
                     ast!().push(node);
                     self.nesting_level -= 1;
+                    // if group_stack.len() == 1 && self.try_accept(is(Newline)).is_some() {
+                    //     break;
+                    // }
                 }
                 Some(PostfixDefinitionSign) => {
                     if definition_info.is_some() {
@@ -467,7 +569,7 @@ impl<'a> Parser<'a> {
                     if definition_info.is_none() {
                         error!(ExpectedIdentifier: self.tokens[self.index - 1].range);
                     }
-                    if self.index < self.tokens.len() {
+                    if !self.has_reached_end() {
                         error!(UnexpectedElements: self.tokens[self.index].range);
                     }
                 }
@@ -484,10 +586,12 @@ impl<'a> Parser<'a> {
         }
 
         if group_stack.len() > 1 {
-            error!(MissingClosingBracket: group_stack.last().unwrap().start_range.clone());
+            error!(MissingClosingBracket: group_stack.last().unwrap().start_range);
         }
 
         let GroupStackEntry { ast: result, .. } = group_stack.pop().unwrap();
+        let line_range = start_line..self.current_tokens_end_line();
+        let token_range = start_token_index..self.index;
 
         if let Some(BooleanOperatorInfo {
                         operator,
@@ -500,23 +604,25 @@ impl<'a> Parser<'a> {
 
             let (lhs, rhs) = result.split_at(ast_index);
             if let Some(info) = std::mem::take(&mut self.question_mark) {
-                Ok(ParserResult::Equation {
+                Ok(result!(Equation {
                     lhs: lhs.to_vec(),
                     rhs: rhs.to_vec(),
                     is_question_mark_in_lhs: info.is_in_lhs,
-                    output_variable: info.variable,
-                })
+                    output_variable: info.variable
+                } with tr: token_range, lr: line_range))
             } else {
-                Ok(ParserResult::BooleanExpression {
+                Ok(result!(BooleanExpression {
                     lhs: lhs.to_vec(),
                     rhs: rhs.to_vec(),
-                    operator,
-                })
+                    operator: operator
+                } with tr: token_range, lr: line_range))
             }
         } else {
             match definition_info {
-                Some(DefinitionInfo::Variable(name)) => Ok(ParserResult::VariableDefinition(name, Some(result))),
-                Some(DefinitionInfo::Function(name, args)) => Ok(ParserResult::FunctionDefinition { name, args, ast: Some(result) }),
+                Some(DefinitionInfo::Variable(name)) =>
+                    Ok(result!(VariableDefinition(name, Some(result)) with tr: token_range, lr: line_range)),
+                Some(DefinitionInfo::Function(name, args)) =>
+                    Ok(result!(FunctionDefinition { name: name, args: args, ast: Some(result) } with tr: token_range, lr: line_range)),
                 None => {
                     if self.nesting_level == 0 && self.question_mark.is_some() {
                         let mut range = self.tokens.last().unwrap().range;
@@ -524,14 +630,14 @@ impl<'a> Parser<'a> {
                         error!(MissingEqualsSign: range);
                     }
 
-                    Ok(ParserResult::Calculation(result))
+                    Ok(result!(Calculation(result) with tr: token_range, lr: line_range))
                 }
             }
         }
     }
 
     fn accept_expression(&mut self, ast: &mut Vec<AstNode>) -> Result<()> {
-        while self.index < self.tokens.len() {
+        while !self.has_reached_end() {
             if self.peek(any(&[CloseBracket, PostfixDefinitionSign])).is_some() {
                 break;
             }
@@ -650,7 +756,7 @@ impl<'a> Parser<'a> {
     }
 
     fn accept_number(&mut self) -> Result<AstNode> {
-        let next = self.peek(all()).map(|t| t.ty);
+        let next = self.peek(all_except_newline()).map(|t| t.ty);
 
         match next {
             Some(OpenCurlyBracket) => self.accept_object(),
@@ -658,7 +764,7 @@ impl<'a> Parser<'a> {
             _ => {
                 let mut modifiers = self.accept_prefix_modifiers();
 
-                let next = self.peek(all());
+                let next = self.peek(all_except_newline());
                 let mut number = match next.map(|token| token.ty) {
                     Some(ty) if ty.is_literal() => self.accept_literal()?,
                     Some(Identifier) => self.accept_identifier()?,
@@ -700,12 +806,12 @@ impl<'a> Parser<'a> {
                                 number.modifiers.push(AstNodeModifier::Power(power));
                             }
 
-                            let range = number.range.clone();
+                            let range = number.range;
                             let group = vec![
                                 number,
-                                AstNode::new(AstNodeData::Operator(Operator::Multiply), range.clone()),
-                                AstNode::new(AstNodeData::Literal(10.0), range.clone()),
-                                AstNode::new(AstNodeData::Operator(Operator::Exponentiation), range.clone()),
+                                AstNode::new(AstNodeData::Operator(Operator::Multiply), range),
+                                AstNode::new(AstNodeData::Literal(10.0), range),
+                                AstNode::new(AstNodeData::Operator(Operator::Exponentiation), range),
                                 exponent,
                             ];
 
@@ -853,15 +959,19 @@ impl<'a> Parser<'a> {
         fn accept_complex_unit_impl(this: &mut Parser) -> Result<(Unit, SourceRange)> {
             let open_bracket = this.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
             let range_start = open_bracket.range;
+            this.push_skip_newline(true);
 
             let (mut units, _) = this.next_units(0)?;
             if units.is_empty() {
-                error!(ExpectedUnit: this.peek(all()).map(|t| t.range).unwrap_or_else(|| this.error_range_at_end()));
+                this.pop_skip_newline();
+                error!(ExpectedUnit: this.peek(all_except_newline()).map(|t| t.range).unwrap_or_else(|| this.error_range_at_end()));
             }
             let unit = if units.len() == 1 { units.remove(0) } else { Unit::Product(units) };
 
             let close_bracket = this.accept(is(CloseSquareBracket), ExpectedCloseSquareBracket)?;
-            Ok((unit, range_start.extend(close_bracket.range)))
+            let close_bracket_range = close_bracket.range;
+            this.pop_skip_newline();
+            Ok((unit, range_start.extend(close_bracket_range)))
         }
 
         let res = accept_complex_unit_impl(self);
@@ -880,7 +990,7 @@ impl<'a> Parser<'a> {
         let mut numerator: Option<Unit> = None;
 
         while self.peek(is(CloseSquareBracket)).is_none() {
-            let Some(token) = self.peek(all()) else {
+            let Some(token) = self.peek(all_except_newline()) else {
                 error!(ExpectedElements: self.error_range_at_end());
             };
             let token_range = token.range;
@@ -985,7 +1095,7 @@ impl<'a> Parser<'a> {
 
         if self.context.env.is_valid_variable(&name) {
             let v = self.context.env.resolve_variable(&name).unwrap();
-            let node = AstNode::new(AstNodeData::Identifier(name.clone()), range.clone());
+            let node = AstNode::new(AstNodeData::Identifier(name.clone()), range);
 
             return match &v.0 {
                 Value::Object(object) if object.is_callable() => {
@@ -1000,7 +1110,7 @@ impl<'a> Parser<'a> {
             };
         }
         if self.extra_allowed_variables.as_ref().map_or(false, |vars| vars.contains(&name)) {
-            let node = AstNode::new(AstNodeData::Identifier(name.clone()), range.clone());
+            let node = AstNode::new(AstNodeData::Identifier(name.clone()), range);
             if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, range) {
                 return question_mark;
             }
@@ -1019,7 +1129,7 @@ impl<'a> Parser<'a> {
             );
 
             return Ok(AstNode::new(AstNodeData::Group(vec![
-                AstNode::new(AstNodeData::Identifier(name), range.clone()),
+                AstNode::new(AstNodeData::Identifier(name), range),
                 AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range),
                 AstNode::new(AstNodeData::Arguments(arguments), args_range),
             ]), range.extend(close_bracket_range)));
@@ -1047,6 +1157,8 @@ impl<'a> Parser<'a> {
     fn accept_object(&mut self) -> Result<AstNode> {
         let open_bracket = self.accept(is(OpenCurlyBracket), ExpectedOpenCurlyBracket)?;
         let full_range_start = open_bracket.range;
+        self.push_skip_newline(true);
+
         let name = self.accept(is(Identifier), ExpectedObjectName)?;
         if !CalculatorObject::is_valid_object(&name.text) {
             error!(UnknownObject(name.text.clone()): name.range);
@@ -1055,8 +1167,8 @@ impl<'a> Parser<'a> {
 
         let range_start = self.index;
         let mut args = vec![];
-        while self.index < self.tokens.len() {
-            let Some(token) = self.peek(all()) else {
+        while !self.has_reached_end() {
+            let Some(token) = self.peek(all_except_newline()) else {
                 error!(ExpectedCloseCurlyBracket: self.error_range_at_end());
             };
             match token.ty {
@@ -1077,6 +1189,7 @@ impl<'a> Parser<'a> {
 
         let close_bracket = self.accept(is(CloseCurlyBracket), ExpectedCloseCurlyBracket)?;
         let close_bracket_range = close_bracket.range;
+        self.pop_skip_newline();
 
         if self.index - 1 == range_start {
             error!(ExpectedElements: close_bracket_range);
@@ -1100,8 +1213,8 @@ impl<'a> Parser<'a> {
 
         let mut nesting_level = 1usize;
         let start = self.index;
-        while self.index < self.tokens.len() {
-            let Some(token) = self.try_accept(all()) else { continue; };
+        while !self.has_reached_end() {
+            let Some(token) = self.try_accept(all_except_newline()) else { continue; };
             match token.ty {
                 OpenSquareBracket => nesting_level += 1,
                 CloseSquareBracket => {
@@ -1118,7 +1231,7 @@ impl<'a> Parser<'a> {
 
         let tokens = &self.tokens[start..self.index - 1];
         let mut parser = self.new_sub(tokens, false);
-        let ParserResult::Calculation(ast) = parser.parse()? else { unreachable!(); };
+        let ParserResultData::Calculation(ast) = parser.parse_single()?.data else { unreachable!(); };
         self.question_mark = parser.question_mark;
         Ok(ast)
     }
@@ -1126,8 +1239,10 @@ impl<'a> Parser<'a> {
     fn accept_vector(&mut self) -> Result<AstNode> {
         let opening_bracket = self.accept(is(OpenSquareBracket), ExpectedOpenSquareBracket)?;
         let open_bracket_range = opening_bracket.range;
+        self.push_skip_newline(true);
 
-        let tokens = self.accept_separated(open_bracket_range.clone(), Semicolon, CloseSquareBracket)?;
+        let tokens = self.accept_separated(open_bracket_range, Semicolon, CloseSquareBracket)?;
+        self.pop_skip_newline();
 
         let full_range = open_bracket_range.extend(self.tokens[self.index - 1].range);
 
@@ -1135,7 +1250,7 @@ impl<'a> Parser<'a> {
         for tokens in tokens {
             // parse
             let mut parser = self.new_sub(tokens, false);
-            let ParserResult::Calculation(ast) = parser.parse()? else { unreachable!(); };
+            let ParserResultData::Calculation(ast) = parser.parse_single()?.data else { unreachable!(); };
             self.question_mark = parser.question_mark;
 
             // evaluate
@@ -1146,15 +1261,17 @@ impl<'a> Parser<'a> {
             numbers.push(number);
         }
 
-        let vector = AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Vector { numbers })), full_range.clone());
+        let vector = AstNode::new(AstNodeData::Object(CalculatorObject::Vector(Vector { numbers })), full_range);
         self.maybe_with_call(vector, full_range)
     }
 
     fn accept_call_arguments(&mut self, function_name: &str) -> Result<Vec<Vec<AstNode>>> {
         let open_bracket_token = self.accept(is(OpenBracket), MissingOpeningBracket)?;
         let open_bracket_range = open_bracket_token.range;
+        self.push_skip_newline(true);
 
-        let arguments = self.accept_separated(open_bracket_range.clone(), Comma, CloseBracket)?;
+        let arguments = self.accept_separated(open_bracket_range, Comma, CloseBracket)?;
+        self.pop_skip_newline();
 
         let range_end = self.tokens[self.index - 1].range;
         let full_range = open_bracket_range.extend(range_end);
@@ -1174,7 +1291,9 @@ impl<'a> Parser<'a> {
     fn maybe_with_call(&mut self, node: AstNode, range_start: SourceRange) -> Result<AstNode> {
         if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
             let open_bracket_range = open_bracket.range;
+            self.push_skip_newline(true);
             let tokens = self.accept_separated(open_bracket_range, Comma, CloseBracket)?;
+            self.pop_skip_newline();
             let args = self.parse_arguments(tokens, false)?;
 
             let close_bracket_range = self.tokens[self.index - 1].range;
@@ -1193,7 +1312,7 @@ impl<'a> Parser<'a> {
 
             Ok(AstNode::new(AstNodeData::Group(vec![
                 node,
-                AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range.clone()),
+                AstNode::new(AstNodeData::Operator(Operator::Call), open_bracket_range),
                 AstNode::new(AstNodeData::Arguments(args), args_range),
             ]), group_range))
         } else {
@@ -1205,7 +1324,7 @@ impl<'a> Parser<'a> {
         let mut result = Vec::new();
         for tokens in arguments {
             let mut parser = self.new_sub(tokens, allow_question_mark);
-            let ParserResult::Calculation(ast) = parser.parse()? else { unreachable!(); };
+            let ParserResultData::Calculation(ast) = parser.parse_single()?.data else { unreachable!(); };
             self.question_mark = parser.question_mark;
             result.push(ast);
         }
@@ -1218,8 +1337,8 @@ impl<'a> Parser<'a> {
 
         let mut nesting_level = 1usize;
         let mut argument_start = self.index;
-        while self.index < self.tokens.len() {
-            let Some(token) = self.try_accept(all()) else { continue; };
+        while !self.has_reached_end() {
+            let Some(token) = self.try_accept(all_except_newline()) else { continue; };
             let ty = token.ty;
             if ty == OpenBracket {
                 nesting_level += 1
@@ -1302,10 +1421,10 @@ mod tests {
                 env: &Environment::new(),
                 currencies: &Currencies::none(),
                 settings: &Settings::default(),
-            }).parse()
+            }).parse_single()
         };
         ($input:expr, $context:expr) => {
-            Parser::from_tokens(&tokenize($input)?, $context).parse()
+            Parser::from_tokens(&tokenize($input)?, $context).parse_single()
         }
     }
 
@@ -1317,14 +1436,14 @@ mod tests {
 
     macro_rules! calculation {
         ($input:expr) => {
-            if let ParserResult::Calculation(ast) = parse!($input)? {
+            if let ParserResultData::Calculation(ast) = parse!($input)?.data {
                 ast
             } else {
                 panic!("Expected ParserResult::Calculation");
             }
         };
         ($input:expr, $context:expr) => {
-            if let ParserResult::Calculation(ast) = parse!($input, $context)? {
+            if let ParserResultData::Calculation(ast) = parse!($input, $context)?.data {
                 ast
             } else {
                 panic!("Expected ParserResult::Calculation");
@@ -1334,7 +1453,7 @@ mod tests {
 
     macro_rules! boolean_expression {
         ($input:expr) => {
-            if let ParserResult::BooleanExpression { lhs, rhs, operator } = parse!($input)? {
+            if let ParserResultData::BooleanExpression { lhs, rhs, operator } = parse!($input)?.data {
                 (lhs, rhs, operator)
             } else {
                 panic!("Expected ParserResult::BooleanExpression");
@@ -1344,7 +1463,7 @@ mod tests {
 
     macro_rules! var_definition {
         ($input:expr) => {
-            if let ParserResult::VariableDefinition(name, ast) = parse!($input)? {
+            if let ParserResultData::VariableDefinition(name, ast) = parse!($input)?.data {
                 (name, ast)
             }
             else {
@@ -1355,7 +1474,7 @@ mod tests {
 
     macro_rules! func_definition {
         ($input:expr) => {
-            if let ParserResult::FunctionDefinition { name, args, ast } = parse!($input)? {
+            if let ParserResultData::FunctionDefinition { name, args, ast } = parse!($input)?.data {
                 (name, args, ast)
             }
             else {

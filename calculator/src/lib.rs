@@ -22,8 +22,7 @@ use environment::{
 };
 pub use environment::{Environment, Function};
 
-use crate::astgen::parser::ParserResult;
-use crate::astgen::tokenizer::Token;
+use crate::astgen::parser::{ParserResult, ParserResultData};
 pub use crate::engine::Format;
 pub use crate::engine::NumberValue;
 use crate::engine::Value;
@@ -199,29 +198,27 @@ impl<'a> Calculator<'a> {
             Err(e) => return vec![CalculatorResult { data: Err(e), color_segments: vec![] }],
         };
 
-        tokens.split(|t| t.ty == TokenType::Newline)
-            .filter(|tokens| !tokens.is_empty())
-            .map(|tokens| {
-                if matches!(self.verbosity, Verbosity::Tokens | Verbosity::Ast) {
-                    println!("Tokens:");
-                    for token in tokens {
-                        println!("{} => {:?}", token.text, token.ty);
-                    }
-                    println!();
+        let mut results = vec![];
+        let parser_results = Parser::from_tokens(&tokens, self.context()).parse();
+        for parser_result in parser_results {
+            match parser_result {
+                Ok(v) => {
+                    let color_segments = ColorSegment::all(&tokens[v.token_range.clone()]);
+                    results.push(CalculatorResult {
+                        data: self.handle_parser_result(v),
+                        color_segments,
+                    });
                 }
+                Err(e) => results.push(CalculatorResult { data: Err(e), color_segments: vec![] }),
+            }
+        }
 
-                let color_segments = ColorSegment::all(tokens);
-
-                let line_range = tokens.first().unwrap().range.start_line..tokens.last().unwrap().range.end_line;
-                let data = self.calculate_impl(tokens).map(|res| (res, line_range));
-                CalculatorResult { data, color_segments }
-            })
-            .collect::<Vec<_>>()
+        results
     }
 
-    fn calculate_impl(&mut self, tokens: &[Token]) -> Result<ResultData> {
-        match Parser::from_tokens(tokens, self.context()).parse()? {
-            ParserResult::Calculation(ast) => {
+    fn handle_parser_result(&mut self, parser_result: ParserResult) -> Result<(ResultData, Range<usize>)> {
+        let result_data = match parser_result.data {
+            ParserResultData::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
                     println!("AST:");
                     for node in &ast { println!("{node}"); }
@@ -231,9 +228,9 @@ impl<'a> Calculator<'a> {
                 let result = Engine::evaluate(ast, self.context())?;
                 self.env_mut().set_ans_variable(Variable(result.clone()));
 
-                Ok(ResultData::Value(result))
+                ResultData::Value(result)
             }
-            ParserResult::BooleanExpression { lhs, rhs, operator } => {
+            ParserResultData::BooleanExpression { lhs, rhs, operator } => {
                 if self.verbosity == Verbosity::Ast {
                     println!("Equality check:\nLHS:");
                     for node in &lhs { println!("{node}"); }
@@ -244,36 +241,36 @@ impl<'a> Calculator<'a> {
 
                 let lhs = Engine::evaluate(lhs, self.context())?;
                 let rhs = Engine::evaluate(rhs, self.context())?;
-                Ok(ResultData::Boolean(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies)))
+                ResultData::Boolean(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies))
             }
-            ParserResult::VariableDefinition(name, ast) => {
+            ParserResultData::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.context())?;
                         self.env_mut().set_variable(&name, Variable(res.clone())).unwrap();
-                        Ok(ResultData::Value(res))
+                        ResultData::Value(res)
                     }
                     None => {
                         self.env_mut().remove_variable(&name).unwrap();
-                        Ok(ResultData::Nothing)
+                        ResultData::Nothing
                     }
                 }
             }
-            ParserResult::FunctionDefinition { name, args, ast } => {
+            ParserResultData::FunctionDefinition { name, args, ast } => {
                 match ast {
                     Some(ast) => {
                         let arg_count = args.len();
                         let function = Function(args, ast);
                         self.env_mut().set_function(&name, function.clone()).unwrap();
-                        Ok(ResultData::Function { name, arg_count, function })
+                        ResultData::Function { name, arg_count, function }
                     }
                     None => {
                         self.env_mut().remove_function(&name).unwrap();
-                        Ok(ResultData::Nothing)
+                        ResultData::Nothing
                     }
                 }
             }
-            ParserResult::Equation {
+            ParserResultData::Equation {
                 lhs,
                 rhs,
                 is_question_mark_in_lhs,
@@ -304,9 +301,11 @@ impl<'a> Calculator<'a> {
                     }
                 }
 
-                Ok(ResultData::Value(result))
+                ResultData::Value(result)
             }
-        }
+        };
+
+        Ok((result_data, parser_result.line_range))
     }
 
     pub fn format(&self, line: &str) -> Result<String> {
@@ -470,21 +469,21 @@ impl<'a> Calculator<'a> {
         }
 
         if verbosity == Verbosity::Ast {
-            match Parser::from_tokens(&tokens, self.context()).parse() {
-                Ok(parser_result) => match parser_result {
-                    ParserResult::Calculation(ast) => {
+            match Parser::from_tokens(&tokens, self.context()).parse_single() {
+                Ok(parser_result) => match parser_result.data {
+                    ParserResultData::Calculation(ast) => {
                         writeln!(&mut output, "AST:").unwrap();
                         for node in &ast { writeln!(&mut output, "{}", node).unwrap(); }
                         writeln!(&mut output).unwrap();
                     }
-                    ParserResult::BooleanExpression { lhs, rhs, operator } => {
+                    ParserResultData::BooleanExpression { lhs, rhs, operator } => {
                         writeln!(&mut output, "Boolean expression:\nOperator: {operator:?}\nLHS:").unwrap();
                         for node in &lhs { writeln!(&mut output, "{}", node).unwrap(); }
                         writeln!(&mut output, "RHS:").unwrap();
                         for node in &rhs { writeln!(&mut output, "{}", node).unwrap(); }
                         writeln!(&mut output).unwrap();
                     }
-                    ParserResult::VariableDefinition(name, ast) => {
+                    ParserResultData::VariableDefinition(name, ast) => {
                         if let Some(ast) = ast {
                             writeln!(&mut output, "Variable Definition: {}\nAST:", name).unwrap();
                             for node in &ast { writeln!(&mut output, "{}", node).unwrap(); }
@@ -492,7 +491,7 @@ impl<'a> Calculator<'a> {
                             writeln!(&mut output, "Variable removal: {}", name).unwrap();
                         }
                     }
-                    ParserResult::FunctionDefinition { name, args, ast } => {
+                    ParserResultData::FunctionDefinition { name, args, ast } => {
                         if let Some(ast) = ast {
                             writeln!(&mut output, "Function Definition: {}", name).unwrap();
                             writeln!(&mut output, "Arguments: {:?}\nAST:", args).unwrap();
@@ -501,7 +500,7 @@ impl<'a> Calculator<'a> {
                             writeln!(&mut output, "Function removal: {}", name).unwrap();
                         }
                     }
-                    ParserResult::Equation {
+                    ParserResultData::Equation {
                         lhs,
                         rhs,
                         is_question_mark_in_lhs,

@@ -156,51 +156,50 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
 
     match input.as_str() {
         "quit" | "exit" => return false,
-        _ => {
-            match calculator.calculate(&input).data {
-                Ok(res) => match res {
-                    ResultData::Value(value) => {
-                        println!("= {}", value.format(&calculator.settings, use_thousands_separator));
-                    }
-                    ResultData::Boolean(b) => {
-                        println!("=> {}", if b { "True".green() } else { "False".red() });
-                    }
-                    ResultData::Function { .. } | ResultData::Nothing => {}
-                },
-                Err(mut error) => {
-                    eprintln!("{}: {}", "Error".red(), error.error);
+        _ => match &calculator.calculate(&input)[0].data {
+            Ok((res, _)) => match res {
+                ResultData::Value(value) => {
+                    println!("= {}", value.format(&calculator.settings, use_thousands_separator));
+                }
+                ResultData::Boolean(b) => {
+                    println!("=> {}", if *b { "True".green() } else { "False".red() });
+                }
+                ResultData::Function { .. } | ResultData::Nothing => {}
+            },
+            Err(ref error) => {
+                let mut error = error.clone();
+                eprintln!("{}: {}", "Error".red(), error.error);
 
-                    error.ranges.sort();
-                    let ranges = &error.ranges;
+                error.ranges.sort();
+                let ranges = &error.ranges;
 
-                    let slice_start = std::cmp::max(0, ranges.first().unwrap().start_char as isize - 5) as usize;
-                    let slice_end = std::cmp::min(input.len(), ranges.last().unwrap().end_char + 5);
-                    let slice = &input[slice_start..slice_end];
-                    eprintln!("{slice}");
+                let slice_start = std::cmp::max(0, ranges.first().unwrap().start_char as isize - 5) as usize;
+                let slice_end = std::cmp::min(input.len(), ranges.last().unwrap().end_char + 5);
+                let slice = &input[slice_start..slice_end];
+                eprintln!("{slice}");
 
-                    let mut last_end = 0usize;
+                let mut last_end = 0usize;
 
-                    for range in ranges {
-                        // Offset the range so that it is in the range of our slice
-                        let range = range.start_char - slice_start..range.end_char - slice_start;
+                for range in ranges {
+                    // Offset the range so that it is in the range of our slice
+                    let range = range.start_char - slice_start..range.end_char - slice_start;
 
-                        for _ in last_end..range.start {
-                            eprint!(" ");
-                            last_end += 1;
-                        }
-
-                        eprint!("{}", "^".cyan());
-                        for _ in 0..range.end - range.start - 1 {
-                            eprint!("{}", "-".cyan());
-                            last_end += 1;
-                        }
+                    for _ in last_end..range.start {
+                        eprint!(" ");
                         last_end += 1;
                     }
 
-                    eprintln!(" {}", error.error.to_string().cyan());
+                    eprint!("{}", "^".cyan());
+                    for _ in 0..range.end - range.start - 1 {
+                        eprint!("{}", "-".cyan());
+                        last_end += 1;
+                    }
+                    last_end += 1;
                 }
+
+                eprintln!(" {}", error.error.to_string().cyan());
             }
-        }
+        },
     }
 
     true

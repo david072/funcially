@@ -215,7 +215,7 @@ impl<'a> Tokenizer<'a> {
                 }
 
                 if let Some(ObjectInformation::TokensLeftUntilObject(counter)) = self.current_object_stack.last_mut() {
-                    if ty != TokenType::Whitespace {
+                    if ty != TokenType::Whitespace && ty != TokenType::Newline {
                         *counter -= 1;
                     }
                 }
@@ -280,6 +280,10 @@ impl<'a> Tokenizer<'a> {
             return Some(TokenType::Whitespace);
         }
 
+        if self.accept(any_of("\n")) {
+            return Some(TokenType::Newline);
+        }
+
         match self.current_object_stack.last_mut() {
             Some(last @ ObjectInformation::TokensLeftUntilObject(0))
             | Some(last @ ObjectInformation::IsTokenizingObjectArgs(true)) => {
@@ -341,7 +345,6 @@ impl<'a> Tokenizer<'a> {
         let c = self.string[self.index];
         self.index += 1;
         let res = match c {
-            b'\n' => Some(TokenType::Newline),
             // Comments
             b'#' => {
                 while self.accept(all_but("\n")) {}
