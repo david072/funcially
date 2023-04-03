@@ -150,6 +150,10 @@ fn any_of(chars: &str) -> impl Fn(u8) -> bool + '_ {
     move |c| chars.contains(c as char)
 }
 
+fn all_but(chars: &str) -> impl Fn(u8) -> bool + '_ {
+    move |c| !chars.contains(c as char)
+}
+
 enum ObjectInformation {
     TokensLeftUntilObject(usize),
     IsTokenizingObjectArgs(bool),
@@ -338,6 +342,11 @@ impl<'a> Tokenizer<'a> {
         self.index += 1;
         let res = match c {
             b'\n' => Some(TokenType::Newline),
+            // Comments
+            b'#' => {
+                while self.accept(all_but("\n")) {}
+                Some(TokenType::Whitespace)
+            }
             b'0'..=b'9' => {
                 if c == b'0' && self.index < self.string.len() {
                     // check next character for different representation
