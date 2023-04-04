@@ -644,6 +644,8 @@ impl<'a> Parser<'a> {
                 break;
             }
 
+            self.try_accept_line_continuation()?;
+
             match self.accept_operator() {
                 Ok(op) => {
                     let AstNodeData::Operator(operator) = op.data else { unreachable!(); };
@@ -716,6 +718,8 @@ impl<'a> Parser<'a> {
                 }
             }
 
+            self.try_accept_line_continuation()?;
+
             // Check if we need to exit because of an open bracket. To do this, we need to try to
             // accept prefix modifiers and check after them. We then reset our index back to where
             // we were before.
@@ -737,6 +741,15 @@ impl<'a> Parser<'a> {
             ast.push(self.accept_number()?);
         }
 
+        Ok(())
+    }
+
+    fn try_accept_line_continuation(&mut self) -> Result<()> {
+        self.push_skip_newline(false);
+        if self.try_accept(is(LineContinuation)).is_some() {
+            self.accept(is(Newline), ExpectedNewline)?;
+        }
+        self.pop_skip_newline();
         Ok(())
     }
 

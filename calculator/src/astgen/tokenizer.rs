@@ -13,6 +13,7 @@ pub enum TokenType {
     Newline,
     Dot,
     Comma,
+    LineContinuation,
     Semicolon,
     // Literals
     DecimalLiteral,
@@ -384,7 +385,13 @@ impl<'a> Tokenizer<'a> {
                     while self.accept(any_of(NUMBERS)) {}
                     Some(TokenType::DecimalLiteral)
                 } else {
-                    Some(TokenType::Dot)
+                    let mut is_line_continuation = self.accept(any_of("."));
+                    is_line_continuation &= self.accept(any_of("."));
+                    if is_line_continuation {
+                        Some(TokenType::LineContinuation)
+                    } else {
+                        Some(TokenType::Dot)
+                    }
                 }
             }
             b'+' => Some(TokenType::Plus),

@@ -120,6 +120,8 @@ pub enum ErrorType {
     ExpectedDot,
     #[error("This number is too big")]
     TooBig,
+    #[error("Expected a newline")]
+    ExpectedNewline,
     // Stupid
     #[error("The number is too big, or negative (found {0})")]
     NotU32(i32),
