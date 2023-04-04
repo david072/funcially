@@ -323,7 +323,7 @@ impl<'a> Tokenizer<'a> {
                             }
                         }
                         c => {
-                            if WHITESPACE.contains(c as char) {
+                            if WHITESPACE.contains(c as char) || c == b'\n' {
                                 return if self.index - 1 == start_index {
                                     Some(TokenType::Whitespace)
                                 } else {
