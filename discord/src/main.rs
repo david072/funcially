@@ -323,10 +323,10 @@ mod commands {
                     None => Calculator::new(Verbosity::None, Settings::default()),
                 };
 
-                match calc.calculate(input).data {
+                match &calc.calculate(input)[0].data {
                     Ok(res) => {
                         embed.description(format!("`{input}`"));
-                        match res {
+                        match &res.0 {
                             ResultData::Value(value) => {
                                 embed
                                     .color(Colour::GOLD)
@@ -334,8 +334,8 @@ mod commands {
                             }
                             ResultData::Boolean(b) => {
                                 embed
-                                    .color(if b { Colour::DARK_GREEN } else { Colour::RED })
-                                    .title(if b { "True" } else { "False" });
+                                    .color(if *b { Colour::DARK_GREEN } else { Colour::RED })
+                                    .title(if *b { "True" } else { "False" });
                             }
                             _ => {}
                         }
@@ -344,7 +344,8 @@ mod commands {
                             save_sessions(sessions.clone(), guild_id);
                         }
                     }
-                    Err(mut error) => {
+                    Err(ref error) => {
+                        let mut error = error.clone();
                         embed.color(Colour::DARK_RED)
                             .title(error.error.to_string());
 
