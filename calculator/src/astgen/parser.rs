@@ -1340,7 +1340,7 @@ impl<'a> Parser<'a> {
         let mut nesting_level = 1usize;
         let mut argument_start = self.index;
         while !self.has_reached_end() {
-            let Some(token) = self.try_accept(all_except_newline()) else { continue; };
+            let token = self.accept(all_except_newline(), ExpectedElements)?;
             let ty = token.ty;
             if ty == OpenBracket {
                 nesting_level += 1
