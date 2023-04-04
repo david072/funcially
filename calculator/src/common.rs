@@ -197,6 +197,10 @@ impl SourceRange {
             end_line: self.end_line.max(other.end_line),
         }
     }
+
+    pub fn contains_line(&self, l: usize) -> bool {
+        (self.start_line..self.end_line).contains(&l)
+    }
 }
 
 impl Default for SourceRange {

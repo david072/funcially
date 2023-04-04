@@ -14,7 +14,7 @@ use astgen::{
 };
 pub use color::{Color, ColorSegment};
 pub use common::{data_dir, SourceRange};
-use common::Result;
+pub use common::Result;
 use engine::Engine;
 use environment::{
     currencies::Currencies,
@@ -58,7 +58,7 @@ impl FromStr for Verbosity {
 }
 
 /// A struct containing information about the calculated result
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ResultData {
     Nothing,
     Value(Value),

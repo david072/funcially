@@ -372,7 +372,7 @@ impl<'a> Parser<'a> {
                 CloseBracket => {
                     self.pop_skip_newline();
                     break;
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -424,7 +424,9 @@ impl<'a> Parser<'a> {
     }
 
     fn current_tokens_end_line(&self) -> usize {
-        self.tokens.get(self.index).map(|t| t.range.end_line).unwrap_or_default()
+        self.tokens.get(self.index)
+            .map(|t| t.range.end_line)
+            .unwrap_or_else(|| self.tokens.last().unwrap().range.end_line)
     }
 
     fn has_reached_end(&self) -> bool {
