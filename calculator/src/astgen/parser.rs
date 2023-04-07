@@ -1425,8 +1425,12 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+    use std::sync::Arc;
+    use std::cell::RefCell;
     use crate::{Currencies, Environment, NumberValue, range, Settings};
     use crate::astgen::tokenizer::tokenize;
+    use crate::ContextData;
     use crate::engine::Value;
     use crate::environment::Variable;
 
@@ -1434,11 +1438,11 @@ mod tests {
 
     macro_rules! parse {
         ($input:expr) => {
-            Parser::from_tokens(&tokenize($input)?, Context {
-                env: &Environment::new(),
-                currencies: &Currencies::none(),
-                settings: &Settings::default(),
-            }).parse_single()
+            Parser::from_tokens(&tokenize($input)?, Rc::new(RefCell::new(ContextData {
+                env: Environment::new(),
+                currencies: Arc::new(Currencies::none()),
+                settings: Settings::default(),
+            }))).parse_single()
         };
         ($input:expr, $context:expr) => {
             Parser::from_tokens(&tokenize($input)?, $context).parse_single()
@@ -1845,12 +1849,13 @@ mod tests {
         let mut env = Environment::new();
         env.set_variable("a", Variable(Value::Number(NumberValue::new(3.0)))).unwrap();
 
-        let result = calculation!("4a", Context {
-            env: &env,
-            currencies: &Currencies::none(),
-            settings: &Settings::default(),
-        });
+        let result = calculation!("4a", Rc::new(RefCell::new(ContextData {
+            env,
+            currencies: Arc::new(Currencies::none()),
+            settings: Settings::default(),
+        })));
         assert_eq!(result.len(), 3);
+        assert!(matches!(result[2].data, AstNodeData::Identifier(_)));
         Ok(())
     }
 

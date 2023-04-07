@@ -693,29 +693,31 @@ pub fn full_range(ast: &[AstNode]) -> SourceRange {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use std::sync::Arc;
+
     use chrono::NaiveDate;
 
     use crate::{Parser, ParserResultData, tokenize};
     use crate::astgen::objects::DateObject;
     use crate::common::Result;
+    use crate::ContextData;
 
     use super::*;
 
     macro_rules! eval {
         ($str:expr) => {
             {
-                static ENV: Environment = Environment::new();
-                static CURR: Currencies = Currencies::none();
-                static SET: Settings = Settings::default();
-                static CONTEXT: Context = Context {
-                    env: &ENV,
-                    currencies: &CURR,
-                    settings: &SET,
-                };
+                let context = Rc::new(RefCell::new(ContextData {
+                    env: Environment::new(),
+                    currencies: Arc::new(Currencies::none()),
+                    settings: Settings::default(),
+                }));
                 Engine::evaluate(
-                    if let ParserResultData::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse_single()?.data { ast }
+                    if let ParserResultData::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, context.clone()).parse_single()?.data { ast }
                     else { panic!("Expected ParserResultData::Calculation"); },
-                    CONTEXT,
+                    context,
                 ).and_then(|res| res.to_number().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(SourceRange::empty()))))
             }
         }
@@ -724,18 +726,15 @@ mod tests {
     macro_rules! eval_obj {
         ($str:expr) => {
             {
-                static ENV: Environment = Environment::new();
-                static CURR: Currencies = Currencies::none();
-                static SET: Settings = Settings::default();
-                static CONTEXT: Context = Context {
-                    env: &ENV,
-                    currencies: &CURR,
-                    settings: &SET,
-                };
+                let context = Rc::new(RefCell::new(ContextData {
+                    env: Environment::new(),
+                    currencies: Arc::new(Currencies::none()),
+                    settings: Settings::default(),
+                }));
                 Engine::evaluate(
-                    if let ParserResultData::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, CONTEXT).parse_single()?.data { ast }
+                    if let ParserResultData::Calculation(ast) = Parser::from_tokens(&tokenize($str)?, context.clone()).parse_single()?.data { ast }
                     else { panic!("Expected ParserResultData::Calculation"); },
-                    CONTEXT,
+                    context,
                 ).and_then(|res| res.to_object().cloned().map(|v| Ok(v)).unwrap_or(Err(ErrorType::ExpectedNumber.with(SourceRange::empty()))))
             }
         }
