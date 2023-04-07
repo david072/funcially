@@ -18,9 +18,3 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(cli)"
-  - package-ecosystem: "cargo"
-    directory: "/discord"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "chore(discord)"

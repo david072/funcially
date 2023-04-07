@@ -27,7 +27,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
-        run: cargo build -p cli --release && cargo build -p gui --release && cargo build -p discord --release
+        run: cargo build -p cli --release && cargo build -p gui --release
       - name: Rename
         run: mv ./target/release/cli ./target/release/cli-linux &&  mv ./target/release/gui ./target/release/gui-linux
       - name: Upload CLI
