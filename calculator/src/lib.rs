@@ -172,8 +172,8 @@ impl Calculator {
         };
 
         let mut results = vec![];
-        let parser_results = Parser::from_tokens(&tokens, self.context()).parse();
-        for parser_result in parser_results {
+        let mut parser = Parser::from_tokens(&tokens, self.context());
+        while let Some(parser_result) = parser.next() {
             match parser_result {
                 Ok(v) => {
                     let color_segments = ColorSegment::all(&tokens[v.token_range.clone()]);
@@ -190,8 +190,6 @@ impl Calculator {
     }
 
     fn handle_parser_result(&mut self, parser_result: ParserResult) -> Result<(ResultData, Range<usize>)> {
-        let env = &mut self.context.borrow_mut().env;
-
         let result_data = match parser_result.data {
             ParserResultData::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
@@ -201,7 +199,7 @@ impl Calculator {
                 }
 
                 let result = Engine::evaluate(ast, self.context())?;
-                env.set_ans_variable(Variable(result.clone()));
+                self.context.borrow_mut().env.set_ans_variable(Variable(result.clone()));
 
                 ResultData::Value(result)
             }
@@ -222,11 +220,11 @@ impl Calculator {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.context())?;
-                        env.set_variable(&name, Variable(res.clone())).unwrap();
+                        self.context.borrow_mut().env.set_variable(&name, Variable(res.clone())).unwrap();
                         ResultData::Value(res)
                     }
                     None => {
-                        env.remove_variable(&name).unwrap();
+                        self.context.borrow_mut().env.remove_variable(&name).unwrap();
                         ResultData::Nothing
                     }
                 }
@@ -236,11 +234,11 @@ impl Calculator {
                     Some(ast) => {
                         let arg_count = args.len();
                         let function = Function(args, ast);
-                        env.set_function(&name, function.clone()).unwrap();
+                        self.context.borrow_mut().env.set_function(&name, function.clone()).unwrap();
                         ResultData::Function { name, arg_count, function }
                     }
                     None => {
-                        env.remove_function(&name).unwrap();
+                        self.context.borrow_mut().env.remove_function(&name).unwrap();
                         ResultData::Nothing
                     }
                 }
@@ -267,9 +265,9 @@ impl Calculator {
                     self.context(),
                 )?;
 
-                env.set_ans_variable(Variable(result.clone()));
+                self.context.borrow_mut().env.set_ans_variable(Variable(result.clone()));
                 if let Some((name, range)) = output_variable {
-                    if let Err(ty) = env.set_variable(
+                    if let Err(ty) = self.context.borrow_mut().env.set_variable(
                         &name,
                         Variable(result.clone())) {
                         return Err(ty.with(range));

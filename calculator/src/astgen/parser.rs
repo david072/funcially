@@ -408,20 +408,20 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Vec<Result<ParserResult>> {
-        let mut results = vec![];
+    pub(crate) fn next(&mut self) -> Option<Result<ParserResult>> {
+        self.set_skip_newline(false);
         while self.index < self.tokens.len() {
-            self.set_skip_newline(false);
             if self.try_accept(is(Newline)).is_some() { continue; }
-
-            let new = self.parse_single();
-            if new.is_err() {
-                // Skip to next line since we can't recover from errors (yet)
-                while self.try_accept(all_except_newline()).is_some() {}
-            }
-            results.push(new);
+            break;
         }
-        results
+        if self.index >= self.tokens.len() { return None; }
+
+        let new = self.parse_single();
+        if new.is_err() {
+            // Skip to next line since we can't recover from errors (yet)
+            while self.try_accept(all_except_newline()).is_some() {}
+        }
+        Some(new)
     }
 
     fn current_tokens_end_line(&self) -> usize {

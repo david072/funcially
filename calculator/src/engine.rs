@@ -624,14 +624,14 @@ impl<'a> Engine<'a> {
     }
 
     fn eval_variables(&mut self) -> Result<()> {
+        let ctx = self.context.borrow();
         for node in self.ast.iter_mut() {
             let var_name = match node.data {
                 AstNodeData::Identifier(ref name) => name.as_str(),
                 _ => continue,
             };
-            if !self.context.borrow().env.is_valid_variable(var_name) { continue; }
+            if !ctx.env.is_valid_variable(var_name) { continue; }
 
-            let ctx = self.context.borrow();
             let Variable(value) = ctx.env.resolve_variable(var_name)
                 .map_err(|ty| ty.with(node.range))?;
 
