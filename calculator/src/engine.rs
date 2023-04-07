@@ -210,7 +210,7 @@ impl Value {
 
 pub struct Engine<'a> {
     ast: &'a mut Vec<AstNode>,
-    context: Context<'a>,
+    context: Context,
 }
 
 impl<'a> Engine<'a> {
@@ -280,7 +280,7 @@ impl<'a> Engine<'a> {
         } else {
             (rhs, lhs)
         };
-        let target_result = Self::evaluate_to_number(result_side, context)?;
+        let target_result = Self::evaluate_to_number(result_side, context.clone())?;
         let mut target_value = target_result.number;
 
         if unknown_side.len() == 1 && matches!(unknown_side[0].data, AstNodeData::Literal(_)) {
@@ -429,7 +429,7 @@ impl<'a> Engine<'a> {
 
         let question_mark_unit = match validate_and_get_unit(
             &unknown_side,
-            context.env,
+            &context.borrow().env,
             false,
             None,
         )? {
@@ -448,7 +448,7 @@ impl<'a> Engine<'a> {
 
         let first_ast = replace_question_mark(unknown_side.clone(), X1);
 
-        let y1_result = Self::evaluate_to_number(first_ast, context)?;
+        let y1_result = Self::evaluate_to_number(first_ast, context.clone())?;
 
         if y1_result.unit.is_some() && target_result.unit.is_none() {
             return Err(ErrorType::WrongUnit(y1_result.unit.unwrap().to_string()).with(rhs_range));
@@ -461,7 +461,7 @@ impl<'a> Engine<'a> {
                 &target_result.unit.unwrap(),
                 &y1_unit,
                 target_value,
-                context.currencies,
+                &context.borrow().currencies,
                 rhs_range,
             ) {
                 Ok(n) => n,
@@ -528,7 +528,7 @@ impl<'a> Engine<'a> {
         }
     }
 
-    fn new(ast: &'a mut Vec<AstNode>, context: Context<'a>) -> Engine<'a> {
+    fn new(ast: &'a mut Vec<AstNode>, context: Context) -> Engine<'a> {
         Engine { ast, context }
     }
 
@@ -555,7 +555,7 @@ impl<'a> Engine<'a> {
                 // TODO: Make this generic!?
                 let mut first_arg: Option<NumberValue> = None;
                 if func_name == "abs" && arg_asts.len() == 1 {
-                    match Self::evaluate(arg_asts[0].clone(), self.context)? {
+                    match Self::evaluate(arg_asts[0].clone(), self.context.clone())? {
                         Value::Number(number) => first_arg = Some(number),
                         Value::Object(CalculatorObject::Vector(vector)) => {
                             let result = vector.length();
@@ -571,10 +571,10 @@ impl<'a> Engine<'a> {
 
                 let mut args = if let Some(arg) = first_arg { vec![arg] } else { vec![] };
                 for ast in arg_asts {
-                    args.push(Self::evaluate_to_number(ast.clone(), self.context)?);
+                    args.push(Self::evaluate_to_number(ast.clone(), self.context.clone())?);
                 }
 
-                new_node = match self.context.env.resolve_function(func_name, &args) {
+                new_node = match self.context.borrow().env.resolve_function(func_name, &args) {
                     Ok(res) => {
                         let mut new_node = AstNode::from(receiver, AstNodeData::Literal(res.0));
                         if new_node.unit.is_none() { new_node.unit = res.1; }
@@ -585,11 +585,11 @@ impl<'a> Engine<'a> {
                             let args = args.into_iter()
                                 .zip(arg_asts.iter().map(|ast| full_range(ast)))
                                 .collect::<Vec<_>>();
-                            let res = self.context.env.resolve_custom_function(
+                            let res = self.context.borrow().env.resolve_custom_function(
                                 func_name,
                                 &args,
                                 receiver.range,
-                                self.context,
+                                self.context.clone(),
                             )?;
                             res.to_ast_node_from(receiver)
                         }
@@ -602,7 +602,7 @@ impl<'a> Engine<'a> {
                 if !object.is_callable() { error!(NotCallable: receiver.range); }
                 let mut args = vec![];
                 for ast in arg_asts {
-                    args.push((Self::evaluate_to_number(ast.clone(), self.context)?, full_range(ast)));
+                    args.push((Self::evaluate_to_number(ast.clone(), self.context.clone())?, full_range(ast)));
                 }
 
                 new_node = object.call(
@@ -629,9 +629,10 @@ impl<'a> Engine<'a> {
                 AstNodeData::Identifier(ref name) => name.as_str(),
                 _ => continue,
             };
-            if !self.context.env.is_valid_variable(var_name) { continue; }
+            if !self.context.borrow().env.is_valid_variable(var_name) { continue; }
 
-            let Variable(value) = self.context.env.resolve_variable(var_name)
+            let ctx = self.context.borrow();
+            let Variable(value) = ctx.env.resolve_variable(var_name)
                 .map_err(|ty| ty.with(node.range))?;
 
             let new_node = value.to_ast_node_from(node);
@@ -648,7 +649,7 @@ impl<'a> Engine<'a> {
                 _ => continue,
             };
 
-            let group_result = Self::evaluate(group_ast.clone(), self.context)?;
+            let group_result = Self::evaluate(group_ast.clone(), self.context.clone())?;
             // Construct Literal node with the evaluated result
             let new_node = group_result.to_ast_node_from(node);
             let _ = replace(node, new_node);
@@ -671,7 +672,7 @@ impl<'a> Engine<'a> {
                     let new_lhs = object.apply(rhs.range, (op, operator.range), lhs, true)?;
                     let _ = replace(lhs, new_lhs);
                 } else {
-                    lhs.apply(operator, rhs, self.context.currencies)?;
+                    lhs.apply(operator, rhs, &self.context.borrow().currencies)?;
                 }
 
                 // remove operator and rhs

@@ -149,7 +149,7 @@ impl Object for DateObject {
                 ObjectArgument::String(str, range) => {
                     let mut range_offset = range.start_char;
 
-                    args.append(&mut str.split(context.settings.date.delimiter)
+                    args.append(&mut str.split(context.borrow().settings.date.delimiter)
                         .map(|s| {
                             let char_range = range_offset..(range_offset + s.len()).max(range_offset + 1);
                             let mut range = range!(line range.start_line => char_range);
@@ -219,7 +219,7 @@ impl Object for DateObject {
             match arg {
                 ObjectArgument::String(s, range) => s.parse::<i32>().map_err(|err| ErrorType::InvalidNumber(err.to_string()).with(*range)),
                 ObjectArgument::Ast(ast, range) => {
-                    match Engine::evaluate(ast.clone(), context)? {
+                    match Engine::evaluate(ast.clone(), context.clone())? {
                         Value::Number(res) => {
                             if res.number.fract() != 0.0 { return Err(ErrorType::ExpectedInteger(res.number).with(*range)); }
                             Ok(res.number as i32)
@@ -230,10 +230,10 @@ impl Object for DateObject {
             }
         };
 
-        let year = as_number(&args[context.settings.date.format.year_index()])?;
-        let month = as_number(&args[context.settings.date.format.month_index()])?;
+        let year = as_number(&args[context.borrow().settings.date.format.year_index()])?;
+        let month = as_number(&args[context.borrow().settings.date.format.month_index()])?;
         let month: u32 = month.try_into().map_err(|_| ErrorType::NotU32(month).with(*args[1].range()))?;
-        let day = as_number(&args[context.settings.date.format.day_index()])?;
+        let day = as_number(&args[context.borrow().settings.date.format.day_index()])?;
         let day: u32 = day.try_into().map_err(|_| ErrorType::NotU32(day).with(*args[0].range()))?;
 
         let Some(date) = NaiveDate::from_ymd_opt(year, month, day) else {

@@ -126,7 +126,7 @@ pub struct Parser<'a> {
     tokens: &'a [Token],
     index: usize,
     nesting_level: usize,
-    context: Context<'a>,
+    context: Context,
     extra_allowed_variables: Option<Vec<String>>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
@@ -138,7 +138,7 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     pub(crate) fn new(
         tokens: &'a [Token],
-        context: Context<'a>,
+        context: Context,
         nesting_level: usize,
         allow_question_mark: bool,
         question_mark: Option<QuestionMarkInfo>,
@@ -159,7 +159,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn from_tokens(tokens: &'a [Token], context: Context<'a>) -> Self {
+    pub(crate) fn from_tokens(tokens: &'a [Token], context: Context) -> Self {
         Self::new(
             tokens,
             context,
@@ -177,6 +177,7 @@ impl<'a> Parser<'a> {
         Self {
             tokens,
             index: 0,
+            context: self.context.clone(),
             nesting_level: self.nesting_level + 1,
             allow_question_mark,
             did_find_equals_sign: false,
@@ -278,7 +279,7 @@ impl<'a> Parser<'a> {
             return None;
         }
 
-        if self.context.env.is_standard_variable(&name) {
+        if self.context.borrow().env.is_standard_variable(&name) {
             return Some(Err(ReservedVariable(name).with(identifier_range)));
         }
 
@@ -323,7 +324,7 @@ impl<'a> Parser<'a> {
         let identifier_range = identifier.range;
         let name = identifier.text.clone();
 
-        if self.context.env.is_standard_function(&name) && first_error.is_none() {
+        if self.context.borrow().env.is_standard_function(&name) && first_error.is_none() {
             first_error = Some(ReservedFunction(name.clone()).with(identifier_range));
         }
 
@@ -793,8 +794,8 @@ impl<'a> Parser<'a> {
 
                 if let Some(token) = self.peek(is(Identifier)) {
                     if token.text != "e" && token.text != "E" &&
-                        (self.context.env.is_valid_variable(&token.text) ||
-                            self.context.env.is_valid_function(&token.text)) {
+                        (self.context.borrow().env.is_valid_variable(&token.text) ||
+                            self.context.borrow().env.is_valid_function(&token.text)) {
                         return Ok(number);
                     }
                 }
@@ -943,7 +944,7 @@ impl<'a> Parser<'a> {
             if self.peek(is(Divide)).is_some() {
                 self.index += 1;
                 if let Some(identifier) = self.peek(is(Identifier)) {
-                    if self.context.env.is_valid_variable(&identifier.text) {
+                    if self.context.borrow().env.is_valid_variable(&identifier.text) {
                         self.index -= 1;
                         break 'blk;
                     }
@@ -1108,20 +1109,21 @@ impl<'a> Parser<'a> {
         let name = identifier.text.clone();
         let range = identifier.range;
 
-        if self.context.env.is_valid_variable(&name) {
-            let v = self.context.env.resolve_variable(&name).unwrap();
+        if self.context.borrow().env.is_valid_variable(&name) {
+            let ctx = self.context.borrow();
+            let v = ctx.env.resolve_variable(&name).unwrap();
+            let is_callable_object = matches!(&v.0, Value::Object(object) if object.is_callable());
+            drop(ctx);
+
             let node = AstNode::new(AstNodeData::Identifier(name.clone()), range);
 
-            return match &v.0 {
-                Value::Object(object) if object.is_callable() => {
-                    self.maybe_with_call(node, range)
+            return if is_callable_object {
+                self.maybe_with_call(node, range)
+            } else {
+                if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, range) {
+                    return question_mark;
                 }
-                _ => {
-                    if let Some(question_mark) = self.try_accept_question_mark_after_identifier(&name, range) {
-                        return question_mark;
-                    }
-                    return Ok(node);
-                }
+                Ok(node)
             };
         }
         if self.extra_allowed_variables.as_ref().map_or(false, |vars| vars.contains(&name)) {
@@ -1130,7 +1132,7 @@ impl<'a> Parser<'a> {
                 return question_mark;
             }
             return Ok(node);
-        } else if self.context.env.is_valid_function(&name) {
+        } else if self.context.borrow().env.is_valid_function(&name) {
             let open_bracket_token = self.peek(is(OpenBracket));
             let open_bracket_range = open_bracket_token.map(|t| t.range).unwrap_or_default();
             let arguments = self.accept_call_arguments(&name)?;
@@ -1213,7 +1215,7 @@ impl<'a> Parser<'a> {
         let object = CalculatorObject::parse(
             name,
             args,
-            self.context,
+            self.context.clone(),
             full_range_start.extend(close_bracket_range),
         )?;
 
@@ -1271,7 +1273,7 @@ impl<'a> Parser<'a> {
             // evaluate
             let _full_range = crate::engine::full_range(&ast);
             let Ok(crate::engine::NumberValue { number, .. }) =
-                Engine::evaluate_to_number(ast, self.context)
+                Engine::evaluate_to_number(ast, self.context.clone())
                 else { error!(ExpectedNumber: _full_range); };
             numbers.push(number);
         }
@@ -1291,7 +1293,7 @@ impl<'a> Parser<'a> {
         let range_end = self.tokens[self.index - 1].range;
         let full_range = open_bracket_range.extend(range_end);
 
-        let function_args_count = self.context.env.function_argument_count(function_name).unwrap();
+        let function_args_count = self.context.borrow().env.function_argument_count(function_name).unwrap();
         if !function_args_count.is_valid_count(arguments.len()) {
             match function_args_count {
                 ArgCount::Single(count) => error!(WrongNumberOfArguments(count): full_range),
@@ -1299,7 +1301,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let allow_question_mark = !self.context.env.is_standard_function(function_name);
+        let allow_question_mark = !self.context.borrow().env.is_standard_function(function_name);
         self.parse_arguments(arguments, allow_question_mark)
     }
 

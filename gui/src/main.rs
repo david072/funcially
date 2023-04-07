@@ -216,9 +216,9 @@ impl Line {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(default)]
-struct App<'a> {
+struct App {
     #[serde(skip)]
-    calculator: Calculator<'a>,
+    calculator: Calculator,
 
     source: String,
     #[serde(skip)]
@@ -257,7 +257,7 @@ struct App<'a> {
     bottom_text: String,
 }
 
-impl Default for App<'_> {
+impl Default for App {
     fn default() -> Self {
         App {
             calculator: Calculator::default(),
@@ -285,14 +285,14 @@ impl Default for App<'_> {
     }
 }
 
-impl App<'_> {
+impl App {
     fn new(cc: &CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(Visuals::dark());
 
         if let Some(storage) = cc.storage {
             let settings: Settings = eframe::get_value(storage, &settings_key()).unwrap_or_else(Settings::default);
-            let mut app: Self = eframe::get_value(storage, &app_key()).unwrap_or_default();
-            app.calculator.settings = settings;
+            let app: Self = eframe::get_value(storage, &app_key()).unwrap_or_default();
+            app.calculator.context.borrow_mut().settings = settings;
             return app;
         }
 
@@ -452,7 +452,7 @@ impl App<'_> {
                 let mut line = Line::new_line(
                     result.data.clone().map(|(result, ..)| result),
                     color_segments,
-                    &self.calculator.settings,
+                    &self.calculator.context.borrow().settings,
                     self.use_thousands_separator,
                 );
                 current_result = Some(result);
@@ -572,20 +572,23 @@ impl App<'_> {
                 ui.separator();
                 ui.heading("Date format");
                 ui.add_space(10.0);
+
+                let settings = &mut self.calculator.context.borrow_mut().settings;
+
                 ComboBox::from_label("Format")
-                    .selected_text(self.calculator.settings.date.format.to_string())
+                    .selected_text(settings.date.format.to_string())
                     .show_ui(ui, |ui| {
-                        let current_format = &mut self.calculator.settings.date.format;
+                        let current_format = &mut settings.date.format;
                         update |= ui.selectable_value(current_format, DateFormat::Dmy, "DMY").clicked();
                         update |= ui.selectable_value(current_format, DateFormat::Mdy, "MDY").clicked();
                         update |= ui.selectable_value(current_format, DateFormat::Ymd, "YMD").clicked();
                     });
 
                 ComboBox::from_label("Delimiter")
-                    .selected_text(self.calculator.settings.date.delimiter.to_string())
+                    .selected_text(settings.date.delimiter.to_string())
                     .show_ui(ui, |ui| {
                         const DELIMITERS: &str = ".,'/-";
-                        let current_del = &mut self.calculator.settings.date.delimiter;
+                        let current_del = &mut settings.date.delimiter;
                         for char in DELIMITERS.chars() {
                             update |= ui.selectable_value(current_del, char, char.to_string()).clicked();
                         }
@@ -918,7 +921,7 @@ impl App<'_> {
     }
 }
 
-impl eframe::App for App<'_> {
+impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -1284,7 +1287,7 @@ impl eframe::App for App<'_> {
 
     fn save(&mut self, storage: &mut dyn Storage) {
         eframe::set_value(storage, &app_key(), self);
-        eframe::set_value(storage, &settings_key(), &self.calculator.settings);
+        eframe::set_value(storage, &settings_key(), &self.calculator.context.borrow().settings);
     }
 }
 

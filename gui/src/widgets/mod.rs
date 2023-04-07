@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use eframe::egui::*;
 use eframe::egui::style::Margin;
 use eframe::egui::text_edit::TextEditState;
@@ -153,7 +155,7 @@ storable!(FullScreenPlotState);
 pub struct FullScreenPlot<'a> {
     full_size: Vec2,
     lines: &'a Vec<Line>,
-    calculator: &'a Calculator<'a>,
+    calculator: &'a Calculator,
 }
 
 impl<'a> FullScreenPlot<'a> {
@@ -170,7 +172,7 @@ impl<'a> FullScreenPlot<'a> {
     pub fn new(
         full_size: Vec2,
         lines: &'a Vec<Line>,
-        calculator: &'a Calculator<'a>,
+        calculator: &'a Calculator,
     ) -> Self {
         Self {
             full_size,
@@ -236,8 +238,8 @@ pub fn plot(ui: &mut Ui, lines: &Vec<Line>, calculator: &Calculator) -> InnerRes
                         if function.1 != 1 { continue; }
 
                         let env = calculator.clone_env();
-                        let currencies = calculator.currencies.clone();
-                        let settings = calculator.settings.clone();
+                        let currencies = calculator.context.borrow().currencies.clone();
+                        let settings = calculator.context.borrow().settings.clone();
                         let f = function.2.clone();
 
                         plot_ui.line(plot::Line::new(
@@ -246,11 +248,11 @@ pub fn plot(ui: &mut Ui, lines: &Vec<Line>, calculator: &Calculator) -> InnerRes
                                     &f,
                                     &[(calculator::NumberValue::new(x), SourceRange::empty())],
                                     SourceRange::empty(),
-                                    calculator::Context {
-                                        env: &env,
-                                        currencies: &currencies,
-                                        settings: &settings,
-                                    },
+                                    Rc::new(RefCell::new(calculator::ContextData {
+                                        env: env.clone(),
+                                        currencies: currencies.clone(),
+                                        settings: settings.clone(),
+                                    })),
                                 ) {
                                     Ok(v) => v.to_number()
                                         .map(|num| num.number)

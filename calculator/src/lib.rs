@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::cell::RefCell;
 use std::fmt::Write;
 use std::ops::Range;
+use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use astgen::{
     parser::Parser,
@@ -84,60 +87,48 @@ pub fn colorize_text(input: &str) -> Option<Vec<ColorSegment>> {
     }
 }
 
-enum Env<'a> {
-    Owned(Environment),
-    Ref(&'a mut Environment),
-}
-
-#[derive(Clone, Copy)]
-pub struct Context<'a> {
-    pub env: &'a Environment,
-    pub currencies: &'a Currencies,
-    pub settings: &'a Settings,
-}
-
-pub struct Calculator<'a> {
-    environment: Env<'a>,
-    pub currencies: std::sync::Arc<Currencies>,
+#[derive(Clone)]
+pub struct ContextData {
+    pub env: Environment,
+    pub currencies: Arc<Currencies>,
     pub settings: Settings,
+}
+
+pub type Context = Rc<RefCell<ContextData>>;
+
+pub struct Calculator {
+    pub context: Context,
     verbosity: Verbosity,
 }
 
-impl<'a> Default for Calculator<'a> {
+impl Default for Calculator {
     fn default() -> Self {
         Calculator::set_panic_hook();
 
         Calculator {
-            environment: Env::Owned(Environment::new()),
-            currencies: Currencies::new_arc(),
-            settings: Settings::default(),
+            context: Rc::new(RefCell::new(ContextData {
+                env: Environment::new(),
+                currencies: Currencies::new_arc(),
+                settings: Settings::default(),
+            })),
             verbosity: Verbosity::None,
         }
     }
 }
 
-impl<'a> Calculator<'a> {
+impl Calculator {
     pub fn update_currencies() { Currencies::update(); }
 
-    pub fn new(verbosity: Verbosity, settings: Settings) -> Calculator<'a> {
+    pub fn new(verbosity: Verbosity, settings: Settings) -> Calculator {
         Calculator::set_panic_hook();
 
         Calculator {
-            environment: Env::Owned(Environment::new()),
-            currencies: Currencies::new_arc(),
-            settings,
+            context: Rc::new(RefCell::new(ContextData {
+                env: Environment::new(),
+                currencies: Currencies::new_arc(),
+                settings,
+            })),
             verbosity,
-        }
-    }
-
-    pub fn with_environment(verbosity: Verbosity, settings: Settings, environment: &'a mut Environment) -> Calculator<'a> {
-        Calculator::set_panic_hook();
-
-        Calculator {
-            environment: Env::Ref(environment),
-            currencies: Currencies::new_arc(),
-            verbosity,
-            settings,
         }
     }
 
@@ -166,30 +157,12 @@ impl<'a> Calculator<'a> {
         }));
     }
 
-    pub fn reset(&mut self) { self.env_mut().clear(); }
+    pub fn reset(&mut self) { self.context.borrow_mut().env.clear(); }
 
-    pub fn clone_env(&self) -> Environment { self.env().clone() }
-
-    fn env(&self) -> &Environment {
-        match &self.environment {
-            Env::Owned(env) => env,
-            Env::Ref(env) => env,
-        }
-    }
-
-    fn env_mut(&mut self) -> &mut Environment {
-        match &mut self.environment {
-            Env::Owned(env) => env,
-            Env::Ref(env) => env,
-        }
-    }
+    pub fn clone_env(&self) -> Environment { self.context.borrow().env.clone() }
 
     pub fn context(&self) -> Context {
-        Context {
-            env: self.env(),
-            currencies: &self.currencies,
-            settings: &self.settings,
-        }
+        self.context.clone()
     }
 
     pub fn calculate(&mut self, input: &str) -> Vec<CalculatorResult> {
@@ -217,6 +190,8 @@ impl<'a> Calculator<'a> {
     }
 
     fn handle_parser_result(&mut self, parser_result: ParserResult) -> Result<(ResultData, Range<usize>)> {
+        let env = &mut self.context.borrow_mut().env;
+
         let result_data = match parser_result.data {
             ParserResultData::Calculation(ast) => {
                 if self.verbosity == Verbosity::Ast {
@@ -226,7 +201,7 @@ impl<'a> Calculator<'a> {
                 }
 
                 let result = Engine::evaluate(ast, self.context())?;
-                self.env_mut().set_ans_variable(Variable(result.clone()));
+                env.set_ans_variable(Variable(result.clone()));
 
                 ResultData::Value(result)
             }
@@ -241,17 +216,17 @@ impl<'a> Calculator<'a> {
 
                 let lhs = Engine::evaluate(lhs, self.context())?;
                 let rhs = Engine::evaluate(rhs, self.context())?;
-                ResultData::Boolean(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.currencies))
+                ResultData::Boolean(Engine::check_boolean_operator(&lhs, &rhs, operator, &self.context.borrow().currencies))
             }
             ParserResultData::VariableDefinition(name, ast) => {
                 match ast {
                     Some(ast) => {
                         let res = Engine::evaluate(ast, self.context())?;
-                        self.env_mut().set_variable(&name, Variable(res.clone())).unwrap();
+                        env.set_variable(&name, Variable(res.clone())).unwrap();
                         ResultData::Value(res)
                     }
                     None => {
-                        self.env_mut().remove_variable(&name).unwrap();
+                        env.remove_variable(&name).unwrap();
                         ResultData::Nothing
                     }
                 }
@@ -261,11 +236,11 @@ impl<'a> Calculator<'a> {
                     Some(ast) => {
                         let arg_count = args.len();
                         let function = Function(args, ast);
-                        self.env_mut().set_function(&name, function.clone()).unwrap();
+                        env.set_function(&name, function.clone()).unwrap();
                         ResultData::Function { name, arg_count, function }
                     }
                     None => {
-                        self.env_mut().remove_function(&name).unwrap();
+                        env.remove_function(&name).unwrap();
                         ResultData::Nothing
                     }
                 }
@@ -292,9 +267,9 @@ impl<'a> Calculator<'a> {
                     self.context(),
                 )?;
 
-                self.env_mut().set_ans_variable(Variable(result.clone()));
+                env.set_ans_variable(Variable(result.clone()));
                 if let Some((name, range)) = output_variable {
-                    if let Err(ty) = self.env_mut().set_variable(
+                    if let Err(ty) = env.set_variable(
                         &name,
                         Variable(result.clone())) {
                         return Err(ty.with(range));
@@ -525,6 +500,6 @@ impl<'a> Calculator<'a> {
             }
         }
 
-        output + &format!("\nEnvironment:\n{}", self.env().get_debug_info())
+        output + &format!("\nEnvironment:\n{}", self.context.borrow().env.get_debug_info())
     }
 }

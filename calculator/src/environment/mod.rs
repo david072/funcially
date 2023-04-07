@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::cell::RefCell;
 use std::f64::consts::{E, PI, TAU};
+use std::rc::Rc;
 
-use crate::{astgen::ast::AstNode, common::ErrorType, Context, Engine, Format};
+use crate::{ContextData, astgen::ast::AstNode, common::ErrorType, Context, Engine, Format};
 use crate::common::SourceRange;
 use crate::engine::{NumberValue, Value};
 use crate::environment::units::{convert, Unit};
@@ -319,7 +321,13 @@ impl Environment {
             let definition_arg = &f.0[i];
 
             let call_side_arg_value = if arg.unit.is_some() && definition_arg.1.is_some() {
-                convert(arg.unit.as_ref().unwrap(), definition_arg.1.as_ref().unwrap(), arg.number, context.currencies, *range)?
+                convert(
+                    arg.unit.as_ref().unwrap(),
+                    definition_arg.1.as_ref().unwrap(),
+                    arg.number,
+                    &context.borrow().currencies,
+                    *range,
+                )?
             } else {
                 arg.number
             };
@@ -328,10 +336,10 @@ impl Environment {
             temp_env.set_variable(&definition_arg.0, value).map_err(|e| e.with(full_range.clone()))?;
         }
 
-        let context = Context {
-            env: &temp_env,
-            ..context
-        };
+        let context = Rc::new(RefCell::new(ContextData {
+            env: temp_env,
+            ..context.borrow().clone()
+        }));
         Engine::evaluate(f.1.clone(), context).map_err(|e| e.error.with(full_range))
     }
 
