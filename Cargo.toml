@@ -6,5 +6,4 @@ members = [
     "calculator",
     "cli",
     "gui",
-    "discord",
 ]

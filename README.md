@@ -28,12 +28,6 @@ To update, run `rustup update stable`.
 
 To pass arguments to the CLI, use `cargo run -p cli -- <args>`
 
-### Discord Bot
-
-1. Create the file `.env` in the top level, and put `DISCORD_TOKEN=<your-bot-token>` into the
-   file
-2. Run `cargo run -p discord`
-
 ### Codespace
 
 This repository contains a template for a GitHub codespace environment. This allows you to compile, develop and commit <br>
