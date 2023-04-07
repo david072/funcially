@@ -91,67 +91,70 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
         return false;
     }
 
-    if first_word.is_some() && first_word.clone().unwrap() == "set" {
-        let Some(path_source) = words.next().map(str::trim) else {
-            eprintln!("{}", "Expected a setting.".red());
-            return true;
-        };
-        let path = path_source.split('.').collect::<Vec<_>>();
+    {
+        let settings = &mut calculator.context.borrow_mut().settings;
+        if first_word.is_some() && first_word.clone().unwrap() == "set" {
+            let Some(path_source) = words.next().map(str::trim) else {
+                eprintln!("{}", "Expected a setting.".red());
+                return true;
+            };
+            let path = path_source.split('.').collect::<Vec<_>>();
 
-        let next = words.next();
-        if path_source == "?" || (next.is_some() && next.unwrap().trim() == "?") {
-            let mut path = path;
-            path.push("");
-            let err = calculator.settings.set(&path, "").unwrap_err();
-            if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
+            let next = words.next();
+            if path_source == "?" || (next.is_some() && next.unwrap().trim() == "?") {
+                let mut path = path;
+                path.push("");
+                let err = settings.set(&path, "").unwrap_err();
+                if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
+                return true;
+            }
+
+            if next.is_none() || next.unwrap() != "=" {
+                eprintln!("{}", "Expected equals sign.".red());
+                eprintln!("{}", "Hint: Put a question mark at the end of the line to see the available options.".cyan());
+                return true;
+            }
+            let Some(value) = words.next().map(str::trim) else {
+                eprintln!("{}", "Expected the value.".red());
+                return true;
+            };
+            if words.next().is_some() {
+                eprintln!("{}", "Too many arguments.".red());
+                return true;
+            }
+
+            if let Err(e) = settings.set(&path, value) {
+                eprintln!("{}", e.to_string().red());
+            } else if let Ok(contents) = ron::to_string(&settings) {
+                let _ = std::fs::write(settings_path(), contents);
+            }
+            return true;
+        } else if first_word.is_some() && first_word.unwrap() == "get" {
+            let Some(path_source) = words.next().map(str::trim) else {
+                eprintln!("{}", "Expected a setting.".red());
+                return true;
+            };
+
+            let path = path_source.split('.').collect::<Vec<_>>();
+
+            let next = words.next();
+            if path_source == "?" || (next.is_some() && next.unwrap().trim() == "?") {
+                let mut path = path;
+                path.push("");
+                let err = settings.set(&path, "").unwrap_err();
+                if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
+                return true;
+            } else if next.is_some() {
+                eprintln!("{}", "Too many arguments.".red());
+                return true;
+            }
+
+            match settings.get(&path) {
+                Ok(v) => println!("Setting's value: {v:?}"),
+                Err(e) => eprintln!("{}", e.to_string().red()),
+            }
             return true;
         }
-
-        if next.is_none() || next.unwrap() != "=" {
-            eprintln!("{}", "Expected equals sign.".red());
-            eprintln!("{}", "Hint: Put a question mark at the end of the line to see the available options.".cyan());
-            return true;
-        }
-        let Some(value) = words.next().map(str::trim) else {
-            eprintln!("{}", "Expected the value.".red());
-            return true;
-        };
-        if words.next().is_some() {
-            eprintln!("{}", "Too many arguments.".red());
-            return true;
-        }
-
-        if let Err(e) = calculator.settings.set(&path, value) {
-            eprintln!("{}", e.to_string().red());
-        } else if let Ok(contents) = ron::to_string(&calculator.settings) {
-            let _ = std::fs::write(settings_path(), contents);
-        }
-        return true;
-    } else if first_word.is_some() && first_word.unwrap() == "get" {
-        let Some(path_source) = words.next().map(str::trim) else {
-            eprintln!("{}", "Expected a setting.".red());
-            return true;
-        };
-
-        let path = path_source.split('.').collect::<Vec<_>>();
-
-        let next = words.next();
-        if path_source == "?" || (next.is_some() && next.unwrap().trim() == "?") {
-            let mut path = path;
-            path.push("");
-            let err = calculator.settings.set(&path, "").unwrap_err();
-            if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
-            return true;
-        } else if next.is_some() {
-            eprintln!("{}", "Too many arguments.".red());
-            return true;
-        }
-
-        match calculator.settings.get(&path) {
-            Ok(v) => println!("Setting's value: {v:?}"),
-            Err(e) => eprintln!("{}", e.to_string().red()),
-        }
-        return true;
     }
 
     match input.as_str() {
@@ -159,7 +162,7 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
         _ => match &calculator.calculate(&input)[0].data {
             Ok((res, _)) => match res {
                 ResultData::Value(value) => {
-                    println!("= {}", value.format(&calculator.settings, use_thousands_separator));
+                    println!("= {}", value.format(&calculator.context.borrow().settings, use_thousands_separator));
                 }
                 ResultData::Boolean(b) => {
                     println!("=> {}", if *b { "True".green() } else { "False".red() });
@@ -184,6 +187,7 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
                     // Offset the range so that it is in the range of our slice
                     let range = range.start_char - slice_start..range.end_char - slice_start;
 
+                    #[allow(clippy::mut_range_bound)]
                     for _ in last_end..range.start {
                         eprint!(" ");
                         last_end += 1;
