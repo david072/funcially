@@ -1211,7 +1211,6 @@ impl eframe::App for App {
                                         } else {
                                             let mut current_line_start = cursor_range.primary.index - 1;
                                             while current_line_start > 0 {
-                                                println!("cls: {current_line_start}");
                                                 if self.source.chars().nth(current_line_start).unwrap() == '\n' {
                                                     current_line_start += 1;
                                                     break;
@@ -1220,8 +1219,6 @@ impl eframe::App for App {
                                             }
 
                                             for _ in 0..TAB_TEXT.len() {
-                                                let c = self.source.chars().nth(current_line_start).unwrap();
-                                                println!("c: '{c}'");
                                                 if self.source.chars().nth(current_line_start).unwrap() == ' ' {
                                                     self.source.remove(current_line_start);
                                                     cursor_range.primary.index -= 1;
