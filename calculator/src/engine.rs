@@ -10,6 +10,8 @@ use std::mem::{replace, take};
 use crate::{astgen::ast::{AstNode, AstNodeData, Operator}, astgen::tokenizer::TokenType, common::*, Context, Currencies, environment::{Environment, units::convert as convert_units, Variable}, error, match_ast_node, Settings};
 use crate::astgen::ast::BooleanOperator;
 use crate::astgen::objects::CalculatorObject;
+use crate::common::ErrorType::CannotUseQuestionMarkWithMultipleVariants;
+use crate::environment::FunctionVariantType;
 use crate::environment::units::Unit;
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
@@ -351,15 +353,19 @@ impl<'a> Engine<'a> {
                                     return Err(ErrorType::UnexpectedQuestionMark.with(range));
                                 }
 
-                                question_mark_arg_name = Some(&f.0[i].0);
-                                question_mark_unit = f.0[i].1.clone();
+                                question_mark_arg_name = Some(&f.arguments[i].0);
+                                question_mark_unit = f.arguments[i].1.clone();
                                 question_mark_range = Some(range);
                             }
                         }
 
                         if question_mark_arg_name.is_some() {
+                            if f.variants.len() > 1 || !matches!(f.variants[0].0, FunctionVariantType::Else) {
+                                return Err(CannotUseQuestionMarkWithMultipleVariants.with(question_mark_range.unwrap()))
+                            }
+
                             match validate_and_get_unit(
-                                &f.1,
+                                &f.variants[0].1,
                                 env,
                                 is_surrounded_by_exponentiation,
                                 question_mark_arg_name,

@@ -6,13 +6,13 @@
 
 use std::ops::Range;
 
-use crate::{Context, error, Format};
+use crate::{Context, error, Format, Function};
 use crate::astgen::ast::{AstNode, AstNodeData, AstNodeModifier, BooleanOperator, Operator};
 use crate::astgen::objects::{CalculatorObject, ObjectArgument, Vector};
 use crate::astgen::tokenizer::{Token, TokenType, TokenType::*};
 use crate::common::{Error, ErrorType::*, ErrorType, Result, SourceRange};
 use crate::engine::{Engine, Value};
-use crate::environment::{ArgCount, FunctionArgument};
+use crate::environment::{ArgCount, FunctionArgument, FunctionVariantType};
 use crate::environment::units::{get_prefix_power, is_unit_with_prefix, Unit};
 
 macro_rules! parse_f64_radix {
@@ -40,6 +40,8 @@ fn any(types: &[TokenType]) -> impl Fn(&TokenType) -> bool + '_ {
     |other| types.contains(other)
 }
 
+fn all() -> impl Fn(&TokenType) -> bool { |_| true }
+
 fn all_except_newline() -> impl Fn(&TokenType) -> bool {
     |ty| *ty != Newline
 }
@@ -62,8 +64,7 @@ pub enum ParserResultData {
     VariableDefinition(String, Option<Vec<AstNode>>),
     FunctionDefinition {
         name: String,
-        args: Vec<FunctionArgument>,
-        ast: Option<Vec<AstNode>>,
+        function: Option<Function>,
     },
     Equation {
         lhs: Vec<AstNode>,
@@ -441,7 +442,6 @@ impl<'a> Parser<'a> {
         let start_token_index = self.index;
 
         let mut definition_info = self.accept_definition_info(true)?;
-        // let mut definition_info = None;
 
         if self.has_reached_end() {
             let line_range = start_line..self.current_tokens_end_line();
@@ -449,8 +449,8 @@ impl<'a> Parser<'a> {
             return match definition_info {
                 Some(DefinitionInfo::Variable(name)) =>
                     Ok(result!(VariableDefinition(name, None) with tr: token_range, lr: line_range)),
-                Some(DefinitionInfo::Function(name, args)) =>
-                    Ok(result!(FunctionDefinition { name: name, args: args, ast: None } with tr: token_range, lr: line_range)),
+                Some(DefinitionInfo::Function(name, _)) =>
+                    Ok(result!(FunctionDefinition { name: name, function: None } with tr: token_range, lr: line_range)),
                 None => error!(ExpectedElements: self.error_range_at_end()),
             };
         }
@@ -478,10 +478,17 @@ impl<'a> Parser<'a> {
         }
 
         let mut group_stack: Vec<GroupStackEntry> = vec![GroupStackEntry::default()];
+        let mut function_variants: Vec<(FunctionVariantType, Vec<AstNode>)> = vec![];
 
         /// Helper to get the current AST
         macro_rules! ast {
             () => { group_stack.last_mut().unwrap().ast }
+        }
+
+        if matches!(definition_info, Some(DefinitionInfo::Function(..))) {
+            if let Some(variant) = self.try_accept_function_variant_head() {
+                function_variants.push((variant?, vec![]));
+            }
         }
 
         // If there is a close bracket at the beginning of the line, it is an error
@@ -519,11 +526,16 @@ impl<'a> Parser<'a> {
 
         while !self.has_reached_end() {
             self.set_skip_newline(group_stack.len() > 1);
-            self.accept_expression(&mut ast!())?;
+            let additional_break_types: &[TokenType] = if !function_variants.is_empty() && group_stack.len() == 1 {
+                &[Comma]
+            } else {
+                &[]
+            };
+            self.accept_expression(&mut ast!(), additional_break_types)?;
             if self.has_reached_end() { break; }
 
             // The accept_expression() function will exit on these tokens:
-            let token = self.try_accept(any(&[CloseBracket, PostfixDefinitionSign]));
+            let token = self.try_accept(any(&[CloseBracket, PostfixDefinitionSign, Comma]));
             match token.map(|t| t.ty) {
                 Some(CloseBracket) => {
                     if group_stack.len() == 1 {
@@ -551,9 +563,35 @@ impl<'a> Parser<'a> {
 
                     ast!().push(node);
                     self.nesting_level -= 1;
-                    // if group_stack.len() == 1 && self.try_accept(is(Newline)).is_some() {
-                    //     break;
-                    // }
+                }
+                Some(Comma) => {
+                    if group_stack.len() > 1 { error!(UnexpectedComma: token.unwrap().range); }
+
+                    function_variants.last_mut().unwrap().1 = group_stack.pop().unwrap().ast;
+                    group_stack = vec![GroupStackEntry::default()];
+
+                    self.push_skip_newline(true);
+                    if self.has_reached_end() { error!(ExpectedElements: self.error_range_at_end()); }
+                    let variant = self.try_accept_function_variant_head()
+                        .ok_or_else(|| ExpectedFunctionVariantHead.with(self.tokens[self.index].range))??;
+                    function_variants.push((variant, vec![]));
+                    self.pop_skip_newline();
+
+                    let i = self.index;
+                    match self.accept_number() {
+                        Ok(num) => ast!().push(num),
+                        _ => {
+                            if self.accept_operator().is_ok() {
+                                error!(ExpectedNumber: self.tokens[i].range);
+                            }
+
+                            // We just need to reset, since if there is something other than
+                            // a number after the function variant head, the accept_expression
+                            // function will exit (e.g. on open bracket), and it will be handled by
+                            // other parts of the parser.
+                            self.index = i;
+                        }
+                    }
                 }
                 Some(PostfixDefinitionSign) => {
                     if definition_info.is_some() {
@@ -593,6 +631,7 @@ impl<'a> Parser<'a> {
         }
 
         let GroupStackEntry { ast: result, .. } = group_stack.pop().unwrap();
+
         let line_range = start_line..self.current_tokens_end_line();
         let token_range = start_token_index..self.index;
 
@@ -624,8 +663,20 @@ impl<'a> Parser<'a> {
             match definition_info {
                 Some(DefinitionInfo::Variable(name)) =>
                     Ok(result!(VariableDefinition(name, Some(result)) with tr: token_range, lr: line_range)),
-                Some(DefinitionInfo::Function(name, args)) =>
-                    Ok(result!(FunctionDefinition { name: name, args: args, ast: Some(result) } with tr: token_range, lr: line_range)),
+                Some(DefinitionInfo::Function(name, args)) => {
+                    if !function_variants.is_empty() {
+                        function_variants.last_mut().unwrap().1 = result;
+                    } else {
+                        function_variants.push((FunctionVariantType::Else, result));
+                    }
+
+                    Ok(result!(FunctionDefinition {
+                        name: name,
+                        function: Some(Function { arguments: args,
+                            variants: function_variants,
+                        })
+                    } with tr: token_range, lr: line_range))
+                }
                 None => {
                     if self.nesting_level == 0 && self.question_mark.is_some() {
                         let mut range = self.tokens.last().unwrap().range;
@@ -639,9 +690,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn accept_expression(&mut self, ast: &mut Vec<AstNode>) -> Result<()> {
+    fn accept_expression(&mut self, ast: &mut Vec<AstNode>, additional_break_types: &[TokenType]) -> Result<()> {
         while !self.has_reached_end() {
-            if self.peek(any(&[CloseBracket, PostfixDefinitionSign])).is_some() {
+            if self.peek(any(&[CloseBracket, PostfixDefinitionSign])).is_some()
+                || self.peek(any(additional_break_types)).is_some() {
                 break;
             }
 
@@ -752,6 +804,69 @@ impl<'a> Parser<'a> {
         }
         self.pop_skip_newline();
         Ok(())
+    }
+
+    fn try_accept_function_variant_head(&mut self) -> Option<Result<FunctionVariantType>> {
+        match self.try_accept(any(&[For, Else]))?.ty {
+            For => {
+                let start_i = self.index;
+                let mut end_i = 0usize;
+                while !self.has_reached_end() {
+                    match self.try_accept(all()) {
+                        Some(t) => {
+                            if t.ty == Colon {
+                                end_i = self.index - 1;
+                                break;
+                            }
+                        }
+                        None => return Some(Err(ExpectedElements.with(self.error_range_at_end()))),
+                    }
+                }
+
+                if end_i == 0 {
+                    return Some(Err(ExpectedColon.with(self.error_range_at_end())));
+                } else if end_i == start_i {
+                    return Some(Err(ExpectedElements.with(self.tokens[start_i].range)));
+                }
+
+                let range = self.tokens[start_i].range.extend(self.tokens[end_i].range);
+                let tokens = &self.tokens[start_i..end_i];
+                let mut parser = Parser::new(
+                    tokens,
+                    self.context.clone(),
+                    self.nesting_level,
+                    false,
+                    None,
+                    None,
+                    vec![true],
+                );
+                if let Some(vars) = self.extra_allowed_variables.clone() {
+                    parser.set_extra_allowed_variables(vars);
+                }
+
+                match parser.parse_single() {
+                    Ok(res) => {
+                        if let ParserResultData::BooleanExpression {
+                            lhs,
+                            rhs,
+                            operator,
+                        } = res.data {
+                            Some(Ok(FunctionVariantType::BooleanVariant { lhs, rhs, operator }))
+                        } else {
+                            Some(Err(ExpectedBooleanExpression(res.data.to_string()).with(range)))
+                        }
+                    }
+                    Err(e) => Some(Err(e.error.with(range))),
+                }
+            }
+            Else => {
+                if let Err(e) = self.accept(is(Colon), ExpectedColon) {
+                    return Some(Err(e));
+                }
+                Some(Ok(FunctionVariantType::Else))
+            }
+            _ => unreachable!(),
+        }
     }
 
     fn try_accept_boolean_operator(&mut self) -> Option<(BooleanOperator, SourceRange)> {
@@ -1425,9 +1540,10 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::rc::Rc;
     use std::sync::Arc;
-    use std::cell::RefCell;
+
     use crate::{Currencies, Environment, NumberValue, range, Settings};
     use crate::astgen::tokenizer::tokenize;
     use crate::ContextData;

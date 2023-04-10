@@ -73,12 +73,14 @@ impl ColorSegment {
             Color::WHITE
         } else if ty.is_format() || matches!(*ty, Identifier | ObjectArgs) {
             IDENTIFIER_COLOR
+        } else if ty.is_keyword() {
+            Color::PINK
         } else {
             match token.ty {
                 Whitespace | Newline => Color::TRANSPARENT,
                 OpenBracket | OpenSquareBracket | OpenCurlyBracket | CloseBracket | CloseSquareBracket | CloseCurlyBracket |
                 ExclamationMark | PercentSign |
-                Comma | LineContinuation | Semicolon | EqualsSign | DefinitionSign | PostfixDefinitionSign => Color::WHITE,
+                Comma | LineContinuation | Colon | Semicolon | EqualsSign | DefinitionSign | PostfixDefinitionSign => Color::WHITE,
                 _ => unreachable!(),
             }
         };
@@ -117,6 +119,8 @@ impl Color {
     pub const LIGHT_BLUE: Color = Color::from_rgb(0xAD, 0xD8, 0xE6);
 
     pub const GOLD: Color = Color::from_rgb(255, 215, 0);
+
+    pub const PINK: Color = Color::from_rgb(175, 165, 216);
 
     #[inline(always)]
     pub const fn from_rgb(r: u8, g: u8, b: u8) -> Color {

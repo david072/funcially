@@ -29,6 +29,7 @@ use crate::astgen::parser::{ParserResult, ParserResultData};
 pub use crate::engine::Format;
 pub use crate::engine::NumberValue;
 use crate::engine::Value;
+use crate::environment::FunctionVariantType;
 use crate::environment::units::is_unit_with_prefix;
 pub use crate::settings::*;
 
@@ -229,11 +230,10 @@ impl Calculator {
                     }
                 }
             }
-            ParserResultData::FunctionDefinition { name, args, ast } => {
-                match ast {
-                    Some(ast) => {
-                        let arg_count = args.len();
-                        let function = Function(args, ast);
+            ParserResultData::FunctionDefinition { name, function } => {
+                match function {
+                    Some(function) => {
+                        let arg_count = function.arguments.len();
                         self.context.borrow_mut().env.set_function(&name, function.clone()).unwrap();
                         ResultData::Function { name, arg_count, function }
                     }
@@ -464,11 +464,26 @@ impl Calculator {
                             writeln!(&mut output, "Variable removal: {}", name).unwrap();
                         }
                     }
-                    ParserResultData::FunctionDefinition { name, args, ast } => {
-                        if let Some(ast) = ast {
+                    ParserResultData::FunctionDefinition { name, function } => {
+                        if let Some(function) = function {
                             writeln!(&mut output, "Function Definition: {}", name).unwrap();
-                            writeln!(&mut output, "Arguments: {:?}\nAST:", args).unwrap();
-                            for node in &ast { writeln!(&mut output, "{}", node).unwrap(); }
+                            writeln!(&mut output, "Arguments: {:?}\nAST:", function.arguments).unwrap();
+                            for (variant, ast) in &function.variants {
+                                match variant {
+                                    FunctionVariantType::BooleanVariant { lhs, rhs, operator } => {
+                                        write!(&mut output, "Boolean Variant: ").unwrap();
+                                        for node in lhs { write!(&mut output, "{}", node).unwrap(); }
+                                        write!(&mut output, " {operator} ").unwrap();
+                                        for node in rhs { write!(&mut output, "{}", node).unwrap(); }
+                                        write!(&mut output, ": ").unwrap();
+                                    }
+                                    FunctionVariantType::Else => {
+                                        write!(&mut output, "Else Variant: ").unwrap();
+                                    }
+                                }
+
+                                for node in ast { writeln!(&mut output, "{}", node).unwrap(); }
+                            }
                         } else {
                             writeln!(&mut output, "Function removal: {}", name).unwrap();
                         }

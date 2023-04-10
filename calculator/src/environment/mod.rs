@@ -8,7 +8,8 @@ use std::cell::RefCell;
 use std::f64::consts::{E, PI, TAU};
 use std::rc::Rc;
 
-use crate::{ContextData, astgen::ast::AstNode, common::ErrorType, Context, Engine, Format};
+use crate::{astgen::ast::AstNode, common::ErrorType, Context, ContextData, Engine, Format};
+use crate::astgen::ast::BooleanOperator;
 use crate::common::SourceRange;
 use crate::engine::{NumberValue, Value};
 use crate::environment::units::{convert, Unit};
@@ -30,8 +31,21 @@ const VAR_TAU: &Variable = &Variable(Value::only_number(TAU));
 
 pub type FunctionArgument = (String, Option<Unit>);
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) enum FunctionVariantType {
+    BooleanVariant {
+        lhs: Vec<AstNode>,
+        rhs: Vec<AstNode>,
+        operator: BooleanOperator,
+    },
+    Else,
+}
+
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Function(pub(crate) Vec<FunctionArgument>, pub(crate) Vec<AstNode>);
+pub struct Function {
+    pub(crate) arguments: Vec<FunctionArgument>,
+    pub(crate) variants: Vec<(FunctionVariantType, Vec<AstNode>)>,
+}
 
 #[derive(Debug)]
 pub(crate) enum ArgCount {
@@ -198,8 +212,8 @@ impl Environment {
         for (f, arg_count) in STANDARD_FUNCTIONS {
             if f == name { return Some(arg_count); }
         }
-        for (f, Function(args, _)) in &self.functions {
-            if f == name { return Some(ArgCount::Single(args.len())); }
+        for (f, Function { arguments, .. }) in &self.functions {
+            if f == name { return Some(ArgCount::Single(arguments.len())); }
         }
         None
     }
@@ -318,7 +332,7 @@ impl Environment {
     ) -> crate::common::Result<Value> {
         let mut temp_env = self.clone();
         for (i, (arg, range)) in call_side_args.iter().enumerate() {
-            let definition_arg = &f.0[i];
+            let definition_arg = &f.arguments[i];
 
             let call_side_arg_value = if arg.unit.is_some() && definition_arg.1.is_some() {
                 convert(
@@ -333,14 +347,37 @@ impl Environment {
             };
 
             let value = Variable(Value::number(call_side_arg_value, definition_arg.1.clone(), false, Format::Decimal));
-            temp_env.set_variable(&definition_arg.0, value).map_err(|e| e.with(full_range.clone()))?;
+            temp_env.set_variable(&definition_arg.0, value).map_err(|e| e.with(full_range))?;
         }
 
         let context = Rc::new(RefCell::new(ContextData {
             env: temp_env,
             ..context.borrow().clone()
         }));
-        Engine::evaluate(f.1.clone(), context).map_err(|e| e.error.with(full_range))
+
+        self.evaluate_function(f, context).map_err(|e| e.error.with(full_range))
+    }
+
+    fn evaluate_function(&self, f: &Function, context: Context) -> crate::common::Result<Value> {
+        for (variant, ast) in &f.variants {
+            if let FunctionVariantType::BooleanVariant {
+                lhs,
+                rhs,
+                operator,
+            } = variant {
+                let lhs = Engine::evaluate(lhs.clone(), context.clone())?;
+                let rhs = Engine::evaluate(rhs.clone(), context.clone())?;
+                if Engine::check_boolean_operator(&lhs, &rhs, *operator, &context.borrow().currencies) {
+                    return Engine::evaluate(ast.clone(), context.clone());
+                }
+            }
+        }
+
+        if let Some((FunctionVariantType::Else, ast)) = f.variants.iter().find(|v| matches!(v.0, FunctionVariantType::Else)) {
+            Engine::evaluate(ast.clone(), context.clone())
+        } else {
+            Ok(Value::only_number(f64::NAN))
+        }
     }
 
     pub(crate) fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {

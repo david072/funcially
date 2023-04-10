@@ -11,9 +11,11 @@ use crate::range;
 pub enum TokenType {
     Whitespace,
     Newline,
+    // Punctuation
     Dot,
     Comma,
     LineContinuation,
+    Colon,
     Semicolon,
     // Literals
     DecimalLiteral,
@@ -61,6 +63,9 @@ pub enum TokenType {
     GreaterThanEqual,
     LessThan,
     LessThanEqual,
+    // Keywords
+    For,
+    Else,
 }
 
 impl TokenType {
@@ -107,6 +112,10 @@ impl TokenType {
 
     pub fn is_format(&self) -> bool {
         matches!(self, Self::Decimal | Self::Hex | Self::Binary | Self::Scientific)
+    }
+
+    pub fn is_keyword(&self) -> bool {
+        matches!(self, Self::For | Self::Else)
     }
 }
 
@@ -211,6 +220,8 @@ impl<'a> Tokenizer<'a> {
                         "hex" => TokenType::Hex,
                         "binary" | "bin" => TokenType::Binary,
                         "scientific" | "sci" => TokenType::Scientific,
+                        "for" => TokenType::For,
+                        "else" => TokenType::Else,
                         _ => ty,
                     };
                 }
@@ -450,7 +461,13 @@ impl<'a> Tokenizer<'a> {
                 Some(TokenType::EqualsSign)
             },
             b',' => Some(TokenType::Comma),
-            b':' if self.try_accept(b'=') => Some(TokenType::DefinitionSign),
+            b':' => {
+                if self.try_accept(b'=') {
+                    Some(TokenType::DefinitionSign)
+                } else {
+                    Some(TokenType::Colon)
+                }
+            }
             b';' => Some(TokenType::Semicolon),
             b'?' => Some(TokenType::QuestionMark),
             _ => None

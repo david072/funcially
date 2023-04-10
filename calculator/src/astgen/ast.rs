@@ -37,6 +37,20 @@ impl BooleanOperator {
     }
 }
 
+impl Display for BooleanOperator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use BooleanOperator::*;
+        write!(f, "{}", match self {
+            Equal => "=",
+            NotEqual => "!=",
+            GreaterThan => ">",
+            GreaterThanEqual => ">=",
+            LessThan => "<",
+            LessThanEqual => "<=",
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Operator {
     Plus,

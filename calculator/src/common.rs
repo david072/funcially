@@ -82,6 +82,8 @@ pub enum ErrorType {
     DisallowedPostfixDefinitionNormalDefinitionWasUsed,
     #[error("Expected expression, found {0}")]
     ExpectedExpression(String),
+    #[error("Expected boolean expression, found {0}")]
+    ExpectedBooleanExpression(String),
     #[error("Expected opening bracket")]
     ExpectedOpenBracket,
     #[error("Expected closing bracket")]
@@ -98,6 +100,8 @@ pub enum ErrorType {
     ExpectedCloseCurlyBracket,
     #[error("Expected comma")]
     ExpectedComma,
+    #[error("Expected a colon")]
+    ExpectedColon,
     #[error("Can't redefine standard variable \"{0}\"")]
     ReservedVariable(String),
     #[error("Can't redefine standard function \"{0}\"")]
@@ -122,6 +126,8 @@ pub enum ErrorType {
     TooBig,
     #[error("Expected a newline")]
     ExpectedNewline,
+    #[error("Expected a function condition")]
+    ExpectedFunctionVariantHead,
     // Stupid
     #[error("The number is too big, or negative (found {0})")]
     NotU32(i32),
@@ -165,6 +171,8 @@ pub enum ErrorType {
     WrongOrder,
     #[error("This is not callable")]
     NotCallable,
+    #[error("Cannot use multiple variants")]
+    CannotUseQuestionMarkWithMultipleVariants,
     /// This should never happen
     #[error("Invalid AST (this is a bug!)")]
     InvalidAst,
