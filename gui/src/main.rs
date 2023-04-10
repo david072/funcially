@@ -47,6 +47,8 @@ const FORMAT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMA
 const LINE_PICKER_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::G);
 const SEARCH_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::F);
 
+const TAB_TEXT: &str = "    ";
+
 #[cfg(feature = "experimental")]
 fn app_key() -> String {
     eframe::APP_KEY.to_string() + "-experimental"
@@ -1185,7 +1187,6 @@ impl eframe::App for App {
                                                     .unwrap_or_default() {
                                                 cursor_range.primary.index += 1;
                                                 cursor_range.secondary.index += 1;
-                                                input_state.set_ccursor_range(Some(cursor_range));
                                                 remove = true;
                                             }
                                         }
@@ -1202,11 +1203,44 @@ impl eframe::App for App {
                                                 }
                                             }
                                         }
+                                    } else if let Event::Key { key: Key::Tab, pressed: true, modifiers, .. } = &events[i] {
+                                        if !modifiers.shift {
+                                            self.source.insert_str(cursor_range.primary.index, TAB_TEXT);
+                                            cursor_range.primary.index += 4;
+                                            cursor_range.secondary.index += 4;
+                                        } else {
+                                            let mut current_line_start = cursor_range.primary.index - 1;
+                                            while current_line_start > 0 {
+                                                println!("cls: {current_line_start}");
+                                                if self.source.chars().nth(current_line_start).unwrap() == '\n' {
+                                                    current_line_start += 1;
+                                                    break;
+                                                }
+                                                current_line_start -= 1;
+                                            }
+
+                                            for _ in 0..TAB_TEXT.len() {
+                                                let c = self.source.chars().nth(current_line_start).unwrap();
+                                                println!("c: '{c}'");
+                                                if self.source.chars().nth(current_line_start).unwrap() == ' ' {
+                                                    self.source.remove(current_line_start);
+                                                    cursor_range.primary.index -= 1;
+                                                    cursor_range.secondary.index -= 1;
+                                                } else {
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        events.remove(i);
+                                        continue;
                                     }
 
                                     i += 1;
                                 }
                             });
+
+                            input_state.set_ccursor_range(Some(cursor_range));
                         }
 
                         input_state.store(ctx, Id::new(INPUT_TEXT_EDIT_ID));
