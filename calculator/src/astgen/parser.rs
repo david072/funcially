@@ -491,38 +491,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // If there is a close bracket at the beginning of the line, it is an error
-        if let Some(close_bracket) = self.try_accept(is(CloseBracket)) {
-            error!(MissingOpeningBracket: close_bracket.range);
-        }
-
-        // Accept opening brackets at the beginning of the line
-        while !self.has_reached_end() {
-            let start_i = self.index;
-            let modifiers = self.accept_prefix_modifiers();
-
-            if let Some(open_bracket) = self.try_accept(is(OpenBracket)) {
-                group_stack.push(GroupStackEntry::new(modifiers, open_bracket.range));
-                self.set_skip_newline(true);
-                self.nesting_level += 1;
-            } else {
-                self.index = start_i;
-                break;
-            }
-        }
-
-        // Check if we're at the end
-        if self.has_reached_end() && group_stack.len() > 1 {
-            error!(MissingClosingBracket: group_stack.last().unwrap().start_range);
-        }
-
-        // Allow empty brackets, which is handled at the start of the while loop below
-        // The accept_expression() function will exit immediately in this case, meaning it will
-        // be handled further down.
-        // NOTE: () = 1
-        if self.peek(is(CloseBracket)).is_none() {
-            ast!().push(self.accept_number()?);
-        }
+        let mut accept_expression_beginning = true;
 
         while !self.has_reached_end() {
             self.set_skip_newline(group_stack.len() > 1);
@@ -531,8 +500,14 @@ impl<'a> Parser<'a> {
             } else {
                 &[]
             };
-            self.accept_expression(&mut ast!(), additional_break_types)?;
+            self.accept_expression(
+                &mut ast!(),
+                accept_expression_beginning,
+                additional_break_types,
+            )?;
             if self.has_reached_end() { break; }
+
+            accept_expression_beginning = false;
 
             // The accept_expression() function will exit on these tokens:
             let token = self.try_accept(any(&[CloseBracket, PostfixDefinitionSign, Comma]));
@@ -577,21 +552,7 @@ impl<'a> Parser<'a> {
                     function_variants.push((variant, vec![]));
                     self.pop_skip_newline();
 
-                    let i = self.index;
-                    match self.accept_number() {
-                        Ok(num) => ast!().push(num),
-                        _ => {
-                            if self.accept_operator().is_ok() {
-                                error!(ExpectedNumber: self.tokens[i].range);
-                            }
-
-                            // We just need to reset, since if there is something other than
-                            // a number after the function variant head, the accept_expression
-                            // function will exit (e.g. on open bracket), and it will be handled by
-                            // other parts of the parser.
-                            self.index = i;
-                        }
-                    }
+                    accept_expression_beginning = true;
                 }
                 Some(PostfixDefinitionSign) => {
                     if definition_info.is_some() {
@@ -621,7 +582,7 @@ impl<'a> Parser<'a> {
                     let open_bracket = self.accept(is(OpenBracket), ExpectedElements)?;
                     group_stack.push(GroupStackEntry::new(modifiers, open_bracket.range));
                     self.nesting_level += 1;
-                    ast!().push(self.accept_number()?);
+                    accept_expression_beginning = true;
                 }
             }
         }
@@ -690,7 +651,34 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn accept_expression(&mut self, ast: &mut Vec<AstNode>, additional_break_types: &[TokenType]) -> Result<()> {
+    fn accept_expression(
+        &mut self,
+        ast: &mut Vec<AstNode>,
+        accept_expression_beginning: bool,
+        additional_break_types: &[TokenType],
+    ) -> Result<()> {
+        if accept_expression_beginning {
+            // Check if we need to exit because of an open bracket. To do this, we need to try to
+            // accept prefix modifiers and check after them. We then reset our index back to where
+            // we were before.
+            {
+                let start_i = self.index;
+                self.accept_prefix_modifiers();
+                if self.peek(is(OpenBracket)).is_some() {
+                    self.index = start_i;
+                    return Ok(());
+                } else {
+                    self.index = start_i
+                }
+            }
+
+            // Allow empty groups
+            // NOTE: () = 1
+            if self.peek(is(CloseBracket)).is_some() &&
+                self.tokens[self.index - 1].ty == OpenBracket { return Ok(()); }
+            ast.push(self.accept_number()?);
+        }
+
         while !self.has_reached_end() {
             if self.peek(any(&[CloseBracket, PostfixDefinitionSign])).is_some()
                 || self.peek(any(additional_break_types)).is_some() {
