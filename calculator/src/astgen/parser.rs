@@ -672,10 +672,10 @@ impl<'a> Parser<'a> {
                 }
             }
 
-            // Allow empty groups
-            // NOTE: () = 1
-            if self.peek(is(CloseBracket)).is_some() &&
-                self.tokens[self.index - 1].ty == OpenBracket { return Ok(()); }
+            if self.peek(is(CloseBracket)).is_some() {
+                return Ok(());
+            }
+
             ast.push(self.accept_number()?);
         }
 
@@ -1599,8 +1599,8 @@ mod tests {
 
     macro_rules! func_definition {
         ($input:expr) => {
-            if let ParserResultData::FunctionDefinition { name, args, ast } = parse!($input)?.data {
-                (name, args, ast)
+            if let ParserResultData::FunctionDefinition { name, function } = parse!($input)?.data {
+                (name, function)
             }
             else {
                 panic!("Expected ParserResult::FunctionDefinition");
@@ -1810,22 +1810,39 @@ mod tests {
 
     #[test]
     fn function_definitions() -> Result<()> {
-        let (name, args, ast) = func_definition!("f(x) := x");
+        let (name, function) = func_definition!("f(x) := x");
         assert_eq!(name, "f");
-        assert_eq!(args, vec![("x".into(), None)]);
-        assert!(ast.is_some());
-        assert_eq!(ast.as_ref().unwrap().len(), 1);
-        assert_eq!(ast.unwrap()[0].data, AstNodeData::Identifier("x".to_owned()));
+        let function = function.unwrap();
+        assert_eq!(function.arguments, vec![("x".into(), None)]);
+        assert_eq!(function.variants.len(), 1);
+        assert!(matches!(function.variants[0].0, FunctionVariantType::Else));
+        let ast = &function.variants[0].1;
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].data, AstNodeData::Identifier("x".to_owned()));
 
-        let (name, args, ast) = func_definition!("f(x, y) := x");
+        let (name, function) = func_definition!("f(x, y) := x");
         assert_eq!(name, "f");
-        assert_eq!(args, vec![("x".into(), None), ("y".into(), None)]);
-        assert!(ast.is_some());
+        let function = function.unwrap();
+        assert_eq!(function.arguments, vec![("x".into(), None), ("y".into(), None)]);
+        assert!(!function.variants.is_empty());
 
-        let (name, args, ast) = func_definition!("f(x, y) :=");
+        let (name, function) = func_definition!("f(x, y) :=");
+        assert!(function.is_none());
         assert_eq!(name, "f");
-        assert_eq!(args, vec![("x".into(), None), ("y".into(), None)]);
-        assert!(ast.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn function_with_multiple_variants() -> Result<()> {
+        let (name, function) = func_definition!("f(x) := for x <= -2: -2, for x >= 2: 2, else: 10");
+        assert!(function.is_some());
+        assert_eq!(name, "f");
+        let function = function.unwrap();
+        assert_eq!(function.variants.len(), 3);
+        assert!(matches!(function.variants[0].0, FunctionVariantType::BooleanVariant {..}));
+        assert!(matches!(function.variants[1].0, FunctionVariantType::BooleanVariant {..}));
+        assert!(matches!(function.variants[2].0, FunctionVariantType::Else));
+
         Ok(())
     }
 
