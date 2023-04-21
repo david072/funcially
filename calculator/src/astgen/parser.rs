@@ -487,6 +487,12 @@ impl<'a> Parser<'a> {
 
         if matches!(definition_info, Some(DefinitionInfo::Function(..))) {
             if let Some(variant) = self.try_accept_function_variant_head() {
+                if self.has_reached_end() {
+                    let mut last = self.tokens[self.index - 1].clone();
+                    last.range.end_char -= 1;
+                    error!(ExpectedElements: last.range);
+                }
+
                 function_variants.push((variant?, vec![]));
             }
         }
@@ -551,6 +557,12 @@ impl<'a> Parser<'a> {
                         .ok_or_else(|| ExpectedFunctionVariantHead.with(self.tokens[self.index].range))??;
                     function_variants.push((variant, vec![]));
                     self.pop_skip_newline();
+
+                    if self.has_reached_end() {
+                        let mut last = self.tokens[self.index - 1].clone();
+                        last.range.end_char -= 1;
+                        error!(ExpectedElements: last.range);
+                    }
 
                     accept_expression_beginning = true;
                 }
