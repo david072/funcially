@@ -131,7 +131,6 @@ pub struct Parser<'a> {
     extra_allowed_variables: Option<Vec<String>>,
     allow_question_mark: bool,
     question_mark: Option<QuestionMarkInfo>,
-    boolean_operator: Option<BooleanOperatorInfo>,
     did_find_equals_sign: bool,
     skip_newline_stack: Vec<bool>,
 }
@@ -143,7 +142,6 @@ impl<'a> Parser<'a> {
         nesting_level: usize,
         allow_question_mark: bool,
         question_mark: Option<QuestionMarkInfo>,
-        boolean_operator: Option<BooleanOperatorInfo>,
         skip_newline_stack: Vec<bool>,
     ) -> Self {
         Self {
@@ -155,7 +153,6 @@ impl<'a> Parser<'a> {
             allow_question_mark,
             question_mark,
             did_find_equals_sign: false,
-            boolean_operator,
             skip_newline_stack,
         }
     }
@@ -166,7 +163,6 @@ impl<'a> Parser<'a> {
             context,
             0,
             true,
-            None,
             None,
             vec![false],
         )
@@ -185,7 +181,6 @@ impl<'a> Parser<'a> {
             question_mark: self.question_mark.clone(),
             extra_allowed_variables: self.extra_allowed_variables.clone(),
             skip_newline_stack,
-            ..*self
         }
     }
 
@@ -478,6 +473,7 @@ impl<'a> Parser<'a> {
         }
 
         let mut group_stack: Vec<GroupStackEntry> = vec![GroupStackEntry::default()];
+        let mut boolean_operator: Option<BooleanOperatorInfo> = None;
         let mut function_variants: Vec<(FunctionVariantType, Vec<AstNode>)> = vec![];
 
         /// Helper to get the current AST
@@ -508,6 +504,7 @@ impl<'a> Parser<'a> {
             };
             self.accept_expression(
                 &mut ast!(),
+                &mut boolean_operator,
                 accept_expression_beginning,
                 additional_break_types,
             )?;
@@ -572,7 +569,7 @@ impl<'a> Parser<'a> {
                     }
 
                     let error_range = SourceRange::empty().extend(self.tokens[self.index - 2].range);
-                    if self.boolean_operator.is_some() {
+                    if boolean_operator.is_some() {
                         error!(ExpectedExpression("Boolean Expression".to_string()): error_range);
                     }
                     if self.question_mark.is_some() {
@@ -612,7 +609,7 @@ impl<'a> Parser<'a> {
                         operator,
                         ast_index,
                         token_index,
-                    }) = self.boolean_operator {
+                    }) = boolean_operator {
             if definition_info.is_some() {
                 error!(DisallowedBooleanOperator: self.tokens[token_index].range);
             }
@@ -666,6 +663,7 @@ impl<'a> Parser<'a> {
     fn accept_expression(
         &mut self,
         ast: &mut Vec<AstNode>,
+        boolean_operator: &mut Option<BooleanOperatorInfo>,
         accept_expression_beginning: bool,
         additional_break_types: &[TokenType],
     ) -> Result<()> {
@@ -752,7 +750,7 @@ impl<'a> Parser<'a> {
                     } else if let Some((op, range)) = self.try_accept_boolean_operator() {
                         if self.nesting_level != 0 {
                             error!(UnexpectedBooleanOperator: range);
-                        } else if self.boolean_operator.is_some() {
+                        } else if boolean_operator.is_some() {
                             error!(UnexpectedSecondBooleanOperator: range);
                         }
 
@@ -760,7 +758,7 @@ impl<'a> Parser<'a> {
                             self.did_find_equals_sign = true;
                         }
 
-                        self.boolean_operator = Some(BooleanOperatorInfo {
+                        *boolean_operator = Some(BooleanOperatorInfo {
                             operator: op,
                             ast_index: ast.len(),
                             token_index: self.index - 1,
@@ -836,7 +834,6 @@ impl<'a> Parser<'a> {
                     self.context.clone(),
                     self.nesting_level,
                     false,
-                    None,
                     None,
                     vec![true],
                 );
@@ -2010,6 +2007,18 @@ mod tests {
         assert_eq!(result.len(), 1);
         let AstNodeData::Literal(n) = result[0].data else { unreachable!(); };
         assert_eq!(n, 1.0);
+        Ok(())
+    }
+
+    #[test]
+    fn function_variant_with_function_call() -> Result<()> {
+        func_definition!("f(x) := for sin(x) > 0: sin(x)");
+        Ok(())
+    }
+
+    #[test]
+    fn function_call_in_boolean_expression() -> Result<()> {
+        boolean_expression!("5 = 4.5 + sin(30°)");
         Ok(())
     }
 }
