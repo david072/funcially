@@ -6,7 +6,7 @@ edition = "2021"
 rust-version = "1.65.0"
 
 [dependencies]
-calculator = { path = "../calculator" }
+funcially_core = { path = "../core" }
 clap = { version = "4.0.18", features = ["derive"] }
 colored = "2.0.0"
 ron = "0.8.0"

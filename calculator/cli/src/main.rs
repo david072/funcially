@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use clap::{Arg, ArgAction, Command};
 use colored::Colorize;
 
-use calculator::{AccessError, Calculator, data_dir, ResultData, Settings, Verbosity};
+use funcially_core::{AccessError, Calculator, data_dir, ResultData, Settings, Verbosity};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");

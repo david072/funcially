@@ -3,7 +3,7 @@
 default-members = ["gui"]
 
 members = [
-    "calculator",
+    "core",
     "cli",
     "gui",
 ]

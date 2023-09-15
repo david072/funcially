@@ -10,7 +10,7 @@ rust-version = "1.65.0"
 experimental = []
 
 [dependencies]
-calculator = { path = "../calculator" }
+funcially_core = { path = "../core" }
 eframe = { version = "0.21.3", features = ["persistence"] }
 serde = { version = "1.0.144", features = ["derive"] }
 egui_commonmark = "0.7.0"

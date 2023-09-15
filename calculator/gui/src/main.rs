@@ -19,7 +19,7 @@ use eframe::epaint::Shadow;
 use eframe::epaint::text::cursor::Cursor;
 use egui::*;
 
-use calculator::{Calculator, CalculatorResult, Color as CalcColor, ColorSegment as CalcColorSegment, DateFormat, Function as CalcFn, Result as CalcResult, ResultData, Settings, Verbosity};
+use funcially_core::{Calculator, CalculatorResult, Color as CalcColor, ColorSegment as CalcColorSegment, DateFormat, Function as CalcFn, Result as CalcResult, ResultData, Settings, Verbosity};
 
 use crate::widgets::*;
 
