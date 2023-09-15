@@ -1,5 +1,6 @@
 .idea
 /target
+calculator/target
 **/dist
 .env
 **.wixobj
