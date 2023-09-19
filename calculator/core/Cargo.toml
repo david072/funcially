@@ -9,7 +9,7 @@ rust-version = "1.65.0"
 thiserror = "1.0.32"
 phf = { version = "0.11.1", features = ["macros"] }
 dirs = "5.0.0"
-reqwest = { version = "0.11.12", features = ["json", "default"] }
+reqwest = { version = "0.11.12", features = ["json", "default", "blocking"] }
 serde = { version = "1.0.144", features = ["derive"] }
 chrono = { version = "0.4.23", features = ["serde"] }
 
