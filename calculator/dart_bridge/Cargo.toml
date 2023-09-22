@@ -1,0 +1,24 @@
+[package]
+name = "dart_bridge"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+funcially_core = { path = "../core" }
+libc = "0.2.148"
+
+[target.armv7-linux-androideabi.dependencies]
+openssl-sys = { version = "*", features = ["vendored"] }
+
+[target.aarch64-linux-android.dependencies]
+openssl-sys = { version = "*", features = ["vendored"] }
+
+[target.x86_64-linux-android.dependencies]
+openssl-sys = { version = "*", features = ["vendored"] }
+
+[target.i686-linux-android.dependencies]
+openssl-sys = { version = "*", features = ["vendored"] }
+

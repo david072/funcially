@@ -8,14 +8,14 @@ use std::cell::RefCell;
 use std::f64::consts::{E, PI, TAU};
 use std::rc::Rc;
 
-use crate::{astgen::ast::AstNode, common::ErrorType, Context, ContextData, Engine, Format};
 use crate::astgen::ast::BooleanOperator;
 use crate::common::SourceRange;
 use crate::engine::{NumberValue, Value};
 use crate::environment::units::{convert, Unit};
+use crate::{astgen::ast::AstNode, common::ErrorType, Context, ContextData, Engine, Format};
 
-pub mod units;
 pub mod currencies;
+pub mod units;
 
 // These files are generated in build.rs during build time
 mod default_currencies;
@@ -63,23 +63,33 @@ impl ArgCount {
 }
 
 const STANDARD_FUNCTIONS: [(&str, ArgCount); 20] = [
-    ("sin", ArgCount::Single(1)), ("asin", ArgCount::Single(1)),
-    ("cos", ArgCount::Single(1)), ("acos", ArgCount::Single(1)),
-    ("tan", ArgCount::Single(1)), ("atan", ArgCount::Single(1)), ("cot", ArgCount::Single(1)), ("acot", ArgCount::Single(1)),
-    ("ln", ArgCount::Single(1)), ("log", ArgCount::Single(2)), // log arg2 to base arg1
-    ("sqrt", ArgCount::Single(1)), ("cbrt", ArgCount::Single(1)), ("root", ArgCount::Single(2)), // root with "index" arg1 of arg2
+    ("sin", ArgCount::Single(1)),
+    ("asin", ArgCount::Single(1)),
+    ("cos", ArgCount::Single(1)),
+    ("acos", ArgCount::Single(1)),
+    ("tan", ArgCount::Single(1)),
+    ("atan", ArgCount::Single(1)),
+    ("cot", ArgCount::Single(1)),
+    ("acot", ArgCount::Single(1)),
+    ("ln", ArgCount::Single(1)),
+    ("log", ArgCount::Single(2)), // log arg2 to base arg1
+    ("sqrt", ArgCount::Single(1)),
+    ("cbrt", ArgCount::Single(1)),
+    ("root", ArgCount::Single(2)), // root with "index" arg1 of arg2
     ("abs", ArgCount::Single(1)),
-    ("floor", ArgCount::Single(1)), ("ceil", ArgCount::Single(1)),
+    ("floor", ArgCount::Single(1)),
+    ("ceil", ArgCount::Single(1)),
     ("lerp", ArgCount::Single(3)),
-    ("clamp", ArgCount::Single(3)), ("map", ArgCount::Single(5)), // map arg1 from range arg2..arg3 to range arg4..arg5
+    ("clamp", ArgCount::Single(3)),
+    ("map", ArgCount::Single(5)), // map arg1 from range arg2..arg3 to range arg4..arg5
     ("round", ArgCount::Multiple(&[1, 2])),
 ];
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Environment {
-    ans: Variable,
-    variables: Vec<(String, Variable)>,
-    functions: Vec<(String, Function)>,
+    pub ans: Variable,
+    pub variables: Vec<(String, Variable)>,
+    pub functions: Vec<(String, Function)>,
 }
 
 impl Default for Environment {
@@ -118,9 +128,13 @@ impl Environment {
     }
 
     pub(crate) fn is_valid_variable(&self, var: &str) -> bool {
-        if STANDARD_VARIABLES.contains(&var) { true } else {
+        if STANDARD_VARIABLES.contains(&var) {
+            true
+        } else {
             for (name, _) in &self.variables {
-                if var == name { return true; }
+                if var == name {
+                    return true;
+                }
             }
             false
         }
@@ -138,7 +152,9 @@ impl Environment {
             "ans" => Ok(&self.ans),
             _ => {
                 for (name, variable) in &self.variables {
-                    if name == var { return Ok(variable); }
+                    if name == var {
+                        return Ok(variable);
+                    }
                 }
                 Err(ErrorType::UnknownVariable(var.to_owned()))
             }
@@ -164,7 +180,9 @@ impl Environment {
         Ok(())
     }
 
-    pub(crate) fn set_ans_variable(&mut self, value: Variable) { self.ans = value; }
+    pub(crate) fn set_ans_variable(&mut self, value: Variable) {
+        self.ans = value;
+    }
 
     pub(crate) fn remove_variable(&mut self, var: &str) -> Result<(), ErrorType> {
         if var == "ans" {
@@ -186,34 +204,46 @@ impl Environment {
 
     pub(crate) fn is_valid_function(&self, name: &str) -> bool {
         for (f, _) in STANDARD_FUNCTIONS {
-            if f == name { return true; }
+            if f == name {
+                return true;
+            }
         }
         for (f, _) in &self.functions {
-            if f == name { return true; }
+            if f == name {
+                return true;
+            }
         }
         false
     }
 
     pub(crate) fn is_standard_function(&self, f: &str) -> bool {
         for (name, _) in STANDARD_FUNCTIONS {
-            if name == f { return true; }
+            if name == f {
+                return true;
+            }
         }
         false
     }
 
     pub(crate) fn get_function(&self, f: &str) -> Option<&Function> {
         for (name, function) in &self.functions {
-            if name == f { return Some(function); }
+            if name == f {
+                return Some(function);
+            }
         }
         None
     }
 
     pub(crate) fn function_argument_count(&self, name: &str) -> Option<ArgCount> {
         for (f, arg_count) in STANDARD_FUNCTIONS {
-            if f == name { return Some(arg_count); }
+            if f == name {
+                return Some(arg_count);
+            }
         }
         for (f, Function { arguments, .. }) in &self.functions {
-            if f == name { return Some(ArgCount::Single(arguments.len())); }
+            if f == name {
+                return Some(ArgCount::Single(arguments.len()));
+            }
         }
         None
     }
@@ -259,13 +289,16 @@ impl Environment {
             }
             "acot" => Ok(((1.0 / args[0]).atan(), Some(Unit::from("rad")))),
             "ln" => Ok((args[0].ln(), unit_0.clone())),
-            "log" => Ok((if args[0] == 2.0 {
-                args[1].log2()
-            } else if args[0] == 10.0 {
-                args[1].log10()
-            } else {
-                args[1].log(args[0])
-            }, unit_0.clone())),
+            "log" => Ok((
+                if args[0] == 2.0 {
+                    args[1].log2()
+                } else if args[0] == 10.0 {
+                    args[1].log10()
+                } else {
+                    args[1].log(args[0])
+                },
+                unit_0.clone(),
+            )),
             "sqrt" => Ok((args[0].sqrt(), unit_0.clone())),
             "cbrt" => Ok((args[0].cbrt(), unit_0.clone())),
             "root" => Ok((args[1].powf(1.0 / args[0]), unit_0.clone())),
@@ -346,8 +379,15 @@ impl Environment {
                 arg.number
             };
 
-            let value = Variable(Value::number(call_side_arg_value, definition_arg.1.clone(), false, Format::Decimal));
-            temp_env.set_variable(&definition_arg.0, value).map_err(|e| e.with(full_range))?;
+            let value = Variable(Value::number(
+                call_side_arg_value,
+                definition_arg.1.clone(),
+                false,
+                Format::Decimal,
+            ));
+            temp_env
+                .set_variable(&definition_arg.0, value)
+                .map_err(|e| e.with(full_range))?;
         }
 
         let context = Rc::new(RefCell::new(ContextData {
@@ -355,25 +395,31 @@ impl Environment {
             ..context.borrow().clone()
         }));
 
-        self.evaluate_function(f, context).map_err(|e| e.error.with(full_range))
+        self.evaluate_function(f, context)
+            .map_err(|e| e.error.with(full_range))
     }
 
     fn evaluate_function(&self, f: &Function, context: Context) -> crate::common::Result<Value> {
         for (variant, ast) in &f.variants {
-            if let FunctionVariantType::BooleanVariant {
-                lhs,
-                rhs,
-                operator,
-            } = variant {
+            if let FunctionVariantType::BooleanVariant { lhs, rhs, operator } = variant {
                 let lhs = Engine::evaluate(lhs.clone(), context.clone())?;
                 let rhs = Engine::evaluate(rhs.clone(), context.clone())?;
-                if Engine::check_boolean_operator(&lhs, &rhs, *operator, &context.borrow().currencies) {
+                if Engine::check_boolean_operator(
+                    &lhs,
+                    &rhs,
+                    *operator,
+                    &context.borrow().currencies,
+                ) {
                     return Engine::evaluate(ast.clone(), context.clone());
                 }
             }
         }
 
-        if let Some((FunctionVariantType::Else, ast)) = f.variants.iter().find(|v| matches!(v.0, FunctionVariantType::Else)) {
+        if let Some((FunctionVariantType::Else, ast)) = f
+            .variants
+            .iter()
+            .find(|v| matches!(v.0, FunctionVariantType::Else))
+        {
             Engine::evaluate(ast.clone(), context.clone())
         } else {
             Ok(Value::only_number(f64::NAN))
@@ -381,7 +427,9 @@ impl Environment {
     }
 
     pub(crate) fn set_function(&mut self, f: &str, value: Function) -> Result<(), ErrorType> {
-        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction(f.to_owned())); }
+        if self.is_standard_function(f) {
+            return Err(ErrorType::ReservedFunction(f.to_owned()));
+        }
 
         for (i, (name, _)) in self.functions.iter().enumerate() {
             if name == f {
@@ -395,7 +443,9 @@ impl Environment {
     }
 
     pub(crate) fn remove_function(&mut self, f: &str) -> Result<(), ErrorType> {
-        if self.is_standard_function(f) { return Err(ErrorType::ReservedFunction(f.to_owned())); }
+        if self.is_standard_function(f) {
+            return Err(ErrorType::ReservedFunction(f.to_owned()));
+        }
 
         for (i, (name, _)) in self.functions.iter().enumerate() {
             if name == f {

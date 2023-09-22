@@ -1,0 +1,29 @@
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+Build fingerprint: 'google/sdk_gphone_x86_64/emu64xa:13/TE1A.220922.028/10190541:userdebug/dev-keys'
+Revision: '0'
+ABI: 'x86_64'
+Timestamp: 2023-09-22 08:04:27.524567827+0200
+Process uptime: 6s
+Cmdline: de.david072.apps.frontend
+pid: 6033, tid: 6072, name: 1.ui  >>> de.david072.apps.frontend <<<
+uid: 10171
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Scudo ERROR: corrupted chunk header at address 0x78f86eb39490'
+    rax 0000000000000000  rbx 0000000000001791  rcx 000078fa0e0dd6ff  rdx 0000000000000006
+    r8  0000000000000000  r9  0000000000000000  r10 000078f75690da80  r11 0000000000000203
+    r12 000078f6ea682195  r13 000078f500008081  r14 000078f75690da78  r15 00000000000017b8
+    rdi 0000000000001791  rsi 00000000000017b8
+    rbp 0000000000000000  rsp 000078f75690da70  rip 000078fa0e0dd6ff
+backtrace:
+      #00 pc 000000000005f6ff  /apex/com.android.runtime/lib64/bionic/libc.so (abort+191) (BuildId: 007cb2313464df63debf8020e631c990)
+      #01 pc 0000000000048dd5  /apex/com.android.runtime/lib64/bionic/libc.so (scudo::die()+5) (BuildId: 007cb2313464df63debf8020e631c990)
+      #02 pc 00000000000493c8  /apex/com.android.runtime/lib64/bionic/libc.so (scudo::ScopedErrorReport::~ScopedErrorReport()+24) (BuildId: 007cb2313464df63debf8020e631c990)
+      #03 pc 00000000000494b2  /apex/com.android.runtime/lib64/bionic/libc.so (scudo::reportHeaderCorruption(void*)+66) (BuildId: 007cb2313464df63debf8020e631c990)
+      #04 pc 000000000004acd9  /apex/com.android.runtime/lib64/bionic/libc.so (scudo::Allocator<scudo::AndroidConfig, &(scudo_malloc_postinit)>::deallocate(void*, scudo::Chunk::Origin, unsigned long, unsigned long)+313) (BuildId: 007cb2313464df63debf8020e631c990)
+      #05 pc 000000000015e47f  /data/app/~~IWRisMUhdg0hp-OS8Kib7A==/de.david072.apps.frontend-EP2w0A0mDywKTWAG9fjQiw==/lib/x86_64/libdart_bridge.so
+      #06 pc 000000000015eb1a  /data/app/~~IWRisMUhdg0hp-OS8Kib7A==/de.david072.apps.frontend-EP2w0A0mDywKTWAG9fjQiw==/lib/x86_64/libdart_bridge.so
+      #07 pc 000000000015d2fa  /data/app/~~IWRisMUhdg0hp-OS8Kib7A==/de.david072.apps.frontend-EP2w0A0mDywKTWAG9fjQiw==/lib/x86_64/libdart_bridge.so
+      #08 pc 000000000015d2d3  /data/app/~~IWRisMUhdg0hp-OS8Kib7A==/de.david072.apps.frontend-EP2w0A0mDywKTWAG9fjQiw==/lib/x86_64/libdart_bridge.so
+      #09 pc 00000000000a41a5  /data/app/~~IWRisMUhdg0hp-OS8Kib7A==/de.david072.apps.frontend-EP2w0A0mDywKTWAG9fjQiw==/lib/x86_64/libdart_bridge.so
+      #10 pc 00000000000a5185  /data/app/~~IWRisMUhdg0hp-OS8Kib7A==/de.david072.apps.frontend-EP2w0A0mDywKTWAG9fjQiw==/lib/x86_64/libdart_bridge.so (calculate+53)
+      #11 pc 0000000000006aaa  [anon:dart-code]

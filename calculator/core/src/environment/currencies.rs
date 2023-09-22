@@ -7,30 +7,41 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::{
-    common::{ErrorType, Result},
-    environment::default_currencies,
-};
-use crate::common::SourceRange;
+use crate::common::ErrorType;
+use crate::environment::default_currencies;
+use crate::Result;
+use crate::SourceRange;
 
 pub fn is_currency(str: &str) -> bool {
     default_currencies::CURRENCIES.contains_key(str)
 }
 
 pub struct Currencies {
-    base: Mutex<Option<String>>,
-    currencies: Mutex<Option<HashMap<String, f64>>>,
+    pub base: Mutex<Option<String>>,
+    pub currencies: Mutex<Option<HashMap<String, f64>>>,
 }
 
 impl Currencies {
+    pub fn new_load_only() -> Currencies {
+        let (base, currencies) = if let Some((base, currencies)) = updating::load_currencies() {
+            (Some(base), Some(currencies))
+        } else {
+            (None, None)
+        };
+
+        Self {
+            base: Mutex::new(base),
+            currencies: Mutex::new(currencies),
+        }
+    }
+
     #[allow(clippy::new_without_default)]
-    pub fn new_arc() -> std::sync::Arc<Currencies> {
-        let (base, currencies) =
-            if let Some((base, currencies)) = updating::load_currencies() {
-                (Some(base), Some(currencies))
-            } else {
-                (None, None)
-            };
+    pub fn new_with_update() -> std::sync::Arc<Currencies> {
+        let (base, currencies) = if let Some((base, currencies)) = updating::load_currencies() {
+            (Some(base), Some(currencies))
+        } else {
+            (None, None)
+        };
 
         let res = std::sync::Arc::new(Currencies {
             base: Mutex::new(base),
@@ -47,7 +58,9 @@ impl Currencies {
         }
     }
 
-    pub fn update() { updating::update_currencies(None); }
+    pub fn update() {
+        updating::update_currencies(None);
+    }
 
     pub fn convert(
         &self,
@@ -57,13 +70,19 @@ impl Currencies {
         dst_range: SourceRange,
         n: f64,
     ) -> Result<f64> {
-        if src_curr == dst_curr { return Ok(n); }
+        if src_curr == dst_curr {
+            return Ok(n);
+        }
 
         let base = &*self.base.lock().unwrap();
         let currencies = &*self.currencies.lock().unwrap();
 
         let use_default = base.is_none() || currencies.is_none();
-        let base = if use_default { default_currencies::BASE_CURRENCY } else { base.as_ref().unwrap() };
+        let base = if use_default {
+            default_currencies::BASE_CURRENCY
+        } else {
+            base.as_ref().unwrap()
+        };
 
         let get_currency = |curr| {
             if use_default {
@@ -78,16 +97,18 @@ impl Currencies {
         if src_curr != base {
             value /= match get_currency(src_curr) {
                 Some(v) => v,
-                None => return Err(ErrorType::UnknownIdentifier(src_curr.to_owned())
-                    .with(src_range)),
+                None => {
+                    return Err(ErrorType::UnknownIdentifier(src_curr.to_owned()).with(src_range))
+                }
             };
         }
         // Convert from base currency to dst currency if needed
         if dst_curr != base {
             value *= match get_currency(dst_curr) {
                 Some(v) => v,
-                None => return Err(ErrorType::UnknownIdentifier(dst_curr.to_owned())
-                    .with(dst_range)),
+                None => {
+                    return Err(ErrorType::UnknownIdentifier(dst_curr.to_owned()).with(dst_range))
+                }
             };
         }
 
@@ -116,14 +137,18 @@ mod updating {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn cache_file_path() -> std::path::PathBuf { cache_dir().join(CURRENCIES_FILE_NAME) }
+    fn cache_file_path() -> std::path::PathBuf {
+        cache_dir().join(CURRENCIES_FILE_NAME)
+    }
 
     /// Update currency file, and optionally update `Currencies` struct
     #[cfg(not(target_arch = "wasm32"))]
     pub fn update_currencies(currencies: Option<std::sync::Arc<Currencies>>) {
         std::thread::spawn(move || {
-            let response: ApiResponse = reqwest::blocking::get(CURRENCY_API_URL).unwrap()
-                .json().unwrap();
+            let response: ApiResponse = reqwest::blocking::get(CURRENCY_API_URL)
+                .unwrap()
+                .json()
+                .unwrap();
 
             if let Some(currencies) = currencies {
                 *currencies.base.lock().unwrap() = Some(response.base.to_owned());
@@ -179,13 +204,17 @@ mod updating {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load_currencies() -> Option<(String, HashMap<String, f64>)> {
         let file = cache_file_path();
-        if !file.try_exists().unwrap_or(false) { return None; }
+        if !file.try_exists().unwrap_or(false) {
+            return None;
+        }
 
         let file_contents = match std::fs::read_to_string(file) {
             Ok(contents) => contents,
             Err(_) => return None,
         };
-        if file_contents.is_empty() { return None; }
+        if file_contents.is_empty() {
+            return None;
+        }
 
         Some(decode_currencies(&file_contents))
     }
@@ -202,9 +231,13 @@ mod updating {
         let base = lines.next().unwrap().to_owned();
 
         for line in str.lines() {
-            if line.is_empty() { continue; }
+            if line.is_empty() {
+                continue;
+            }
             let parts = line.split(':').collect::<Vec<_>>();
-            if parts.len() != 2 { continue; }
+            if parts.len() != 2 {
+                continue;
+            }
 
             let name = parts[0];
             let num: f64 = match parts[1].parse() {

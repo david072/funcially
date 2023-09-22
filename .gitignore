@@ -11,3 +11,7 @@ calculator/target
 # generated files
 **/default_currencies.rs
 **/unit_conversion.rs
+
+# FFI library files
+calculator/dart_bridge/libs
+frontend/android/app/src/main/libs

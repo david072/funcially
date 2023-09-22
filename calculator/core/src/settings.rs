@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use std::error::Error;
 
 pub enum AccessError {
     InvalidPath(&'static [&'static str]),
@@ -24,9 +24,9 @@ impl Display for AccessError {
 
 macro_rules! settable {
     ($name:ident {
-        $($field:ident: $field_ty:ty,)+
+        $($field:ident: $field_ty:ty),+
     }) => {
-        #[derive(Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
         pub struct $name {
             $(pub $field: $field_ty),+
         }
@@ -57,7 +57,7 @@ macro_rules! settable {
         $($field:ident: $field_ty:ty,)*
         $([end] $end_field:ident: $end_field_ty:ty,)+
     }) => {
-        #[derive(Clone, serde::Serialize, serde::Deserialize)]
+        #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
         pub struct $name {
             $(pub $field: $field_ty,)*
             $(pub $end_field: $end_field_ty),+
@@ -133,7 +133,6 @@ impl Display for DateFormat {
     }
 }
 
-
 impl FromStr for DateFormat {
     type Err = ParseDateFormatError;
 
@@ -142,7 +141,7 @@ impl FromStr for DateFormat {
             "dmy" => Ok(Self::Dmy),
             "mdy" => Ok(Self::Mdy),
             "ymd" => Ok(Self::Ymd),
-            _ =>  Err(ParseDateFormatError(&["dmy", "mdy", "ymd"]))
+            _ => Err(ParseDateFormatError(&["dmy", "mdy", "ymd"])),
         }
     }
 }
@@ -177,7 +176,6 @@ impl DateFormat {
     }
 }
 
-
 settable!(
     DateSettings {
         [end] format: DateFormat,
@@ -194,11 +192,7 @@ impl DateSettings {
     }
 }
 
-settable!(
-    Settings {
-        date: DateSettings,
-    }
-);
+settable!(Settings { date: DateSettings });
 
 impl Settings {
     pub const fn default() -> Self {

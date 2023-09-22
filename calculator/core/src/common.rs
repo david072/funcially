@@ -180,7 +180,9 @@ pub enum ErrorType {
     InvalidToken,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, serde::Serialize, serde::Deserialize,
+)]
 pub struct SourceRange {
     pub start_line: usize,
     pub start_char: usize,
@@ -190,14 +192,26 @@ pub struct SourceRange {
 
 impl SourceRange {
     pub fn new(start_line: usize, start: usize, end_line: usize, end: usize) -> Self {
-        Self { start_line, start_char: start, end_line, end_char: end }
+        Self {
+            start_line,
+            start_char: start,
+            end_line,
+            end_char: end,
+        }
     }
 
     pub fn line(line: usize, start: usize, end: usize) -> Self {
-        Self { start_line: line, end_line: line + 1, start_char: start, end_char: end }
+        Self {
+            start_line: line,
+            end_line: line + 1,
+            start_char: start,
+            end_char: end,
+        }
     }
 
-    pub fn empty() -> Self { Self::default() }
+    pub fn empty() -> Self {
+        Self::default()
+    }
 
     pub fn extend(self, other: SourceRange) -> Self {
         Self {
@@ -215,13 +229,22 @@ impl SourceRange {
 
 impl Default for SourceRange {
     fn default() -> Self {
-        Self { start_line: 0, start_char: 0, end_line: 1, end_char: 1 }
+        Self {
+            start_line: 0,
+            start_char: 0,
+            end_line: 1,
+            end_char: 1,
+        }
     }
 }
 
 impl Display for SourceRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}..{}:{}", self.start_line, self.start_char, self.end_line, self.end_char)
+        write!(
+            f,
+            "{}:{}..{}:{}",
+            self.start_line, self.start_char, self.end_line, self.end_char
+        )
     }
 }
 
@@ -232,7 +255,7 @@ macro_rules! range {
     };
     (line $line:expr => $char_range:expr) => {
         SourceRange::line($line, $char_range.start, $char_range.end)
-    }
+    };
 }
 
 impl ErrorType {
@@ -260,17 +283,33 @@ pub struct Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub fn round_dp(n: f64, dp: i32) -> String {
-    if n.is_nan() { return "NaN".to_owned(); }
-    if !n.is_finite() { return "infinity".to_owned(); }
+    if n.is_nan() {
+        return "NaN".to_owned();
+    }
+    if !n.is_finite() {
+        return "infinity".to_owned();
+    }
 
     let multiplier = 10f64.powi(dp);
     ((n * multiplier).round() / multiplier).to_string()
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn cache_dir() -> PathBuf { dirs::cache_dir().unwrap().join(CRATE_NAME) }
+pub fn cache_dir() -> PathBuf {
+    match std::env::consts::OS {
+        "android" => PathBuf::from("/data/data/de.david072.apps.frontend")
+            .join(CRATE_NAME)
+            .join("cache"),
+        _ => dirs::cache_dir().unwrap().join(CRATE_NAME),
+    }
+}
 
-pub fn data_dir() -> PathBuf { dirs::data_local_dir().unwrap().join(CRATE_NAME) }
+pub fn data_dir() -> PathBuf {
+    match std::env::consts::OS {
+        "android" => PathBuf::from("/data/data/de.david072.apps.frontend").join(CRATE_NAME),
+        _ => dirs::data_local_dir().unwrap().join(CRATE_NAME),
+    }
+}
 
 pub mod math {
     pub fn round(num: f64, dp: i32) -> f64 {

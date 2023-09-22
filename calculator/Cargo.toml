@@ -2,8 +2,11 @@
 
 default-members = ["gui"]
 
+resolver = "2"
+
 members = [
     "core",
     "cli",
     "gui",
+    "dart_bridge",
 ]
