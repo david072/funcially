@@ -85,6 +85,13 @@ pub struct FfiVec<T> {
 }
 
 impl<T> FfiVec<T> {
+    fn empty() -> Self {
+        Self {
+            array: 0 as *mut T,
+            len: 0,
+        }
+    }
+
     fn into_vec(self) -> Vec<T> {
         unsafe { Vec::from_raw_parts(self.array, self.len, self.len) }
     }
@@ -113,6 +120,7 @@ pub struct FfiResultData {
     line_range_start: usize,
     line_range_end: usize,
     is_error: bool,
+    error_ranges: FfiVec<common_c::SourceRange>,
 }
 
 #[no_mangle]
@@ -136,7 +144,7 @@ pub unsafe extern "C" fn calculate(
             color_segments: res
                 .color_segments
                 .iter()
-                .map(|seg| common_c::ColorSegment::from_core_color_segment(seg))
+                .map(common_c::ColorSegment::from_core_color_segment)
                 .collect::<Vec<common_c::ColorSegment>>()
                 .into(),
         })
@@ -153,7 +161,16 @@ fn result_to_ffi(result: &CalculatorResult, settings: &Settings) -> FfiResultDat
         str_value: cstr,
         line_range_start: line_range.start,
         line_range_end: line_range.end,
-        is_error: result.data.is_ok(),
+        is_error: result.data.is_err(),
+        error_ranges: if let Err(e) = &result.data {
+            e.ranges
+                .iter()
+                .map(common_c::SourceRange::from_core_source_range)
+                .collect::<Vec<_>>()
+                .into()
+        } else {
+            FfiVec::empty()
+        },
     }
 }
 
@@ -212,6 +229,17 @@ mod common_c {
         pub end_char: usize,
     }
 
+    impl SourceRange {
+        pub(crate) fn from_core_source_range(r: &funcially_core::SourceRange) -> Self {
+            Self {
+                start_line: r.start_line,
+                start_char: r.start_char,
+                end_line: r.end_line,
+                end_char: r.end_char,
+            }
+        }
+    }
+
     #[derive(Copy, Clone)]
     #[repr(C)]
     pub struct ColorSegment {
@@ -222,12 +250,7 @@ mod common_c {
     impl ColorSegment {
         pub(crate) fn from_core_color_segment(seg: &funcially_core::ColorSegment) -> Self {
             Self {
-                range: SourceRange {
-                    start_line: seg.range.start_line,
-                    start_char: seg.range.start_char,
-                    end_line: seg.range.end_line,
-                    end_char: seg.range.end_char,
-                },
+                range: SourceRange::from_core_source_range(&seg.range),
                 color: Color { color: seg.color.0 },
             }
         }

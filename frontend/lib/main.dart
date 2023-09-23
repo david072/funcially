@@ -6,7 +6,9 @@ import 'dart:io';
 import 'package:after_layout/after_layout.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
-import 'package:frontend/calculator_bindings.dart' hide Color;
+import 'package:frontend/calculator_bindings.dart' hide Color, ColorSegment;
+import 'package:frontend/calculator_bindings.dart' as calculator_bindings
+    show ColorSegment;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
@@ -34,6 +36,28 @@ void main() {
     themeMode: ThemeMode.dark,
     theme: ThemeData.dark(useMaterial3: true),
   ));
+}
+
+class StyleSegment {
+  Color color;
+  SourceRange range;
+  TextDecoration? decoration;
+
+  StyleSegment(this.color, this.range, {this.decoration});
+
+  factory StyleSegment.fromCalculatorColorSegment(
+      calculator_bindings.ColorSegment seg) {
+    var arr = seg.color.color;
+    var r = arr[0], g = arr[1], b = arr[2], a = arr[3];
+    var color = Color(a << 24 | r << 16 | g << 8 | b);
+    return StyleSegment(color, seg.range);
+  }
+
+  TextStyle textStyle() => TextStyle(
+        color: color,
+        decoration: decoration,
+        decorationColor: color,
+      );
 }
 
 class HomePage extends StatefulWidget {
@@ -166,7 +190,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     );
 
     var resultsText = "";
-    var colorSegments = <ColorSegment>[];
+    var colorSegments = <StyleSegment>[];
 
     var lastLine = 0;
     for (int i = 0; i < results.len; i++) {
@@ -182,7 +206,18 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       lastLine = res.line_range_end;
 
       for (int j = 0; j < calcRes.color_segments.len; j++) {
-        colorSegments.add(calcRes.color_segments.array.elementAt(j).ref);
+        var seg = calcRes.color_segments.array.elementAt(j).ref;
+        colorSegments.add(StyleSegment.fromCalculatorColorSegment(seg));
+      }
+
+      if (calcRes.data.is_error && calcRes.data.error_ranges.len != 0) {
+        for (int k = 0; k < calcRes.data.error_ranges.len; k++) {
+          colorSegments.add(StyleSegment(
+            Colors.red,
+            calcRes.data.error_ranges.array.elementAt(k).ref,
+            decoration: TextDecoration.underline,
+          ));
+        }
       }
     }
 
@@ -247,9 +282,9 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 class ColoringTextEditingController extends TextEditingController {
   ColoringTextEditingController({this.colorSegments = const []});
 
-  List<ColorSegment> colorSegments;
+  List<StyleSegment> colorSegments;
 
-  List<(String, List<ColorSegment>)> splitIntoLines() {
+  List<(String, List<StyleSegment>)> splitIntoLines() {
     var lines = text.split("\n").toList();
     return lines.indexed.map((e) {
       var (i, line) = e;
@@ -273,7 +308,7 @@ class ColoringTextEditingController extends TextEditingController {
   }
 
   List<TextSpan> colorizeLine(
-      String line, List<ColorSegment> lineSegments, TextStyle style) {
+      String line, List<StyleSegment> lineSegments, TextStyle style) {
     if (lineSegments.isEmpty || line.isEmpty) {
       return [
         TextSpan(
@@ -301,13 +336,9 @@ class ColoringTextEditingController extends TextEditingController {
         ));
       }
 
-      var arr = seg.color.color;
-      var r = arr[0], g = arr[1], b = arr[2], a = arr[3];
-      var color = Color(a << 24 | r << 16 | g << 8 | b);
-
       result.add(TextSpan(
         text: line.substring(start, end),
-        style: style.copyWith(color: color),
+        style: style.merge(seg.textStyle()),
       ));
 
       lastChar = end;
