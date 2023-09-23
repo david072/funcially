@@ -78,9 +78,21 @@ impl ColorSegment {
         } else {
             match token.ty {
                 Whitespace | Newline => Color::TRANSPARENT,
-                OpenBracket | OpenSquareBracket | OpenCurlyBracket | CloseBracket | CloseSquareBracket | CloseCurlyBracket |
-                ExclamationMark | PercentSign |
-                Comma | LineContinuation | Colon | Semicolon | EqualsSign | DefinitionSign | PostfixDefinitionSign => Color::WHITE,
+                OpenBracket
+                | OpenSquareBracket
+                | OpenCurlyBracket
+                | CloseBracket
+                | CloseSquareBracket
+                | CloseCurlyBracket
+                | ExclamationMark
+                | PercentSign
+                | Comma
+                | LineContinuation
+                | Colon
+                | Semicolon
+                | EqualsSign
+                | DefinitionSign
+                | PostfixDefinitionSign => Color::WHITE,
                 _ => unreachable!(),
             }
         };

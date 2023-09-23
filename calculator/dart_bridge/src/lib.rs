@@ -102,6 +102,12 @@ impl<T> From<Vec<T>> for FfiVec<T> {
 }
 
 #[repr(C)]
+pub struct FfiCalculatorResult {
+    data: FfiResultData,
+    color_segments: FfiVec<common_c::ColorSegment>,
+}
+
+#[repr(C)]
 pub struct FfiResultData {
     str_value: *const c_char,
     line_range_start: usize,
@@ -119,14 +125,22 @@ pub unsafe extern "C" fn create_calculator() -> usize {
 pub unsafe extern "C" fn calculate(
     calculator: usize,
     input: *const c_char,
-) -> FfiVec<FfiResultData> {
+) -> FfiVec<FfiCalculatorResult> {
     let mut calc = CalculatorWrapper::load(calculator);
     let input = CStr::from_ptr(input).to_str().unwrap();
     calc.0
         .calculate(input)
         .iter()
-        .map(|res| result_to_ffi(res, &calc.0.context.borrow().settings))
-        .collect::<Vec<FfiResultData>>()
+        .map(|res| FfiCalculatorResult {
+            data: result_to_ffi(res, &calc.0.context.borrow().settings),
+            color_segments: res
+                .color_segments
+                .iter()
+                .map(|seg| common_c::ColorSegment::from_core_color_segment(seg))
+                .collect::<Vec<common_c::ColorSegment>>()
+                .into(),
+        })
+        .collect::<Vec<FfiCalculatorResult>>()
         .into()
 }
 
@@ -173,7 +187,7 @@ fn line_range_from_calculator_result(res: &CalculatorResult) -> Range<usize> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn free_results(results: FfiVec<FfiResultData>) {
+pub unsafe extern "C" fn free_results(results: FfiVec<FfiCalculatorResult>) {
     drop(results.into_vec());
 }
 
@@ -186,4 +200,42 @@ unsafe fn allocate<T>(val: T) -> *mut T {
     let ptr = alloc(Layout::new::<T>()) as *mut T;
     *ptr = val;
     ptr
+}
+
+mod common_c {
+    #[derive(Copy, Clone)]
+    #[repr(C)]
+    pub struct SourceRange {
+        pub start_line: usize,
+        pub start_char: usize,
+        pub end_line: usize,
+        pub end_char: usize,
+    }
+
+    #[derive(Copy, Clone)]
+    #[repr(C)]
+    pub struct ColorSegment {
+        pub range: SourceRange,
+        pub color: Color,
+    }
+
+    impl ColorSegment {
+        pub(crate) fn from_core_color_segment(seg: &funcially_core::ColorSegment) -> Self {
+            Self {
+                range: SourceRange {
+                    start_line: seg.range.start_line,
+                    start_char: seg.range.start_char,
+                    end_line: seg.range.end_line,
+                    end_char: seg.range.end_char,
+                },
+                color: Color { color: seg.color.0 },
+            }
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    #[repr(C)]
+    pub struct Color {
+        pub color: [u8; 4],
+    }
 }

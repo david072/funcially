@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:after_layout/after_layout.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
-import 'package:frontend/calculator_bindings.dart';
+import 'package:frontend/calculator_bindings.dart' hide Color;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
@@ -49,6 +49,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   late ScrollController resultsScrollController;
 
   final resultsController = TextEditingController();
+  final inputController = ColoringTextEditingController();
 
   String input = "";
 
@@ -66,7 +67,6 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   @override
   void afterFirstLayout(BuildContext context) {
     resultsWidth = MediaQuery.of(context).size.width * .25;
-    print("Creating calculator");
     calculator = bindings.create_calculator();
     setState(() {});
   }
@@ -160,16 +160,19 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       return;
     }
 
-    print("onInputChanged");
     var results = bindings.calculate(
       calculator,
       input.toNativeUtf8().cast<Char>(),
     );
 
     var resultsText = "";
+    var colorSegments = <ColorSegment>[];
+
     var lastLine = 0;
     for (int i = 0; i < results.len; i++) {
-      var res = results.array.elementAt(i).ref;
+      var calcRes = results.array.elementAt(i).ref;
+
+      var res = calcRes.data;
       var text = res.str_value.cast<Utf8>().toDartString();
       if (lastLine < res.line_range_start) {
         resultsText += "\n" * (res.line_range_start - lastLine);
@@ -177,10 +180,15 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       resultsText += text;
       resultsText += "\n" * (res.line_range_end - res.line_range_start);
       lastLine = res.line_range_end;
+
+      for (int j = 0; j < calcRes.color_segments.len; j++) {
+        colorSegments.add(calcRes.color_segments.array.elementAt(j).ref);
+      }
     }
 
     bindings.free_results(results);
 
+    inputController.colorSegments = colorSegments;
     resultsController.text = resultsText;
     setState(() {});
   }
@@ -195,6 +203,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
           children: [
             _wrapInScrollView(
               widget: _bareTextField(
+                controller: inputController,
                 scrollController: inputScrollController,
                 hintText: "Calculate something",
                 onChanged: onInputChanged,
@@ -231,6 +240,100 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
           ],
         ),
       ),
+    );
+  }
+}
+
+class ColoringTextEditingController extends TextEditingController {
+  ColoringTextEditingController({this.colorSegments = const []});
+
+  List<ColorSegment> colorSegments;
+
+  List<(String, List<ColorSegment>)> splitIntoLines() {
+    var lines = text.split("\n").toList();
+    return lines.indexed.map((e) {
+      var (i, line) = e;
+      return (
+        line + (i != lines.length - 1 ? "\n" : ""),
+        colorSegments
+            .where((seg) => seg.range.start_line <= i && seg.range.end_line > i)
+            .map((seg) {
+          if (seg.range.start_line != i) {
+            seg.range.start_char = 0;
+          } else if (seg.range.end_line > i + 1) {
+            seg.range.end_char = -1;
+          }
+
+          seg.range.start_line = i;
+          seg.range.end_line = i + 1;
+          return seg;
+        }).toList(),
+      );
+    }).toList();
+  }
+
+  List<TextSpan> colorizeLine(
+      String line, List<ColorSegment> lineSegments, TextStyle style) {
+    if (lineSegments.isEmpty || line.isEmpty) {
+      return [
+        TextSpan(
+          text: line,
+          style: style,
+        )
+      ];
+    }
+
+    lineSegments
+        .sort((a, b) => a.range.start_char.compareTo(b.range.start_char));
+
+    var result = <TextSpan>[];
+    var lastChar = 0;
+
+    for (var seg in lineSegments) {
+      var start = seg.range.start_char;
+      var end = seg.range.end_char;
+      if (end == -1) end = line.length;
+
+      if (lastChar < start) {
+        result.add(TextSpan(
+          text: line.substring(lastChar, start),
+          style: style,
+        ));
+      }
+
+      var arr = seg.color.color;
+      var r = arr[0], g = arr[1], b = arr[2], a = arr[3];
+      var color = Color(a << 24 | r << 16 | g << 8 | b);
+
+      result.add(TextSpan(
+        text: line.substring(start, end),
+        style: style.copyWith(color: color),
+      ));
+
+      lastChar = end;
+    }
+
+    if (lastChar != line.length) {
+      result.add(TextSpan(
+        text: line.substring(lastChar),
+        style: style,
+      ));
+    }
+
+    return result;
+  }
+
+  @override
+  TextSpan buildTextSpan(
+      {required BuildContext context,
+      TextStyle? style,
+      required bool withComposing}) {
+    var theStyle = style ?? const TextStyle();
+    return TextSpan(
+      style: theStyle,
+      children: splitIntoLines()
+          .expand((el) => colorizeLine(el.$1, el.$2, theStyle))
+          .toList(),
     );
   }
 }
