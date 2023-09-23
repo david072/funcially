@@ -71,9 +71,11 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   final scrollControllers = LinkedScrollControllerGroup();
   late ScrollController inputScrollController;
   late ScrollController resultsScrollController;
+  late ScrollController lineNumbersScrollController;
 
   final resultsController = TextEditingController();
   final inputController = ColoringTextEditingController();
+  final lineNumbersController = TextEditingController();
 
   String input = "";
 
@@ -86,6 +88,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     super.initState();
     inputScrollController = scrollControllers.addAndGet();
     resultsScrollController = scrollControllers.addAndGet();
+    lineNumbersScrollController = scrollControllers.addAndGet();
   }
 
   @override
@@ -104,7 +107,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   }
 
   String longestLine(String s) {
-    var lines = input.split("\n");
+    var lines = s.split("\n");
     var linesSorted = lines.indexed.map((e) => (e.$1, e.$2.length)).toList()
       ..sort((a, b) => a.$2.compareTo(b.$2));
     return lines[linesSorted.last.$1];
@@ -225,18 +228,41 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
     inputController.colorSegments = colorSegments;
     resultsController.text = resultsText;
+
+    lineNumbersController.text =
+        input.split("\n").indexed.map((e) => "${e.$1 + 1}").join("\n");
+    if (lineNumbersController.text.isEmpty) {
+      lineNumbersController.text = "1";
+    }
+
     setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    var lineNumbersLongestLine = longestLine(lineNumbersController.text);
+    if (lineNumbersLongestLine.length < 3) lineNumbersLongestLine = "100";
+
     return Scaffold(
       appBar: AppBar(title: const Text("funcially")),
-      body: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Stack(
-          children: [
-            _wrapInScrollView(
+      body: Row(
+        children: [
+          Container(
+            width:
+                textDimensions(lineNumbersLongestLine, _inputTextStyle).width +
+                    4,
+            padding: const EdgeInsets.only(left: 2, right: 2),
+            color: Colors.grey.withOpacity(.05),
+            child: _bareTextField(
+              controller: lineNumbersController,
+              scrollController: lineNumbersScrollController,
+              readOnly: true,
+              textAlign: TextAlign.end,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _wrapInScrollView(
               widget: _bareTextField(
                 controller: inputController,
                 scrollController: inputScrollController,
@@ -244,36 +270,30 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                 onChanged: onInputChanged,
               ),
             ),
-            Positioned(
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: resultsWidth,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    left: BorderSide(color: Colors.grey.withOpacity(.5)),
-                  ),
-                  color: Colors.grey.withAlpha(15),
-                ),
-                padding: const EdgeInsets.only(right: 2, left: 5),
-                width: resultsWidth,
-                child: _wrapInScrollView(
-                  reverse: true,
-                  minWidth: textDimensions(
-                          longestLine(resultsController.text), _inputTextStyle)
-                      .width,
-                  widget: _bareTextField(
-                    controller: resultsController,
-                    scrollController: resultsScrollController,
-                    readOnly: true,
-                    textAlign: TextAlign.end,
-                  ),
-                ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(color: Colors.grey.withOpacity(.5)),
+              ),
+              color: Colors.grey.withOpacity(.05),
+            ),
+            padding: const EdgeInsets.only(right: 2, left: 5),
+            width: resultsWidth,
+            child: _wrapInScrollView(
+              reverse: true,
+              minWidth: textDimensions(
+                      longestLine(resultsController.text), _inputTextStyle)
+                  .width,
+              widget: _bareTextField(
+                controller: resultsController,
+                scrollController: resultsScrollController,
+                readOnly: true,
+                textAlign: TextAlign.end,
               ),
             ),
-          ],
-        ),
+          )
+        ],
       ),
     );
   }
