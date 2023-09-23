@@ -15,6 +15,7 @@ dependencies:
   after_layout: ^1.2.0
   google_fonts: ^6.1.0
   linked_scroll_controller: ^0.2.0
+  intersperse: ^2.0.0
 
 dev_dependencies:
   flutter_test:

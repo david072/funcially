@@ -10,6 +10,7 @@ import 'package:frontend/calculator_bindings.dart' hide Color, ColorSegment;
 import 'package:frontend/calculator_bindings.dart' as calculator_bindings
     show ColorSegment;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intersperse/intersperse.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
 const String _libName = "dart_bridge";
@@ -76,6 +77,9 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   final resultsController = TextEditingController();
   final inputController = ColoringTextEditingController();
   final lineNumbersController = TextEditingController();
+
+  final inputFocusNode = FocusNode();
+  final inputUndoController = UndoHistoryController();
 
   String input = "";
 
@@ -157,6 +161,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     String? hintText,
     bool readOnly = false,
     TextAlign textAlign = TextAlign.start,
+    TextInputType? textInputType,
+    bool autofocus = false,
+    FocusNode? focusNode,
+    UndoHistoryController? undoController,
   }) =>
       TextField(
         decoration: InputDecoration(
@@ -168,7 +176,11 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
         ),
         controller: controller,
         scrollController: scrollController,
+        undoController: undoController,
+        autofocus: autofocus,
+        focusNode: focusNode,
         readOnly: readOnly,
+        keyboardType: textInputType,
         textAlign: textAlign,
         spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
         expands: true,
@@ -245,54 +257,70 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
     return Scaffold(
       appBar: AppBar(title: const Text("funcially")),
-      body: Row(
+      body: Column(
         children: [
-          Container(
-            width:
-                textDimensions(lineNumbersLongestLine, _inputTextStyle).width +
-                    4,
-            padding: const EdgeInsets.only(left: 2, right: 2),
-            color: Colors.grey.withOpacity(.05),
-            child: _bareTextField(
-              controller: lineNumbersController,
-              scrollController: lineNumbersScrollController,
-              readOnly: true,
-              textAlign: TextAlign.end,
-            ),
-          ),
-          const SizedBox(width: 10),
           Expanded(
-            child: _wrapInScrollView(
-              widget: _bareTextField(
-                controller: inputController,
-                scrollController: inputScrollController,
-                hintText: "Calculate something",
-                onChanged: onInputChanged,
-              ),
+            child: Row(
+              children: [
+                Container(
+                  width: textDimensions(lineNumbersLongestLine, _inputTextStyle)
+                          .width +
+                      4,
+                  padding: const EdgeInsets.only(left: 2, right: 2),
+                  color: Colors.grey.withOpacity(.05),
+                  child: _bareTextField(
+                    controller: lineNumbersController,
+                    scrollController: lineNumbersScrollController,
+                    readOnly: true,
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _wrapInScrollView(
+                    widget: _bareTextField(
+                      controller: inputController,
+                      scrollController: inputScrollController,
+                      hintText: "Calculate something",
+                      onChanged: onInputChanged,
+                      textInputType: TextInputType.none,
+                      autofocus: true,
+                      focusNode: inputFocusNode,
+                      undoController: inputUndoController,
+                    ),
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      left: BorderSide(color: Colors.grey.withOpacity(.5)),
+                    ),
+                    color: Colors.grey.withOpacity(.05),
+                  ),
+                  padding: const EdgeInsets.only(right: 2, left: 5),
+                  width: resultsWidth,
+                  child: _wrapInScrollView(
+                    reverse: true,
+                    minWidth: textDimensions(
+                            longestLine(resultsController.text),
+                            _inputTextStyle)
+                        .width,
+                    widget: _bareTextField(
+                      controller: resultsController,
+                      scrollController: resultsScrollController,
+                      readOnly: true,
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                )
+              ],
             ),
           ),
-          Container(
-            decoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(color: Colors.grey.withOpacity(.5)),
-              ),
-              color: Colors.grey.withOpacity(.05),
-            ),
-            padding: const EdgeInsets.only(right: 2, left: 5),
-            width: resultsWidth,
-            child: _wrapInScrollView(
-              reverse: true,
-              minWidth: textDimensions(
-                      longestLine(resultsController.text), _inputTextStyle)
-                  .width,
-              widget: _bareTextField(
-                controller: resultsController,
-                scrollController: resultsScrollController,
-                readOnly: true,
-                textAlign: TextAlign.end,
-              ),
-            ),
-          )
+          CalculatorKeyboard(
+            targetController: inputController,
+            targetUndoController: inputUndoController,
+            targetFocusNode: inputFocusNode,
+          ),
         ],
       ),
     );
@@ -384,6 +412,502 @@ class ColoringTextEditingController extends TextEditingController {
       style: theStyle,
       children: splitIntoLines()
           .expand((el) => colorizeLine(el.$1, el.$2, theStyle))
+          .toList(),
+    );
+  }
+}
+
+enum KeyboardType {
+  numbers,
+  functions,
+  normal,
+}
+
+extension ToString on KeyboardType {
+  String asString() {
+    switch (this) {
+      case KeyboardType.numbers:
+        return "123";
+      case KeyboardType.functions:
+        return "f(x)";
+      case KeyboardType.normal:
+        return "ABC";
+    }
+  }
+}
+
+Widget keyboardButton({
+  required Widget child,
+  void Function()? onPressed,
+  bool emphasize = false,
+  EdgeInsets padding = const EdgeInsets.all(2),
+}) =>
+    Padding(
+      padding: padding,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: Colors.grey.withOpacity(emphasize ? .15 : .05),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+          padding: EdgeInsets.zero,
+          shadowColor: Colors.transparent,
+        ),
+        onPressed: onPressed,
+        child: child,
+      ),
+    );
+
+class TextFieldEditor {
+  final TextEditingController controller;
+  final UndoHistoryController undoController;
+  final FocusNode focusNode;
+
+  const TextFieldEditor({
+    required this.controller,
+    required this.undoController,
+    required this.focusNode,
+  });
+
+  void targetRequestFocus() => focusNode.requestFocus();
+
+  void insertText(String text) {
+    targetRequestFocus();
+    var sel = controller.selection;
+    if (sel.isCollapsed) {
+      var textBeforeCursor = controller.text.substring(0, sel.start);
+      var textAfterCursor = controller.text.substring(sel.start);
+      controller.text = textBeforeCursor + text + textAfterCursor;
+
+      controller.selection = TextSelection.collapsed(
+        offset: sel.start + text.length,
+        affinity: sel.affinity,
+      );
+    } else {
+      var textBeforeSelection = controller.text.substring(0, sel.start);
+      var textAfterSelection = controller.text.substring(sel.end);
+      controller.text = textBeforeSelection + text + textAfterSelection;
+
+      controller.selection = TextSelection.collapsed(
+        offset: sel.start + text.length,
+        affinity: TextAffinity.downstream,
+      );
+    }
+  }
+
+  void insertFunction(String name) {
+    insertText("$name()");
+    var sel = controller.selection;
+    controller.selection = TextSelection.collapsed(
+      offset: sel.start - 1,
+      affinity: sel.affinity,
+    );
+  }
+
+  void backspace() {
+    targetRequestFocus();
+    var sel = controller.selection;
+    if (sel.isCollapsed) {
+      if (sel.start == 0) return;
+      var textBefore = controller.text.substring(0, sel.start - 1);
+      var textAfter = controller.text.substring(sel.start);
+      controller.text = textBefore + textAfter;
+
+      controller.selection = TextSelection.collapsed(
+        offset: sel.start - 1,
+        affinity: sel.affinity,
+      );
+    } else {
+      var textBeforeSelection = controller.text.substring(0, sel.start);
+      var textAfterSelection = controller.text.substring(sel.end);
+      controller.text = textBeforeSelection + textAfterSelection;
+
+      controller.selection = TextSelection.collapsed(
+        offset: sel.start,
+        affinity: TextAffinity.downstream,
+      );
+    }
+  }
+
+  void moveSelection(int offset) {
+    targetRequestFocus();
+    var sel = controller.selection;
+    if (sel.isCollapsed) {
+      var newOffset = sel.start + offset;
+      if (newOffset < 0 || newOffset > controller.text.length) return;
+      sel = TextSelection.collapsed(
+        offset: newOffset,
+        affinity: sel.affinity,
+      );
+    } else {
+      var newOffset = sel.extentOffset + offset;
+      if (newOffset < 0 || newOffset > controller.text.length) return;
+      sel = TextSelection(
+        baseOffset: sel.baseOffset,
+        extentOffset: sel.extentOffset + offset,
+      );
+    }
+
+    controller.selection = sel;
+  }
+}
+
+class CalculatorKeyboard extends StatefulWidget {
+  const CalculatorKeyboard({
+    super.key,
+    required this.targetController,
+    required this.targetUndoController,
+    required this.targetFocusNode,
+  });
+
+  final TextEditingController targetController;
+  final UndoHistoryController targetUndoController;
+  final FocusNode targetFocusNode;
+
+  @override
+  State<CalculatorKeyboard> createState() => _CalculatorKeyboardState();
+}
+
+class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
+  static const Map<KeyboardType, List<List<List<String>>>> layout = {
+    KeyboardType.numbers: [
+      [
+        ["t#f", "t#g", "t#x", "t#y"],
+        ["t#pi", "t#e", "f#sqrt", "empty"],
+        ["t#^", "t#=", "t#<", "t#>"],
+        ["t#in", "empty", "empty", "empty"],
+        ["t#.", "t#,", "t#(", "t#)"],
+      ],
+      [
+        ["t#:=", "t#/", "t#*", "t#-"],
+        ["t#7", "t#8", "t#9", "t#+"],
+        ["t#4", "t#5", "t#6", "backspace"],
+        ["t#1", "t#2", "t#3", "return"],
+        ["t#0", "space", "left", "right"],
+      ],
+    ],
+    KeyboardType.functions: [
+      [
+        ["f#sin", "f#cos", "f#tan", "f#cot"],
+        ["f#asin", "f#acos", "f#atan", "f#acot"],
+        ["f#ln", "f#log", "f#cbrt", "f#root"],
+        ["f#abs", "f#floor", "f#ceil", "f#round"],
+        ["f#lerp", "f#clamp", "f#map", "empty"],
+      ],
+      [
+        ["t#%", "t#of", "t#!", "t#mod"],
+        ["t#&", "t#|", "t#<<", "t#>>"],
+        ["t#{", "t#}", "t##", "backspace"],
+        ["t#[", "t#]", "t#°", "return"],
+        ["t#0b", "t#0x", "left", "right"],
+      ],
+    ],
+  };
+
+  KeyboardType currentKeyboard = KeyboardType.numbers;
+
+  late TextFieldEditor editor;
+
+  @override
+  void initState() {
+    super.initState();
+    editor = TextFieldEditor(
+      controller: widget.targetController,
+      undoController: widget.targetUndoController,
+      focusNode: widget.targetFocusNode,
+    );
+  }
+
+  Widget keyboardLayoutForType(KeyboardType type) => Expanded(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: layout[type]!
+              .map((block) {
+                return Expanded(
+                  child: GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: block[0].length,
+                    ),
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: block[0].length * block.length,
+                    itemBuilder: (context, i) {
+                      var rowIndex = i ~/ block[0].length;
+                      var keyIndex = i - rowIndex * block[0].length;
+                      return keyToWidget(block[rowIndex][keyIndex]);
+                    },
+                  ),
+                );
+              })
+              .cast<Widget>()
+              .intersperse(const SizedBox(width: 10))
+              .toList(),
+        ),
+      );
+
+  Widget keyToWidget(String key) {
+    var separatorIdx = key.indexOf("#");
+    if (separatorIdx == -1) separatorIdx = key.length;
+    var type = key.substring(0, separatorIdx);
+    switch (type) {
+      case "t":
+        return keyboardButton(
+          child: Text(key.substring(2)),
+          onPressed: () => editor.insertText(key.substring(2)),
+        );
+      case "f":
+        return keyboardButton(
+          child: Text(key.substring(2)),
+          onPressed: () => editor.insertFunction(key.substring(2)),
+        );
+      case "empty":
+        return keyboardButton(child: const SizedBox());
+      case "return":
+        return keyboardButton(
+          child: const Icon(Icons.keyboard_return_outlined),
+          onPressed: () => editor.insertText("\n"),
+          emphasize: true,
+        );
+      case "backspace":
+        return keyboardButton(
+          child: const Icon(Icons.backspace_outlined),
+          onPressed: editor.backspace,
+          emphasize: true,
+        );
+      case "space":
+        return keyboardButton(
+          child: const Icon(Icons.space_bar),
+          onPressed: () => editor.insertText(" "),
+          emphasize: true,
+        );
+      case "left":
+        return keyboardButton(
+          child: const Icon(Icons.keyboard_arrow_left_outlined),
+          onPressed: () => editor.moveSelection(-1),
+          emphasize: true,
+        );
+      case "right":
+        return keyboardButton(
+          child: const Icon(Icons.keyboard_arrow_right_outlined),
+          onPressed: () => editor.moveSelection(1),
+          emphasize: true,
+        );
+      default:
+        throw "Invalid key type '$type'";
+    }
+  }
+
+  Widget keyboardUi() {
+    switch (currentKeyboard) {
+      case KeyboardType.normal:
+        return Expanded(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: NormalKeyboardLayout(editor: editor),
+          ),
+        );
+      default:
+        return keyboardLayoutForType(currentKeyboard);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: MediaQuery.of(context).size.height / 2.8,
+      color: Colors.grey.withOpacity(.05),
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              SegmentedButton(
+                segments: KeyboardType.values
+                    .map((key) => ButtonSegment(
+                          value: key,
+                          label: Text(key.asString()),
+                        ))
+                    .toList(),
+                selected: {currentKeyboard},
+                showSelectedIcon: false,
+                onSelectionChanged: (newSelection) =>
+                    setState(() => currentKeyboard = newSelection.first),
+                style: const ButtonStyle(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity(horizontal: -3, vertical: -3),
+                ),
+              ),
+              const Spacer(),
+              ValueListenableBuilder(
+                valueListenable: widget.targetUndoController,
+                builder: (context, value, _) {
+                  return IconButton(
+                    icon: const Icon(Icons.undo),
+                    onPressed:
+                        value.canUndo ? widget.targetUndoController.undo : null,
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  );
+                },
+              ),
+              ValueListenableBuilder(
+                valueListenable: widget.targetUndoController,
+                builder: (context, value, _) => IconButton(
+                  icon: const Icon(Icons.redo),
+                  onPressed:
+                      value.canRedo ? widget.targetUndoController.redo : null,
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+          keyboardUi(),
+        ],
+      ),
+    );
+  }
+}
+
+class NormalKeyboardLayout extends StatefulWidget {
+  const NormalKeyboardLayout({super.key, required this.editor});
+
+  final TextFieldEditor editor;
+
+  @override
+  State<NormalKeyboardLayout> createState() => _NormalKeyboardLayoutState();
+}
+
+class _NormalKeyboardLayoutState extends State<NormalKeyboardLayout> {
+  static const List<List<String>> normalLayout = [
+    ["q", "w", "e", "r", "t", "z", "u", "i", "o", "p"],
+    ["#3", "a", "s", "d", "f", "g", "h", "j", "k", "l", "#3"],
+    ["#shift", "y", "x", "c", "v", "b", "n", "m", "#backspace"],
+    ["#switch", ",", ".", "#space", "#left", "#right", "#return"],
+  ];
+
+  static const List<List<String>> numberLayout = [
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+    ["@", "#", "€", "_", "&", "-", "+", "(", ")", "/"],
+    ["#switch2", "*", "\"", "'", ":", ";", "!", "?", "#backspace"],
+    ["#switch", ",", ".", "#space", "#left", "#right", "#return"],
+  ];
+
+  static const List<List<String>> symbolLayout = [
+    ["~", "`", "|", "•", "√", "π", "÷", "×", "§", "Δ"],
+    ["£", "¥", "\$", "¢", "^", "°", "=", "{", "}", "\\"],
+    ["#switch2", "%", "©", "®", "™", "✓", "[", "]", "#backspace"],
+    ["#switch", "<", ">", "#space", "#left", "#right", "#return"],
+  ];
+
+  bool isCaps = false;
+  bool isInNumberLayout = false;
+  bool isInSymbolLayout = false;
+
+  Widget _keyboardButton({
+    required Widget child,
+    void Function()? onPressed,
+    bool emphasize = false,
+  }) =>
+      keyboardButton(
+        child: child,
+        onPressed: onPressed,
+        emphasize: emphasize,
+        padding: const EdgeInsets.only(left: 2, right: 2),
+      );
+
+  Widget specialKeyTypeToWidget(String type) {
+    switch (type) {
+      case "shift":
+        return _keyboardButton(
+          child: const Icon(Icons.arrow_upward_rounded),
+          onPressed: () => setState(() => isCaps = !isCaps),
+          emphasize: true,
+        );
+      case "backspace":
+        return _keyboardButton(
+          child: const Icon(Icons.backspace_outlined),
+          onPressed: widget.editor.backspace,
+          emphasize: true,
+        );
+      case "switch":
+        return _keyboardButton(
+          child: Text(!isInNumberLayout ? "?123" : "ABC"),
+          onPressed: () {
+            isInNumberLayout = !isInNumberLayout;
+            if (!isInNumberLayout) isInSymbolLayout = false;
+            setState(() {});
+          },
+          emphasize: true,
+        );
+      case "switch2":
+        return _keyboardButton(
+          child: Text(!isInSymbolLayout ? "=\\<" : "?123"),
+          onPressed: () => setState(() => isInSymbolLayout = !isInSymbolLayout),
+          emphasize: true,
+        );
+      case "space":
+        return _keyboardButton(
+          child: const Icon(Icons.space_bar),
+          onPressed: () => widget.editor.insertText(" "),
+        );
+      case "left":
+        return _keyboardButton(
+          child: const Icon(Icons.keyboard_arrow_left_outlined),
+          onPressed: () => widget.editor.moveSelection(-1),
+          emphasize: true,
+        );
+      case "right":
+        return _keyboardButton(
+          child: const Icon(Icons.keyboard_arrow_right_outlined),
+          onPressed: () => widget.editor.moveSelection(1),
+          emphasize: true,
+        );
+      case "return":
+        return _keyboardButton(
+          child: const Icon(Icons.keyboard_return_outlined),
+          onPressed: () => widget.editor.insertText("\n"),
+          emphasize: true,
+        );
+      default:
+        throw "Unknown type '$type'";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    var layout = !isInNumberLayout
+        ? normalLayout
+        : !isInSymbolLayout
+            ? numberLayout
+            : symbolLayout;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: layout
+          .map((row) => Row(
+                children: row.map((String key) {
+                  if (!key.startsWith("#")) {
+                    var symbol =
+                        !isCaps ? key.toLowerCase() : key.toUpperCase();
+                    return Expanded(
+                      child: _keyboardButton(
+                        child: Text(symbol),
+                        onPressed: () => widget.editor.insertText(symbol),
+                      ),
+                    );
+                  } else {
+                    var keyType = key.substring(1);
+                    var spacingMultiplier = int.tryParse(keyType);
+                    if (spacingMultiplier != null) {
+                      return SizedBox(width: 5.0 * spacingMultiplier);
+                    } else {
+                      return Expanded(child: specialKeyTypeToWidget(keyType));
+                    }
+                  }
+                }).toList(),
+              ))
           .toList(),
     );
   }
