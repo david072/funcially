@@ -76,12 +76,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
   final resultsController = TextEditingController();
   final inputController = ColoringTextEditingController();
-  final lineNumbersController = TextEditingController();
+  final lineNumbersController = TextEditingController(text: "1");
 
   final inputFocusNode = FocusNode();
   final inputUndoController = UndoHistoryController();
-
-  String input = "";
 
   double resultsWidth = 0;
 
@@ -93,6 +91,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     inputScrollController = scrollControllers.addAndGet();
     resultsScrollController = scrollControllers.addAndGet();
     lineNumbersScrollController = scrollControllers.addAndGet();
+    inputController.addListener(onInputChanged);
   }
 
   @override
@@ -143,10 +142,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
             children: [
               ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxHeight: 0,
                   minWidth: minWidth ?? MediaQuery.of(context).size.width,
+                  maxHeight: 0,
                 ),
-                child: Text(longestLine(input), style: _inputTextStyle),
+                child: const SizedBox.expand(),
               ),
               Expanded(child: widget),
             ],
@@ -191,9 +190,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
         onChanged: onChanged,
       );
 
-  void onInputChanged(String newInput) {
-    input = newInput;
-
+  void onInputChanged() {
     if (calculator == 0) {
       setState(() {});
       return;
@@ -201,7 +198,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
     var results = bindings.calculate(
       calculator,
-      input.toNativeUtf8().cast<Char>(),
+      inputController.text.toNativeUtf8().cast<Char>(),
     );
 
     var resultsText = "";
@@ -241,8 +238,11 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     inputController.colorSegments = colorSegments;
     resultsController.text = resultsText;
 
-    lineNumbersController.text =
-        input.split("\n").indexed.map((e) => "${e.$1 + 1}").join("\n");
+    lineNumbersController.text = inputController.text
+        .split("\n")
+        .indexed
+        .map((e) => "${e.$1 + 1}")
+        .join("\n");
     if (lineNumbersController.text.isEmpty) {
       lineNumbersController.text = "1";
     }
@@ -278,11 +278,13 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _wrapInScrollView(
+                    minWidth: textDimensions(
+                            longestLine(inputController.text), _inputTextStyle)
+                        .width,
                     widget: _bareTextField(
                       controller: inputController,
                       scrollController: inputScrollController,
                       hintText: "Calculate something",
-                      onChanged: onInputChanged,
                       textInputType: TextInputType.none,
                       autofocus: true,
                       focusNode: inputFocusNode,
