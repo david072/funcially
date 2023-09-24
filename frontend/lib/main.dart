@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'dart:convert';
 import 'dart:ffi' hide Size;
 import 'dart:io';
@@ -12,7 +10,6 @@ import 'package:frontend/calculator_bindings.dart' hide Color, ColorSegment;
 import 'package:frontend/calculator_bindings.dart' as calculator_bindings
     show ColorSegment;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intersperse/intersperse.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
 const String _libName = "dart_bridge";
@@ -479,10 +476,9 @@ Widget keyboardButton({
   required Widget child,
   void Function()? onPressed,
   bool emphasize = false,
-  EdgeInsets padding = const EdgeInsets.all(2),
 }) =>
     Padding(
-      padding: padding,
+      padding: const EdgeInsets.all(2),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           elevation: 0,
@@ -656,33 +652,32 @@ class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
     );
   }
 
-  Widget keyboardLayoutForType(KeyboardType type) => Expanded(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: layout[type]!
-              .map((block) {
-                return Expanded(
-                  child: GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: block[0].length,
-                    ),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: block[0].length * block.length,
-                    itemBuilder: (context, i) {
-                      var rowIndex = i ~/ block[0].length;
-                      var keyIndex = i - rowIndex * block[0].length;
-                      return keyToWidget(block[rowIndex][keyIndex]);
-                    },
-                  ),
-                );
-              })
-              .cast<Widget>()
-              .intersperse(const SizedBox(width: 10))
-              .toList(),
-        ),
-      );
+  Widget keyboardLayoutForType(KeyboardType type) {
+    // Form a column with multiple rows, with a separator to separate the blocks
+    var rows = <Widget>[];
+
+    for (int i = 0; i < layout[type]![0].length; i++) {
+      var children = <Widget>[];
+      for (int j = 0; j < layout[type]!.length; j++) {
+        children.addAll(layout[type]![j][i]
+            .map(keyToWidget)
+            .map((e) => Expanded(child: e)));
+        if (j != layout[type]!.length - 1) {
+          children.add(const SizedBox(width: 10));
+        }
+      }
+
+      rows.add(Expanded(
+          child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      )));
+    }
+
+    return Expanded(
+      child: Column(children: rows),
+    );
+  }
 
   Widget keyToWidget(String key) {
     var separatorIdx = key.indexOf("#");
@@ -844,34 +839,22 @@ class _NormalKeyboardLayoutState extends State<NormalKeyboardLayout> {
   bool isInNumberLayout = false;
   bool isInSymbolLayout = false;
 
-  Widget _keyboardButton({
-    required Widget child,
-    void Function()? onPressed,
-    bool emphasize = false,
-  }) =>
-      keyboardButton(
-        child: child,
-        onPressed: onPressed,
-        emphasize: emphasize,
-        padding: const EdgeInsets.only(left: 2, right: 2),
-      );
-
   Widget specialKeyTypeToWidget(String type) {
     switch (type) {
       case "shift":
-        return _keyboardButton(
+        return keyboardButton(
           child: const Icon(Icons.arrow_upward_rounded),
           onPressed: () => setState(() => isCaps = !isCaps),
           emphasize: true,
         );
       case "backspace":
-        return _keyboardButton(
+        return keyboardButton(
           child: const Icon(Icons.backspace_outlined),
           onPressed: widget.editor.backspace,
           emphasize: true,
         );
       case "switch":
-        return _keyboardButton(
+        return keyboardButton(
           child: Text(!isInNumberLayout ? "?123" : "ABC"),
           onPressed: () {
             isInNumberLayout = !isInNumberLayout;
@@ -881,30 +864,30 @@ class _NormalKeyboardLayoutState extends State<NormalKeyboardLayout> {
           emphasize: true,
         );
       case "switch2":
-        return _keyboardButton(
+        return keyboardButton(
           child: Text(!isInSymbolLayout ? "=\\<" : "?123"),
           onPressed: () => setState(() => isInSymbolLayout = !isInSymbolLayout),
           emphasize: true,
         );
       case "space":
-        return _keyboardButton(
+        return keyboardButton(
           child: const Icon(Icons.space_bar),
           onPressed: () => widget.editor.insertText(" "),
         );
       case "left":
-        return _keyboardButton(
+        return keyboardButton(
           child: const Icon(Icons.keyboard_arrow_left_outlined),
           onPressed: () => widget.editor.moveSelectionHorizontally(-1),
           emphasize: true,
         );
       case "right":
-        return _keyboardButton(
+        return keyboardButton(
           child: const Icon(Icons.keyboard_arrow_right_outlined),
           onPressed: () => widget.editor.moveSelectionHorizontally(1),
           emphasize: true,
         );
       case "return":
-        return _keyboardButton(
+        return keyboardButton(
           child: const Icon(Icons.keyboard_return_outlined),
           onPressed: () => widget.editor.insertText("\n"),
           emphasize: true,
@@ -925,27 +908,30 @@ class _NormalKeyboardLayoutState extends State<NormalKeyboardLayout> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: layout
-          .map((row) => Row(
-                children: row.map((String key) {
-                  if (!key.startsWith("#")) {
-                    var symbol =
-                        !isCaps ? key.toLowerCase() : key.toUpperCase();
-                    return Expanded(
-                      child: _keyboardButton(
-                        child: Text(symbol),
-                        onPressed: () => widget.editor.insertText(symbol),
-                      ),
-                    );
-                  } else {
-                    var keyType = key.substring(1);
-                    var spacingMultiplier = int.tryParse(keyType);
-                    if (spacingMultiplier != null) {
-                      return SizedBox(width: 5.0 * spacingMultiplier);
+          .map((row) => Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: row.map((String key) {
+                    if (!key.startsWith("#")) {
+                      var symbol =
+                          !isCaps ? key.toLowerCase() : key.toUpperCase();
+                      return Expanded(
+                        child: keyboardButton(
+                          child: Text(symbol),
+                          onPressed: () => widget.editor.insertText(symbol),
+                        ),
+                      );
                     } else {
-                      return Expanded(child: specialKeyTypeToWidget(keyType));
+                      var keyType = key.substring(1);
+                      var spacingMultiplier = int.tryParse(keyType);
+                      if (spacingMultiplier != null) {
+                        return SizedBox(width: 5.0 * spacingMultiplier);
+                      } else {
+                        return Expanded(child: specialKeyTypeToWidget(keyType));
+                      }
                     }
-                  }
-                }).toList(),
+                  }).toList(),
+                ),
               ))
           .toList(),
     );
