@@ -1,18 +1,23 @@
-#![allow(dead_code, unused_imports)]
+/*
+ * Copyright (c) 2023, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#![allow(dead_code)]
 
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem;
 use std::ops::Range;
 use std::os::raw::c_char;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use funcially_core::{
     Calculator, CalculatorResult, ContextData, Currencies, Environment, Result as CalcResult,
-    ResultData, Settings, Value, Variable, Verbosity,
+    ResultData, Settings, Verbosity,
 };
 
 struct AllocatableContextData {

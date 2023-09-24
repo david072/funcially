@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2023, david072
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import 'dart:convert';
 import 'dart:ffi' hide Size;
 import 'dart:io';
