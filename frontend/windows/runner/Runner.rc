@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "de.david072.apps" "\0"
-            VALUE "FileDescription", "frontend" "\0"
+            VALUE "FileDescription", "funcially" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "frontend" "\0"
+            VALUE "InternalName", "funcially" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2023 de.david072.apps. All rights reserved." "\0"
-            VALUE "OriginalFilename", "frontend.exe" "\0"
-            VALUE "ProductName", "frontend" "\0"
+            VALUE "OriginalFilename", "funcially.exe" "\0"
+            VALUE "ProductName", "funcially" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -81,7 +81,6 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   final inputUndoController = UndoHistoryController();
 
   late TextFieldEditor editor;
-  double resultsWidth = 0;
 
   int calculator = 0;
 
@@ -111,7 +110,6 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
   @override
   void afterFirstLayout(BuildContext context) {
-    resultsWidth = MediaQuery.of(context).size.width * .25;
     calculator = bindings.create_calculator();
     setState(() {});
   }
@@ -316,7 +314,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                     color: Colors.grey.withOpacity(.05),
                   ),
                   padding: const EdgeInsets.only(right: 2, left: 5),
-                  width: resultsWidth,
+                  width: MediaQuery.of(context).size.width * .25,
                   child: _wrapInScrollView(
                     reverse: true,
                     minWidth: textDimensions(
