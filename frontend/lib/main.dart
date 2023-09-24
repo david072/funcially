@@ -277,73 +277,77 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
     return Scaffold(
       appBar: AppBar(title: const Text("funcially")),
-      body: Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Container(
-                  width: textDimensions(lineNumbersLongestLine, _inputTextStyle)
-                          .width +
-                      4,
-                  padding: const EdgeInsets.only(left: 2, right: 2),
-                  color: Colors.grey.withOpacity(.05),
-                  child: _bareTextField(
-                    controller: lineNumbersController,
-                    scrollController: lineNumbersScrollController,
-                    readOnly: true,
-                    textAlign: TextAlign.end,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _wrapInScrollView(
-                    minWidth: textDimensions(
-                            longestLine(inputController.text), _inputTextStyle)
-                        .width,
-                    widget: _bareTextField(
-                      controller: inputController,
-                      scrollController: inputScrollController,
-                      hintText: "Calculate something",
-                      textInputType: TextInputType.none,
-                      autofocus: true,
-                      focusNode: inputFocusNode,
-                      undoController: inputUndoController,
-                    ),
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      left: BorderSide(color: Colors.grey.withOpacity(.5)),
-                    ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Container(
+                    width:
+                        textDimensions(lineNumbersLongestLine, _inputTextStyle)
+                                .width +
+                            4,
+                    padding: const EdgeInsets.only(left: 2, right: 2),
                     color: Colors.grey.withOpacity(.05),
-                  ),
-                  padding: const EdgeInsets.only(right: 2, left: 5),
-                  width: MediaQuery.of(context).size.width * .25,
-                  child: _wrapInScrollView(
-                    reverse: true,
-                    minWidth: textDimensions(
-                            longestLine(resultsController.text),
-                            _inputTextStyle)
-                        .width,
-                    widget: _bareTextField(
-                      controller: resultsController,
-                      scrollController: resultsScrollController,
+                    child: _bareTextField(
+                      controller: lineNumbersController,
+                      scrollController: lineNumbersScrollController,
                       readOnly: true,
                       textAlign: TextAlign.end,
                     ),
                   ),
-                )
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _wrapInScrollView(
+                      minWidth: textDimensions(
+                              longestLine(inputController.text),
+                              _inputTextStyle)
+                          .width,
+                      widget: _bareTextField(
+                        controller: inputController,
+                        scrollController: inputScrollController,
+                        hintText: "Calculate something",
+                        textInputType: TextInputType.none,
+                        autofocus: true,
+                        focusNode: inputFocusNode,
+                        undoController: inputUndoController,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(color: Colors.grey.withOpacity(.5)),
+                      ),
+                      color: Colors.grey.withOpacity(.05),
+                    ),
+                    padding: const EdgeInsets.only(right: 2, left: 5),
+                    width: MediaQuery.of(context).size.width * .25,
+                    child: _wrapInScrollView(
+                      reverse: true,
+                      minWidth: textDimensions(
+                              longestLine(resultsController.text),
+                              _inputTextStyle)
+                          .width,
+                      widget: _bareTextField(
+                        controller: resultsController,
+                        scrollController: resultsScrollController,
+                        readOnly: true,
+                        textAlign: TextAlign.end,
+                      ),
+                    ),
+                  )
+                ],
+              ),
             ),
-          ),
-          CalculatorKeyboard(
-            targetController: inputController,
-            targetUndoController: inputUndoController,
-            targetFocusNode: inputFocusNode,
-          ),
-        ],
+            CalculatorKeyboard(
+              targetController: inputController,
+              targetUndoController: inputUndoController,
+              targetFocusNode: inputFocusNode,
+            ),
+          ],
+        ),
       ),
     );
   }
