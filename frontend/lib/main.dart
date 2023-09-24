@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print
 
+import 'dart:convert';
 import 'dart:ffi' hide Size;
 import 'dart:io';
 
@@ -393,8 +394,8 @@ class ColoringTextEditingController extends TextEditingController {
     var lastChar = 0;
 
     for (var seg in lineSegments) {
-      var start = seg.range.start_char;
-      var end = seg.range.end_char;
+      var start = utf8IndexToCharIndex(line, seg.range.start_char);
+      var end = utf8IndexToCharIndex(line, seg.range.end_char);
       if (end == -1) end = line.length;
 
       if (lastChar < start) {
@@ -420,6 +421,24 @@ class ColoringTextEditingController extends TextEditingController {
     }
 
     return result;
+  }
+
+  int utf8IndexToCharIndex(String str, int utf8Index) {
+    var utf8Str = utf8.encode(str);
+    var utf8Offset = 0;
+    var codeUnits = str.codeUnits;
+    for (int i = 0; i < utf8Index; i++) {
+      if (i == codeUnits.length) break;
+      if (utf8Str[i + utf8Offset] == codeUnits[i]) continue;
+
+      // If the utf8 codepoint does not align with the code unit,
+      // subtrace 1 from the rust index, since the character has
+      // been split into two indices in utf8.
+      utf8Index -= 1;
+      utf8Offset += 1;
+    }
+
+    return utf8Index;
   }
 
   @override
