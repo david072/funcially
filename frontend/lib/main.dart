@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:after_layout/after_layout.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frontend/calculator_bindings.dart' hide Color, ColorSegment;
 import 'package:frontend/calculator_bindings.dart' as calculator_bindings
     show ColorSegment;
@@ -81,6 +82,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   final inputFocusNode = FocusNode();
   final inputUndoController = UndoHistoryController();
 
+  late TextFieldEditor editor;
   double resultsWidth = 0;
 
   int calculator = 0;
@@ -92,6 +94,21 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     resultsScrollController = scrollControllers.addAndGet();
     lineNumbersScrollController = scrollControllers.addAndGet();
     inputController.addListener(onInputChanged);
+
+    editor = TextFieldEditor(
+      focusNode: inputFocusNode,
+      controller: inputController,
+      undoController: inputUndoController,
+    );
+
+    HardwareKeyboard.instance.addHandler(onHardwareEvent);
+  }
+
+  bool onHardwareEvent(KeyEvent event) {
+    if (event.character != null) {
+      editor.insertText(event.character!);
+    }
+    return true;
   }
 
   @override
@@ -106,6 +123,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     inputScrollController.dispose();
     resultsScrollController.dispose();
     bindings.free_calculator(calculator);
+    HardwareKeyboard.instance.removeHandler(onHardwareEvent);
     super.dispose();
   }
 
@@ -530,7 +548,7 @@ class TextFieldEditor {
     }
   }
 
-  void moveSelection(int offset) {
+  void moveSelectionHorizontally(int offset) {
     targetRequestFocus();
     var sel = controller.selection;
     if (sel.isCollapsed) {
@@ -685,13 +703,13 @@ class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
       case "left":
         return keyboardButton(
           child: const Icon(Icons.keyboard_arrow_left_outlined),
-          onPressed: () => editor.moveSelection(-1),
+          onPressed: () => editor.moveSelectionHorizontally(-1),
           emphasize: true,
         );
       case "right":
         return keyboardButton(
           child: const Icon(Icons.keyboard_arrow_right_outlined),
-          onPressed: () => editor.moveSelection(1),
+          onPressed: () => editor.moveSelectionHorizontally(1),
           emphasize: true,
         );
       default:
@@ -857,13 +875,13 @@ class _NormalKeyboardLayoutState extends State<NormalKeyboardLayout> {
       case "left":
         return _keyboardButton(
           child: const Icon(Icons.keyboard_arrow_left_outlined),
-          onPressed: () => widget.editor.moveSelection(-1),
+          onPressed: () => widget.editor.moveSelectionHorizontally(-1),
           emphasize: true,
         );
       case "right":
         return _keyboardButton(
           child: const Icon(Icons.keyboard_arrow_right_outlined),
-          onPressed: () => widget.editor.moveSelection(1),
+          onPressed: () => widget.editor.moveSelectionHorizontally(1),
           emphasize: true,
         );
       case "return":
