@@ -639,6 +639,7 @@ class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
   };
 
   KeyboardType currentKeyboard = KeyboardType.numbers;
+  bool showKeyboard = true;
 
   late TextFieldEditor editor;
 
@@ -749,29 +750,30 @@ class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: MediaQuery.of(context).size.height / 2.8,
+      height: showKeyboard ? MediaQuery.of(context).size.height / 2.8 : 68,
       color: Colors.grey.withOpacity(.05),
       padding: const EdgeInsets.all(10),
       child: Column(
         children: [
           Row(
             children: [
-              SegmentedButton(
-                segments: KeyboardType.values
-                    .map((key) => ButtonSegment(
-                          value: key,
-                          label: Text(key.asString()),
-                        ))
-                    .toList(),
-                selected: {currentKeyboard},
-                showSelectedIcon: false,
-                onSelectionChanged: (newSelection) =>
-                    setState(() => currentKeyboard = newSelection.first),
-                style: const ButtonStyle(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity(horizontal: -3, vertical: -3),
+              if (showKeyboard)
+                SegmentedButton(
+                  segments: KeyboardType.values
+                      .map((key) => ButtonSegment(
+                            value: key,
+                            label: Text(key.asString()),
+                          ))
+                      .toList(),
+                  selected: {currentKeyboard},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (newSelection) =>
+                      setState(() => currentKeyboard = newSelection.first),
+                  style: const ButtonStyle(
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity(horizontal: -3, vertical: -3),
+                  ),
                 ),
-              ),
               const Spacer(),
               ValueListenableBuilder(
                 valueListenable: widget.targetUndoController,
@@ -780,8 +782,6 @@ class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
                     icon: const Icon(Icons.undo),
                     onPressed:
                         value.canUndo ? widget.targetUndoController.undo : null,
-                    constraints: const BoxConstraints(),
-                    padding: EdgeInsets.zero,
                   );
                 },
               ),
@@ -791,13 +791,16 @@ class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
                   icon: const Icon(Icons.redo),
                   onPressed:
                       value.canRedo ? widget.targetUndoController.redo : null,
-                  constraints: const BoxConstraints(),
-                  padding: EdgeInsets.zero,
                 ),
+              ),
+              IconButton(
+                icon:
+                    Icon(showKeyboard ? Icons.unfold_less : Icons.unfold_more),
+                onPressed: () => setState(() => showKeyboard = !showKeyboard),
               ),
             ],
           ),
-          keyboardUi(),
+          if (showKeyboard) keyboardUi(),
         ],
       ),
     );
