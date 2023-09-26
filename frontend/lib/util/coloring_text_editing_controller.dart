@@ -66,6 +66,10 @@ class ColoringTextEditingController extends TextEditingController {
     lineSegments
         .sort((a, b) => a.range.start_char.compareTo(b.range.start_char));
 
+    // print(lineSegments
+    //     .map((s) => "${s.range.start_char}..${s.range.end_char}")
+    //     .join(",\n"));
+
     var result = <TextSpan>[];
     var lastChar = 0;
 

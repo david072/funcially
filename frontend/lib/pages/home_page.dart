@@ -116,11 +116,6 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       resultsLineNumbersText += bottomOffset;
       lastLine = res.line_range_end;
 
-      for (int j = 0; j < calcRes.color_segments.len; j++) {
-        var seg = calcRes.color_segments.array.elementAt(j).ref;
-        colorSegments.add(StyleSegment.fromCalculatorColorSegment(seg));
-      }
-
       if (calcRes.data.is_error && calcRes.data.error_ranges.len != 0) {
         for (int k = 0; k < calcRes.data.error_ranges.len; k++) {
           colorSegments.add(StyleSegment(
@@ -128,6 +123,11 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
             calcRes.data.error_ranges.array.elementAt(k).ref,
             decoration: TextDecoration.underline,
           ));
+        }
+      } else {
+        for (int j = 0; j < calcRes.color_segments.len; j++) {
+          var seg = calcRes.color_segments.array.elementAt(j).ref;
+          colorSegments.add(StyleSegment.fromCalculatorColorSegment(seg));
         }
       }
     }
