@@ -53,10 +53,10 @@ class CalculatorKeyboard extends StatefulWidget {
   final FocusNode targetFocusNode;
 
   @override
-  State<CalculatorKeyboard> createState() => _CalculatorKeyboardState();
+  State<CalculatorKeyboard> createState() => CalculatorKeyboardState();
 }
 
-class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
+class CalculatorKeyboardState extends State<CalculatorKeyboard> {
   static const Map<KeyboardType, List<List<List<String>>>> layout = {
     KeyboardType.numbers: [
       [
@@ -106,6 +106,8 @@ class _CalculatorKeyboardState extends State<CalculatorKeyboard> {
       focusNode: widget.targetFocusNode,
     );
   }
+
+  void setShowKeyboard(bool show) => setState(() => showKeyboard = show);
 
   Widget keyboardLayoutForType(KeyboardType type) {
     // Form a column with multiple rows, with a separator to separate the blocks

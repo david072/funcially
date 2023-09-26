@@ -19,6 +19,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with AfterLayoutMixin {
+  final calculatorKeyboardKey = GlobalKey<CalculatorKeyboardState>();
+
   final scrollControllers = LinkedScrollControllerGroup();
   late ScrollController inputScrollController;
   late ScrollController resultsScrollController;
@@ -54,6 +56,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   }
 
   bool onHardwareEvent(KeyEvent event) {
+    calculatorKeyboardKey.currentState?.setShowKeyboard(false);
     if (event.character != null) {
       editor.insertText(event.character!);
     }
@@ -230,6 +233,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
               ),
             ),
             CalculatorKeyboard(
+              key: calculatorKeyboardKey,
               targetController: inputController,
               targetUndoController: inputUndoController,
               targetFocusNode: inputFocusNode,
