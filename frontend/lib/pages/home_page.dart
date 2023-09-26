@@ -27,6 +27,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   final resultsController = TextEditingController();
   final inputController = ColoringTextEditingController();
   final lineNumbersController = TextEditingController(text: "1");
+  final resultsLineNumbersController = TextEditingController();
 
   final inputFocusNode = FocusNode();
   final inputUndoController = UndoHistoryController();
@@ -90,6 +91,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     );
 
     var resultsText = "";
+    var resultsLineNumbersText = "";
     var colorSegments = <StyleSegment>[];
 
     var lastLine = 0;
@@ -99,10 +101,19 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       var res = calcRes.data;
       var text = res.str_value.cast<Utf8>().toDartString();
       if (lastLine < res.line_range_start) {
-        resultsText += "\n" * (res.line_range_start - lastLine);
+        var topOffset = "\n" * (res.line_range_start - lastLine);
+        resultsText += topOffset;
+        resultsLineNumbersText += topOffset;
       }
+
       resultsText += text;
-      resultsText += "\n" * (res.line_range_end - res.line_range_start);
+      if (text.isNotEmpty) {
+        resultsLineNumbersText += "${res.line_range_start + 1}";
+      }
+
+      var bottomOffset = "\n" * (res.line_range_end - res.line_range_start);
+      resultsText += bottomOffset;
+      resultsLineNumbersText += bottomOffset;
       lastLine = res.line_range_end;
 
       for (int j = 0; j < calcRes.color_segments.len; j++) {
@@ -125,6 +136,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
     inputController.colorSegments = colorSegments;
     resultsController.text = resultsText;
+    resultsLineNumbersController.text = resultsLineNumbersText;
 
     lineNumbersController.text = inputController.text
         .split("\n")
@@ -183,22 +195,35 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                       ),
                       color: Colors.grey.withOpacity(.05),
                     ),
-                    padding: const EdgeInsets.only(right: 2, left: 5),
-                    width: MediaQuery.of(context).size.width * .25,
-                    child: wrapInScrollView(
-                      context: context,
-                      reverse: true,
-                      minWidth: textDimensions(
-                              longestLine(resultsController.text),
-                              _inputTextStyle)
-                          .width,
-                      widget: bareTextField(
-                        controller: resultsController,
-                        scrollController: resultsScrollController,
-                        readOnly: true,
-                        textAlign: TextAlign.end,
-                        textStyle: _inputTextStyle,
-                      ),
+                    padding: const EdgeInsets.only(right: 2),
+                    width: MediaQuery.of(context).size.width * .35,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _LineNumberColumn(
+                          lineNumbersController: resultsLineNumbersController,
+                          style: _inputTextStyle,
+                          scrollController: resultsScrollController,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: wrapInScrollView(
+                            context: context,
+                            reverse: true,
+                            minWidth: textDimensions(
+                                    longestLine(resultsController.text),
+                                    _inputTextStyle)
+                                .width,
+                            widget: bareTextField(
+                              controller: resultsController,
+                              scrollController: resultsScrollController,
+                              readOnly: true,
+                              textAlign: TextAlign.end,
+                              textStyle: _inputTextStyle,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 ],
