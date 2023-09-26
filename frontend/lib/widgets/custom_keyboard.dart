@@ -369,7 +369,7 @@ class _NormalKeyboardLayoutState extends State<NormalKeyboardLayout> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: row.map((String key) {
-                    if (!key.startsWith("#")) {
+                    if (!key.startsWith("#") || key.length < 2) {
                       var symbol =
                           !isCaps ? key.toLowerCase() : key.toUpperCase();
                       return Expanded(
