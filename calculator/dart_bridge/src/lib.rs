@@ -135,6 +135,12 @@ pub unsafe extern "C" fn create_calculator() -> usize {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn reset_calculator(calculator: usize) {
+    let mut calculator = CalculatorWrapper::load(calculator);
+    calculator.0.reset();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn calculate(
     calculator: usize,
     input: *const c_char,

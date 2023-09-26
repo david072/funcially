@@ -161,6 +161,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       return;
     }
 
+    bindings.reset_calculator(calculator);
     var results = bindings.calculate(
       calculator,
       inputController.text.toNativeUtf8().cast<Char>(),
