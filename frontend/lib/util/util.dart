@@ -93,3 +93,83 @@ class TextFieldEditor {
     controller.selection = sel;
   }
 }
+
+String longestLine(String s) {
+  var lines = s.split("\n");
+  var linesSorted = lines.indexed.map((e) => (e.$1, e.$2.length)).toList()
+    ..sort((a, b) => a.$2.compareTo(b.$2));
+  return lines[linesSorted.last.$1];
+}
+
+Size textDimensions(String text, TextStyle style) {
+  var painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: null,
+      textDirection: TextDirection.ltr)
+    ..layout(minWidth: 0, maxWidth: double.infinity);
+  return painter.size;
+}
+
+Widget wrapInScrollView({
+  required BuildContext context,
+  required Widget widget,
+  bool reverse = false,
+  double? minWidth,
+}) =>
+    SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      reverse: reverse,
+      child: IntrinsicWidth(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: minWidth ?? MediaQuery.of(context).size.width,
+                maxHeight: 0,
+              ),
+              child: const SizedBox.expand(),
+            ),
+            Expanded(child: widget),
+          ],
+        ),
+      ),
+    );
+
+TextField bareTextField({
+  TextEditingController? controller,
+  ScrollController? scrollController,
+  TextStyle? textStyle,
+  void Function(String)? onChanged,
+  String? hintText,
+  bool readOnly = false,
+  TextAlign textAlign = TextAlign.start,
+  TextInputType? textInputType,
+  bool autofocus = false,
+  FocusNode? focusNode,
+  UndoHistoryController? undoController,
+}) =>
+    TextField(
+      decoration: InputDecoration(
+        border: InputBorder.none,
+        hintText: hintText,
+        isDense: true,
+        constraints: const BoxConstraints(),
+        contentPadding: EdgeInsets.zero,
+      ),
+      controller: controller,
+      scrollController: scrollController,
+      undoController: undoController,
+      autofocus: autofocus,
+      focusNode: focusNode,
+      readOnly: readOnly,
+      keyboardType: textInputType,
+      textAlign: textAlign,
+      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+      expands: true,
+      style: textStyle,
+      maxLines: null,
+      autocorrect: false,
+      enableSuggestions: false,
+      onChanged: onChanged,
+    );
