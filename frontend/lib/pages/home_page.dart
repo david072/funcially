@@ -234,9 +234,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
             ),
             CalculatorKeyboard(
               key: calculatorKeyboardKey,
-              targetController: inputController,
-              targetUndoController: inputUndoController,
-              targetFocusNode: inputFocusNode,
+              editor: editor,
             ),
           ],
         ),

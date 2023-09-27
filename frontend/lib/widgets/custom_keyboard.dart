@@ -43,14 +43,10 @@ Widget keyboardButton({
 class CalculatorKeyboard extends StatefulWidget {
   const CalculatorKeyboard({
     super.key,
-    required this.targetController,
-    required this.targetUndoController,
-    required this.targetFocusNode,
+    required this.editor,
   });
 
-  final TextEditingController targetController;
-  final UndoHistoryController targetUndoController;
-  final FocusNode targetFocusNode;
+  final TextFieldEditor editor;
 
   @override
   State<CalculatorKeyboard> createState() => CalculatorKeyboardState();
@@ -95,17 +91,7 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
   KeyboardType currentKeyboard = KeyboardType.numbers;
   bool showKeyboard = true;
 
-  late TextFieldEditor editor;
-
-  @override
-  void initState() {
-    super.initState();
-    editor = TextFieldEditor(
-      controller: widget.targetController,
-      undoController: widget.targetUndoController,
-      focusNode: widget.targetFocusNode,
-    );
-  }
+  TextFieldEditor get editor => widget.editor;
 
   void setShowKeyboard(bool show) => setState(() => showKeyboard = show);
 
@@ -232,21 +218,20 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
                 ),
               const Spacer(),
               ValueListenableBuilder(
-                valueListenable: widget.targetUndoController,
+                valueListenable: editor.undoController,
                 builder: (context, value, _) {
                   return IconButton(
                     icon: const Icon(Icons.undo),
                     onPressed:
-                        value.canUndo ? widget.targetUndoController.undo : null,
+                        value.canUndo ? editor.undoController.undo : null,
                   );
                 },
               ),
               ValueListenableBuilder(
-                valueListenable: widget.targetUndoController,
+                valueListenable: editor.undoController,
                 builder: (context, value, _) => IconButton(
                   icon: const Icon(Icons.redo),
-                  onPressed:
-                      value.canRedo ? widget.targetUndoController.redo : null,
+                  onPressed: value.canRedo ? editor.undoController.redo : null,
                 ),
               ),
               IconButton(
