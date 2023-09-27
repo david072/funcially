@@ -122,8 +122,8 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       if (calcRes.data.is_error && calcRes.data.error_ranges.len != 0) {
         for (int k = 0; k < calcRes.data.error_ranges.len; k++) {
           colorSegments.add(StyleSegment(
-            Colors.red,
-            calcRes.data.error_ranges.array.elementAt(k).ref,
+            color: Colors.red,
+            range: calcRes.data.error_ranges.array.elementAt(k).ref,
             decoration: TextDecoration.underline,
           ));
         }

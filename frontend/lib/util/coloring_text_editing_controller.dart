@@ -4,23 +4,35 @@ import 'package:flutter/material.dart';
 import 'package:frontend/calculator_bindings.dart' hide Color;
 
 class StyleSegment {
-  Color color;
-  SourceRange range;
-  TextDecoration? decoration;
+  final Color color;
+  final SourceRange? range;
+  final TextDecoration? decoration;
+  final FontStyle? fontStyle;
 
-  StyleSegment(this.color, this.range, {this.decoration});
+  const StyleSegment({
+    required this.color,
+    this.range,
+    this.decoration,
+    this.fontStyle,
+  });
+
+  static const commentStyle = StyleSegment(
+    color: Colors.grey,
+    fontStyle: FontStyle.italic,
+  );
 
   factory StyleSegment.fromCalculatorColorSegment(ColorSegment seg) {
     var arr = seg.color.color;
     var r = arr[0], g = arr[1], b = arr[2], a = arr[3];
     var color = Color(a << 24 | r << 16 | g << 8 | b);
-    return StyleSegment(color, seg.range);
+    return StyleSegment(color: color, range: seg.range);
   }
 
   TextStyle textStyle() => TextStyle(
         color: color,
         decoration: decoration,
         decorationColor: color,
+        fontStyle: fontStyle,
       );
 }
 
@@ -36,16 +48,18 @@ class ColoringTextEditingController extends TextEditingController {
       return (
         line + (i != lines.length - 1 ? "\n" : ""),
         colorSegments
-            .where((seg) => seg.range.start_line <= i && seg.range.end_line > i)
+            .where((seg) => seg.range != null)
+            .where(
+                (seg) => seg.range!.start_line <= i && seg.range!.end_line > i)
             .map((seg) {
-          if (seg.range.start_line != i) {
-            seg.range.start_char = 0;
-          } else if (seg.range.end_line > i + 1) {
-            seg.range.end_char = -1;
+          if (seg.range!.start_line != i) {
+            seg.range!.start_char = 0;
+          } else if (seg.range!.end_line > i + 1) {
+            seg.range!.end_char = -1;
           }
 
-          seg.range.start_line = i;
-          seg.range.end_line = i + 1;
+          seg.range!.start_line = i;
+          seg.range!.end_line = i + 1;
           return seg;
         }).toList(),
       );
@@ -54,6 +68,15 @@ class ColoringTextEditingController extends TextEditingController {
 
   List<TextSpan> colorizeLine(
       String line, List<StyleSegment> lineSegments, TextStyle style) {
+    if (line.trim().startsWith("#")) {
+      return [
+        TextSpan(
+          text: line,
+          style: StyleSegment.commentStyle.textStyle(),
+        ),
+      ];
+    }
+
     if (lineSegments.isEmpty || line.isEmpty) {
       return [
         TextSpan(
@@ -64,7 +87,7 @@ class ColoringTextEditingController extends TextEditingController {
     }
 
     lineSegments
-        .sort((a, b) => a.range.start_char.compareTo(b.range.start_char));
+        .sort((a, b) => a.range!.start_char.compareTo(b.range!.start_char));
 
     // print(lineSegments
     //     .map((s) => "${s.range.start_char}..${s.range.end_char}")
@@ -74,8 +97,8 @@ class ColoringTextEditingController extends TextEditingController {
     var lastChar = 0;
 
     for (var seg in lineSegments) {
-      var start = utf8IndexToCharIndex(line, seg.range.start_char);
-      var end = utf8IndexToCharIndex(line, seg.range.end_char);
+      var start = utf8IndexToCharIndex(line, seg.range!.start_char);
+      var end = utf8IndexToCharIndex(line, seg.range!.end_char);
       if (end == -1) end = line.length;
 
       if (lastChar < start) {
@@ -93,7 +116,12 @@ class ColoringTextEditingController extends TextEditingController {
       lastChar = end;
     }
 
-    if (lastChar != line.length) {
+    if (line.substring(lastChar).contains("#")) {
+      result.add(TextSpan(
+        text: line.substring(lastChar),
+        style: StyleSegment.commentStyle.textStyle(),
+      ));
+    } else if (lastChar != line.length) {
       result.add(TextSpan(
         text: line.substring(lastChar),
         style: style,
