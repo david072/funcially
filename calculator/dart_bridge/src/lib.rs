@@ -144,6 +144,7 @@ pub unsafe extern "C" fn reset_calculator(calculator: usize) {
 pub unsafe extern "C" fn calculate(
     calculator: usize,
     input: *const c_char,
+    use_thousands_separator: bool,
 ) -> FfiVec<FfiCalculatorResult> {
     let mut calc = CalculatorWrapper::load(calculator);
     let input = CStr::from_ptr(input).to_str().unwrap();
@@ -151,7 +152,11 @@ pub unsafe extern "C" fn calculate(
         .calculate(input)
         .iter()
         .map(|res| FfiCalculatorResult {
-            data: result_to_ffi(res, &calc.0.context.borrow().settings),
+            data: result_to_ffi(
+                res,
+                &calc.0.context.borrow().settings,
+                use_thousands_separator,
+            ),
             color_segments: res
                 .color_segments
                 .iter()
@@ -163,8 +168,12 @@ pub unsafe extern "C" fn calculate(
         .into()
 }
 
-fn result_to_ffi(result: &CalculatorResult, settings: &Settings) -> FfiResultData {
-    let str = calculator_result_to_string(&result.data, settings, false);
+fn result_to_ffi(
+    result: &CalculatorResult,
+    settings: &Settings,
+    use_thousands_separator: bool,
+) -> FfiResultData {
+    let str = calculator_result_to_string(&result.data, settings, use_thousands_separator);
     let cstr = CString::new(str).unwrap().into_raw();
     let line_range = line_range_from_calculator_result(&result);
 

@@ -111,6 +111,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     var results = bindings.calculate(
       calculator,
       inputController.text.toNativeUtf8().cast<Char>(),
+      settings.useThousandsSeparator,
     );
 
     var resultsText = "";
@@ -183,15 +184,19 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
         title: const Text("funcially"),
         actions: [
           IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SettingsPage(
-                  calculator: calculator,
-                  monospaceTextStyle: _inputTextStyle,
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SettingsPage(
+                    calculator: calculator,
+                    monospaceTextStyle: _inputTextStyle,
+                  ),
                 ),
-              ),
-            ),
+              );
+              settings = await CalculatorSettings.load();
+              onInputChanged();
+            },
             icon: const Icon(Icons.settings_outlined),
           ),
         ],
