@@ -94,6 +94,45 @@ class TextFieldEditor {
   }
 }
 
+class LabeledDropdownButton<T> extends StatelessWidget {
+  const LabeledDropdownButton({
+    super.key,
+    required this.labelText,
+    required this.value,
+    required this.onChanged,
+    required this.items,
+    this.hint,
+    this.style,
+  });
+
+  final String labelText;
+  final T value;
+  final Widget? hint;
+  final TextStyle? style;
+  final void Function(T?) onChanged;
+  final List<DropdownMenuItem<T>> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          labelText,
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const Spacer(),
+        DropdownButton<T>(
+          value: value,
+          hint: hint,
+          style: style,
+          onChanged: onChanged,
+          items: items,
+        ),
+      ],
+    );
+  }
+}
+
 String longestLine(String s) {
   var lines = s.split("\n");
   var linesSorted = lines.indexed.map((e) => (e.$1, e.$2.length)).toList()

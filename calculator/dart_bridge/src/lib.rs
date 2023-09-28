@@ -215,6 +215,24 @@ fn line_range_from_calculator_result(res: &CalculatorResult) -> Range<usize> {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn get_settings(calculator: usize) -> common_c::Settings {
+    let calc = CalculatorWrapper::load(calculator);
+    let ctx = calc.0.context.borrow();
+    common_c::Settings::from_core_settings(ctx.settings)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn set_settings(calculator: usize, settings: common_c::Settings) {
+    let calc = CalculatorWrapper::load(calculator);
+    (calc.0.context.borrow_mut()).settings = settings.to_core_settings();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_settings(settings: common_c::Settings) {
+    settings.free();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn free_results(results: FfiVec<FfiCalculatorResult>) {
     drop(results.into_vec());
 }
@@ -231,6 +249,10 @@ unsafe fn allocate<T>(val: T) -> *mut T {
 }
 
 mod common_c {
+    use std::ffi::CString;
+    use std::os::raw::c_char;
+    use std::str::FromStr;
+
     #[derive(Copy, Clone)]
     #[repr(C)]
     pub struct SourceRange {
@@ -271,5 +293,63 @@ mod common_c {
     #[repr(C)]
     pub struct Color {
         pub color: [u8; 4],
+    }
+
+    #[derive(Copy, Clone)]
+    #[repr(C)]
+    pub struct Settings {
+        pub date: DateSettings,
+    }
+
+    impl Settings {
+        pub(crate) fn from_core_settings(settings: funcially_core::Settings) -> Self {
+            Self {
+                date: DateSettings::from_core_settings(settings.date),
+            }
+        }
+
+        pub(crate) unsafe fn to_core_settings(&self) -> funcially_core::Settings {
+            funcially_core::Settings {
+                date: self.date.to_core_settings(),
+            }
+        }
+
+        pub(crate) unsafe fn free(&self) {
+            self.date.free();
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    #[repr(C)]
+    pub struct DateSettings {
+        pub format: *const c_char,
+        pub delimiter: c_char,
+    }
+
+    impl DateSettings {
+        pub(crate) fn from_core_settings(settings: funcially_core::DateSettings) -> Self {
+            Self {
+                format: CString::new(format!("{}", settings.format))
+                    .unwrap()
+                    .into_raw(),
+                delimiter: settings.delimiter as c_char,
+            }
+        }
+
+        pub(crate) unsafe fn to_core_settings(&self) -> funcially_core::DateSettings {
+            funcially_core::DateSettings {
+                format: funcially_core::DateFormat::from_str(
+                    CString::from_raw(self.format as *mut c_char)
+                        .to_str()
+                        .unwrap(),
+                )
+                .unwrap(),
+                delimiter: self.delimiter as u8 as char,
+            }
+        }
+
+        pub(crate) unsafe fn free(&self) {
+            drop(CString::from_raw(self.format as *mut c_char));
+        }
     }
 }

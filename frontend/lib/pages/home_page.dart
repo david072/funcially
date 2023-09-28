@@ -5,6 +5,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/main.dart';
+import 'package:frontend/pages/settings_page.dart';
 import 'package:frontend/util/coloring_text_editing_controller.dart';
 import 'package:frontend/util/util.dart';
 import 'package:frontend/widgets/custom_keyboard.dart';
@@ -159,7 +160,23 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     if (lineNumbersLongestLine.length < 3) lineNumbersLongestLine = "100";
 
     return Scaffold(
-      appBar: AppBar(title: const Text("funcially")),
+      appBar: AppBar(
+        title: const Text("funcially"),
+        actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SettingsPage(
+                  calculator: calculator,
+                  monospaceTextStyle: _inputTextStyle,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
