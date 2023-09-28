@@ -6,6 +6,7 @@ import 'package:frontend/calculator_bindings.dart';
 import 'package:frontend/main.dart';
 import 'package:frontend/util/util.dart';
 import 'package:settings_ui/settings_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const dateDelimiters = ".,'/-";
 
@@ -54,6 +55,50 @@ DateFormat dateFormatFromString(String s) {
   }
 }
 
+class CalculatorSettings {
+  bool useThousandsSeparator;
+  DateFormat dateFormat;
+  String dateDelimiter;
+
+  CalculatorSettings({
+    required this.useThousandsSeparator,
+    required this.dateFormat,
+    required this.dateDelimiter,
+  });
+
+  static Future<CalculatorSettings> load() async {
+    var sp = await SharedPreferences.getInstance();
+    var useThousandsSeparator = sp.getBool(spUseThousandsSeparator) ?? true;
+    var dateFormat = dateFormatFromString(sp.getString(spDateFormat) ?? "");
+    var dateDelimiter = sp.getString(spDateDelimiter) ?? ".";
+
+    return CalculatorSettings(
+      useThousandsSeparator: useThousandsSeparator,
+      dateFormat: dateFormat,
+      dateDelimiter: dateDelimiter,
+    );
+  }
+
+  Future<void> save({int? toCalculator}) async {
+    if (toCalculator != null) saveSettingsToCalculator(toCalculator);
+
+    var sp = await SharedPreferences.getInstance();
+    sp.setBool(spUseThousandsSeparator, useThousandsSeparator);
+    sp.setString(spDateFormat, dateFormat.asString());
+    sp.setString(spDateDelimiter, dateDelimiter);
+  }
+
+  void saveSettingsToCalculator(int calculator) {
+    var settings = calloc<Settings>();
+    settings.ref.date.format =
+        dateFormat.asString().toNativeUtf8().cast<Char>();
+    settings.ref.date.delimiter = dateDelimiter[0].codeUnits[0];
+
+    bindings.set_settings(calculator, settings.ref);
+    calloc.free(settings);
+  }
+}
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
@@ -69,114 +114,107 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  DateFormat dateFormat = DateFormat.dmy;
-  String dateDelimiter = ".";
+  bool loading = true;
+  late CalculatorSettings settings;
 
   @override
   void initState() {
     super.initState();
-    getSettings();
+    CalculatorSettings.load().then((value) {
+      settings = value;
+      setState(() => loading = false);
+    });
   }
 
-  void getSettings() {
-    var settings = bindings.get_settings(widget.calculator);
-    dateFormat =
-        dateFormatFromString(settings.date.format.cast<Utf8>().toDartString());
-    dateDelimiter = String.fromCharCode(settings.date.delimiter);
-    bindings.free_settings(settings);
-    setState(() {});
-  }
-
-  void saveSettings() {
-    var settings = calloc<Settings>();
-    settings.ref.date.format =
-        dateFormat.asString().toNativeUtf8().cast<Char>();
-    settings.ref.date.delimiter = dateDelimiter[0].codeUnits[0];
-
-    bindings.set_settings(widget.calculator, settings.ref);
-    calloc.free(settings);
-  }
+  void saveSettings() => settings.save(toCalculator: widget.calculator);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Settings")),
-      body: SettingsList(
-        platform: DevicePlatform.android,
-        applicationType: ApplicationType.material,
-        sections: [
-          SettingsSection(
-            title: const Text("General"),
-            tiles: [
-              SettingsTile.switchTile(
-                initialValue: true,
-                onToggle: (_) {},
-                title: const Text("Use thousands separator"),
-                description: const Text(
-                  "Format result numbers with a thousands separator, e.g. 1_000_000",
-                ),
-              ),
-              SettingsTile.navigation(
-                title: const Text("Date Format"),
-                description: Text(
-                    "Current format: ${dateFormat.formatDate(DateTime.now(), dateDelimiter)}"),
-                onPressed: (context) => showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text("Date Format"),
-                    content: StatefulBuilder(
-                      builder: (context, builderSetState) {
-                        void innerSetState(void Function() fn) {
-                          builderSetState(() => setState(fn));
-                        }
-
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            LabeledDropdownButton(
-                              labelText: "Format",
-                              value: dateFormat,
-                              hint: const Text("Format"),
-                              onChanged: (value) {
-                                if (value == null) return;
-                                innerSetState(() => dateFormat = value);
-                              },
-                              items: DateFormat.values
-                                  .map((fmt) => DropdownMenuItem(
-                                        value: fmt,
-                                        child: Text(fmt.asString()),
-                                      ))
-                                  .toList(),
-                            ),
-                            LabeledDropdownButton(
-                              labelText: "Delimiter",
-                              value: dateDelimiter,
-                              hint: const Text("Delimiter"),
-                              style: widget.monospaceTextStyle,
-                              onChanged: (value) {
-                                if (value == null) return;
-                                innerSetState(() => dateDelimiter = value);
-                              },
-                              items: dateDelimiters.characters
-                                  .map((del) => DropdownMenuItem(
-                                        value: del,
-                                        child: Text(del),
-                                      ))
-                                  .toList(),
-                            ),
-                          ],
-                        );
+      body: !loading
+          ? SettingsList(
+              platform: DevicePlatform.android,
+              applicationType: ApplicationType.material,
+              sections: [
+                SettingsSection(
+                  title: const Text("General"),
+                  tiles: [
+                    SettingsTile.switchTile(
+                      initialValue: settings.useThousandsSeparator,
+                      onToggle: (value) {
+                        setState(() => settings.useThousandsSeparator = value);
+                        saveSettings();
                       },
+                      title: const Text("Use thousands separator"),
+                      description: const Text(
+                        "Format result numbers with a thousands separator, e.g. 1_000_000",
+                      ),
                     ),
-                  ),
-                ).then((_) => saveSettings()),
-              ),
-            ],
-          ),
-        ],
-      ),
+                    SettingsTile.navigation(
+                      title: const Text("Date Format"),
+                      description: Text(
+                          "Current format: ${settings.dateFormat.formatDate(DateTime.now(), settings.dateDelimiter)}"),
+                      onPressed: (context) => showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text("Date Format"),
+                          content: StatefulBuilder(
+                            builder: (context, builderSetState) {
+                              void innerSetState(void Function() fn) {
+                                builderSetState(() => setState(fn));
+                              }
+
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  LabeledDropdownButton(
+                                    labelText: "Format",
+                                    value: settings.dateFormat,
+                                    hint: const Text("Format"),
+                                    onChanged: (value) {
+                                      if (value == null) return;
+                                      innerSetState(
+                                          () => settings.dateFormat = value);
+                                    },
+                                    items: DateFormat.values
+                                        .map((fmt) => DropdownMenuItem(
+                                              value: fmt,
+                                              child: Text(fmt.asString()),
+                                            ))
+                                        .toList(),
+                                  ),
+                                  LabeledDropdownButton(
+                                    labelText: "Delimiter",
+                                    value: settings.dateDelimiter,
+                                    hint: const Text("Delimiter"),
+                                    style: widget.monospaceTextStyle,
+                                    onChanged: (value) {
+                                      if (value == null) return;
+                                      innerSetState(
+                                          () => settings.dateDelimiter = value);
+                                    },
+                                    items: dateDelimiters.characters
+                                        .map((del) => DropdownMenuItem(
+                                              value: del,
+                                              child: Text(del),
+                                            ))
+                                        .toList(),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ).then((_) => saveSettings()),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : const Center(child: CircularProgressIndicator()),
     );
   }
 }

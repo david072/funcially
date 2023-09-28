@@ -17,13 +17,14 @@ dependencies:
   linked_scroll_controller: ^0.2.0
   intersperse: ^2.0.0
   settings_ui: ^2.0.2
+  shared_preferences: ^2.2.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
 
-  ffigen: ^9.0.1
+  ffigen: ^8.0.2
 
 flutter:
   uses-material-design: true

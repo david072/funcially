@@ -28,6 +28,10 @@ final DynamicLibrary _dylib = () {
 
 final CalculatorBindings bindings = CalculatorBindings(_dylib);
 
+const String spUseThousandsSeparator = "settings_use-thousands-separator";
+const String spDateFormat = "settings_date-format";
+const String spDateDelimiter = "settings_date-delimiter";
+
 void main() {
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,

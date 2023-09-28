@@ -38,10 +38,18 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   late TextFieldEditor editor;
 
   int calculator = 0;
+  late CalculatorSettings settings;
+
+  bool initFinished = false;
+  bool loading = true;
 
   @override
   void initState() {
     super.initState();
+    initialize();
+  }
+
+  Future<void> initialize() async {
     inputScrollController = scrollControllers.addAndGet();
     resultsScrollController = scrollControllers.addAndGet();
     lineNumbersScrollController = scrollControllers.addAndGet();
@@ -54,6 +62,14 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     );
 
     HardwareKeyboard.instance.addHandler(onHardwareEvent);
+
+    settings = await CalculatorSettings.load();
+    if (calculator != 0) {
+      settings.saveSettingsToCalculator(calculator);
+      setState(() => loading = false);
+    }
+
+    initFinished = true;
   }
 
   bool onHardwareEvent(KeyEvent event) {
@@ -67,7 +83,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   @override
   void afterFirstLayout(BuildContext context) {
     calculator = bindings.create_calculator();
-    setState(() {});
+    if (initFinished) {
+      settings.saveSettingsToCalculator(calculator);
+      setState(() => loading = false);
+    }
   }
 
   @override
@@ -177,85 +196,89 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Row(
+      body: !loading
+          ? SafeArea(
+              child: Column(
                 children: [
-                  _LineNumberColumn(
-                    lineNumbersController: lineNumbersController,
-                    style: _inputTextStyle,
-                    scrollController: lineNumbersScrollController,
-                  ),
-                  const SizedBox(width: 10),
                   Expanded(
-                    child: wrapInScrollView(
-                      context: context,
-                      minWidth: textDimensions(
-                              longestLine(inputController.text),
-                              _inputTextStyle)
-                          .width,
-                      widget: bareTextField(
-                        controller: inputController,
-                        scrollController: inputScrollController,
-                        hintText: "Calculate something",
-                        textInputType: TextInputType.none,
-                        autofocus: true,
-                        focusNode: inputFocusNode,
-                        undoController: inputUndoController,
-                        textStyle: _inputTextStyle,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        left: BorderSide(color: Colors.grey.withOpacity(.5)),
-                      ),
-                      color: Colors.grey.withOpacity(.05),
-                    ),
-                    padding: const EdgeInsets.only(right: 2),
-                    width: MediaQuery.of(context).size.width * .35,
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         _LineNumberColumn(
-                          lineNumbersController: resultsLineNumbersController,
+                          lineNumbersController: lineNumbersController,
                           style: _inputTextStyle,
-                          scrollController: resultsScrollController,
+                          scrollController: lineNumbersScrollController,
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: wrapInScrollView(
                             context: context,
-                            reverse: true,
                             minWidth: textDimensions(
-                                    longestLine(resultsController.text),
+                                    longestLine(inputController.text),
                                     _inputTextStyle)
                                 .width,
                             widget: bareTextField(
-                              controller: resultsController,
-                              scrollController: resultsScrollController,
-                              readOnly: true,
-                              textAlign: TextAlign.end,
+                              controller: inputController,
+                              scrollController: inputScrollController,
+                              hintText: "Calculate something",
+                              textInputType: TextInputType.none,
+                              autofocus: true,
+                              focusNode: inputFocusNode,
+                              undoController: inputUndoController,
                               textStyle: _inputTextStyle,
                             ),
                           ),
                         ),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              left: BorderSide(
+                                  color: Colors.grey.withOpacity(.5)),
+                            ),
+                            color: Colors.grey.withOpacity(.05),
+                          ),
+                          padding: const EdgeInsets.only(right: 2),
+                          width: MediaQuery.of(context).size.width * .35,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _LineNumberColumn(
+                                lineNumbersController:
+                                    resultsLineNumbersController,
+                                style: _inputTextStyle,
+                                scrollController: resultsScrollController,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: wrapInScrollView(
+                                  context: context,
+                                  reverse: true,
+                                  minWidth: textDimensions(
+                                          longestLine(resultsController.text),
+                                          _inputTextStyle)
+                                      .width,
+                                  widget: bareTextField(
+                                    controller: resultsController,
+                                    scrollController: resultsScrollController,
+                                    readOnly: true,
+                                    textAlign: TextAlign.end,
+                                    textStyle: _inputTextStyle,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
                       ],
                     ),
-                  )
+                  ),
+                  CalculatorKeyboard(
+                    key: calculatorKeyboardKey,
+                    editor: editor,
+                  ),
                 ],
               ),
-            ),
-            CalculatorKeyboard(
-              key: calculatorKeyboardKey,
-              editor: editor,
-            ),
-          ],
-        ),
-      ),
+            )
+          : const Center(child: CircularProgressIndicator()),
     );
   }
 }
