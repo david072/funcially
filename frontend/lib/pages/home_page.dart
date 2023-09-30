@@ -5,6 +5,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/main.dart';
+import 'package:frontend/pages/plot_page.dart';
 import 'package:frontend/pages/settings_page.dart';
 import 'package:frontend/util/coloring_text_editing_controller.dart';
 import 'package:frontend/util/util.dart';
@@ -64,10 +65,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     HardwareKeyboard.instance.addHandler(onHardwareEvent);
 
     settings = await CalculatorSettings.load();
-    if (calculator != 0) {
-      settings.saveSettingsToCalculator(calculator);
-      setState(() => loading = false);
-    }
+    // if (calculator != 0) {
+    //   settings.saveSettingsToCalculator(calculator);
+    //   setState(() => loading = false);
+    // }
 
     initFinished = true;
   }
@@ -82,11 +83,11 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
   @override
   void afterFirstLayout(BuildContext context) {
-    calculator = bindings.create_calculator();
-    if (initFinished) {
-      settings.saveSettingsToCalculator(calculator);
-      setState(() => loading = false);
-    }
+    // calculator = bindings.create_calculator();
+    // if (initFinished) {
+    //   settings.saveSettingsToCalculator(calculator);
+    //   setState(() => loading = false);
+    // }
   }
 
   @override
@@ -183,6 +184,13 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       appBar: AppBar(
         title: const Text("funcially"),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PlotPage()),
+            ),
+            icon: const Icon(Icons.show_chart),
+          ),
           IconButton(
             onPressed: () async {
               await Navigator.push(
