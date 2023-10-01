@@ -40,6 +40,13 @@ class _AxisBounds {
   (double, double) record() => (min, max);
 
   bool contains(double n) => n <= max && n >= min;
+
+  void scale(double factor) {
+    // TODO: Check if this works when panning everywhere, and not just in the middle of the screen
+    var rangeMiddle = min + (max - min) / 2;
+    min = (min - rangeMiddle) / factor + rangeMiddle;
+    max = (max - rangeMiddle) / factor + rangeMiddle;
+  }
 }
 
 class _PlotBounds {
@@ -289,7 +296,31 @@ class PlotWidget extends StatefulWidget {
 class _PlotWidgetState extends State<PlotWidget> {
   _PlotBounds? bounds;
 
-  late Offset previousPanPos;
+  late Offset previousScalePos;
+  late double lastScalingFactor;
+
+  void panBounds(ScaleUpdateDetails details, BoxConstraints constraints) {
+    var delta = details.localFocalPoint - previousScalePos;
+
+    // x panning
+    var diff = delta.dx * (bounds!.x.length / constraints.maxWidth);
+    bounds!.x.min -= diff;
+    bounds!.x.max -= diff;
+
+    // y panning
+    diff = delta.dy * (bounds!.y.length / constraints.maxHeight);
+    bounds!.y.min -= diff;
+    bounds!.y.max -= diff;
+
+    previousScalePos = details.localFocalPoint;
+  }
+
+  void scaleBounds(ScaleUpdateDetails details, BoxConstraints constraints) {
+    var scalingFactor = details.scale / lastScalingFactor;
+    bounds!.x.scale(scalingFactor);
+    bounds!.y.scale(scalingFactor);
+    lastScalingFactor = details.scale;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -302,23 +333,17 @@ class _PlotWidgetState extends State<PlotWidget> {
       }
 
       return GestureDetector(
-        onPanStart: (details) {
-          previousPanPos = details.localPosition;
+        // onTap: () {
+        //   bounds!.x.scale(.5);
+        //   bounds!.y.scale(.5);
+        // },
+        onScaleStart: (details) {
+          previousScalePos = details.localFocalPoint;
+          lastScalingFactor = 1;
         },
-        onPanUpdate: (details) {
-          var delta = details.localPosition - previousPanPos;
-
-          // x panning
-          var diff = delta.dx * (bounds!.x.length / constraints.maxWidth);
-          bounds!.x.min -= diff;
-          bounds!.x.max -= diff;
-
-          // y panning
-          diff = delta.dy * (bounds!.y.length / constraints.maxHeight);
-          bounds!.y.min -= diff;
-          bounds!.y.max -= diff;
-
-          previousPanPos = details.localPosition;
+        onScaleUpdate: (details) {
+          panBounds(details, constraints);
+          scaleBounds(details, constraints);
           setState(() {});
         },
         child: CustomPaint(
