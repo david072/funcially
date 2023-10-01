@@ -287,59 +287,47 @@ class PlotWidget extends StatefulWidget {
 }
 
 class _PlotWidgetState extends State<PlotWidget> {
-  late _PlotBounds bounds;
+  _PlotBounds? bounds;
 
   late Offset previousPanPos;
 
   @override
-  void initState() {
-    super.initState();
-    var mediaQuery = (context
-            .getElementForInheritedWidgetOfExactType<MediaQuery>()!
-            .widget as MediaQuery)
-        .data;
-    var aspectRatio = mediaQuery.size.height / mediaQuery.size.width;
-
-    var minX = -12.0;
-    var maxX = 12.0;
-    var minY = minX * aspectRatio;
-    var maxY = maxX * aspectRatio;
-
-    bounds = _PlotBounds(
-      x: _AxisBounds(min: minX, max: maxX),
-      y: _AxisBounds(min: minY, max: maxY),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanStart: (details) {
-        previousPanPos = details.localPosition;
-      },
-      onPanUpdate: (details) {
-        var delta = details.localPosition - previousPanPos;
+    return LayoutBuilder(builder: (context, constraints) {
+      if (bounds == null) {
+        var aspectRatio = constraints.maxHeight / constraints.maxWidth;
+        var x = _AxisBounds(min: -12, max: 12);
+        var y = _AxisBounds(min: x.min * aspectRatio, max: x.max * aspectRatio);
+        bounds = _PlotBounds(x: x, y: y);
+      }
 
-        var screenSize = MediaQuery.sizeOf(context);
-        // x panning
-        var diff = delta.dx * (bounds.x.length / screenSize.width);
-        bounds.x.min -= diff;
-        bounds.x.max -= diff;
+      return GestureDetector(
+        onPanStart: (details) {
+          previousPanPos = details.localPosition;
+        },
+        onPanUpdate: (details) {
+          var delta = details.localPosition - previousPanPos;
 
-        // y panning
-        diff = delta.dy * (bounds.y.length / screenSize.height);
-        bounds.y.min -= diff;
-        bounds.y.max -= diff;
+          // x panning
+          var diff = delta.dx * (bounds!.x.length / constraints.maxWidth);
+          bounds!.x.min -= diff;
+          bounds!.x.max -= diff;
 
-        previousPanPos = details.localPosition;
-        setState(() {});
-      },
-      child: CustomPaint(
-        painter: _PlotPainter(
-          bounds: bounds,
+          // y panning
+          diff = delta.dy * (bounds!.y.length / constraints.maxHeight);
+          bounds!.y.min -= diff;
+          bounds!.y.max -= diff;
+
+          previousPanPos = details.localPosition;
+          setState(() {});
+        },
+        child: CustomPaint(
+          painter: _PlotPainter(
+            bounds: bounds!,
+          ),
+          size: Size.infinite,
         ),
-        size: Size.infinite,
-      ),
-    );
+      );
+    });
   }
 }
