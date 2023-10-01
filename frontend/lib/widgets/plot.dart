@@ -14,19 +14,39 @@ String doubleToString(double d) =>
     d.toString().replaceAll(RegExp(r"\.0*(?!\d)"), "");
 
 enum _PositionMode {
+  /// The given Offset is the bottom left corner
   bottomLeft,
+
+  /// The given Offset is the bottom right corner
   bottomRight,
+
+  /// The given Offset is the bottom left corner by default,
+  /// however if there isn't enough space, use the bottom right corner instead.
+  bottomLeftJustifyRight,
+
+  /// The given Offset is the bottom left corner by default,
+  /// however if there isn't enough space, use the top left corner instead.
+  bottomLeftJustifyTop,
+}
+
+class _AxisBounds {
+  double min;
+  double max;
+
+  _AxisBounds({required this.min, required this.max});
+
+  double get length => max - min;
+
+  (double, double) record() => (min, max);
+
+  bool contains(double n) => n <= max && n >= min;
 }
 
 class _PlotBounds {
-  List<double> min;
-  List<double> max;
+  _AxisBounds x;
+  _AxisBounds y;
 
-  _PlotBounds({required this.min, required this.max});
-
-  (double, double) get x => (min[0], max[0]);
-
-  (double, double) get y => (min[1], max[1]);
+  _PlotBounds({required this.x, required this.y});
 }
 
 class _PlotPainter extends CustomPainter {
@@ -80,55 +100,73 @@ class _PlotPainter extends CustomPainter {
   }
 
   void drawLabels(Canvas canvas, Size size) {
+    double yAxisPosition;
+    if (bounds.x.contains(0)) {
+      yAxisPosition = xNumberToPixel(0, size);
+    } else if (bounds.x.min > 0 && bounds.x.max > 0) {
+      yAxisPosition = 0;
+    } else {
+      yAxisPosition = size.width;
+    }
+
     intervalDraw(
       canvas,
       size,
       bounds.y,
       yNumberToPixel,
-      (n, y, paint) => drawText(
-        doubleToString(n),
-        Offset(size.width / 2 + 2.5, y),
-        canvas,
-        size,
-        textStyle: TextStyle(
-          fontSize: 12,
-          color: paint.color,
-        ),
-        positionMode: _PositionMode.bottomLeft,
-      ),
-    );
-
-    intervalDraw(
-      canvas,
-      size,
-      bounds.x,
-      xNumberToPixel,
-      (n, x, paint) {
-        // skip n = 0, since the vertical draw pass from above did that already
+      (n, y, paint) {
+        // skip n = 0, since we use the x axis to draw it
         if (n == 0) return;
         drawText(
           doubleToString(n),
-          Offset(x + 2.5, size.height / 2),
+          Offset(yAxisPosition, y),
           canvas,
           size,
           textStyle: TextStyle(
             fontSize: 12,
             color: paint.color,
           ),
-          positionMode: _PositionMode.bottomLeft,
+          positionMode: _PositionMode.bottomLeftJustifyRight,
         );
       },
+    );
+
+    double xAxisPosition;
+    if (bounds.y.contains(0)) {
+      xAxisPosition = yNumberToPixel(0, size);
+    } else if (bounds.y.min > 0 && bounds.y.max > 0) {
+      xAxisPosition = 0;
+    } else {
+      xAxisPosition = size.height;
+    }
+
+    intervalDraw(
+      canvas,
+      size,
+      bounds.x,
+      xNumberToPixel,
+      (n, x, paint) => drawText(
+        doubleToString(n),
+        Offset(x + 2.5, xAxisPosition),
+        canvas,
+        size,
+        textStyle: TextStyle(
+          fontSize: 12,
+          color: paint.color,
+        ),
+        positionMode: _PositionMode.bottomLeftJustifyTop,
+      ),
     );
   }
 
   void intervalDraw(
     Canvas canvas,
     Size size,
-    (double, double) bounds,
+    _AxisBounds bounds,
     double Function(double, Size) numberToPixelFn,
     void Function(double, double, Paint) draw,
   ) {
-    var (min, max) = bounds;
+    var (min, max) = bounds.record();
     var (baseInterval, smallInterval) = calculateIntervals(min, max);
 
     var smallIntervalPaint =
@@ -189,10 +227,10 @@ class _PlotPainter extends CustomPainter {
   }
 
   double xNumberToPixel(double x, Size size) =>
-      map(x, bounds.min[0], bounds.max[0], 0, size.width);
+      map(x, bounds.x.min, bounds.x.max, 0, size.width);
 
   double yNumberToPixel(double y, Size size) =>
-      map(y, bounds.min[1], bounds.max[1], 0, size.height);
+      map(y, bounds.y.min, bounds.y.max, 0, size.height);
 
   void drawText(
     String text,
@@ -207,12 +245,30 @@ class _PlotPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
     painter.layout(minWidth: 0, maxWidth: size.width);
+
+    Offset bottomLeftOffset() => Offset(pos.dx, pos.dy - painter.size.height);
+    Offset bottomRightOffset() =>
+        Offset(pos.dx - painter.size.width, pos.dy - painter.size.height);
+
     switch (positionMode) {
       case _PositionMode.bottomLeft:
-        pos = Offset(pos.dx, pos.dy - painter.size.height);
+        pos = bottomLeftOffset();
         break;
       case _PositionMode.bottomRight:
-        pos = Offset(pos.dx - painter.size.width, pos.dy - painter.size.height);
+        pos = bottomRightOffset();
+        break;
+      case _PositionMode.bottomLeftJustifyRight:
+        if (bottomLeftOffset().dx + painter.size.width >= size.width) {
+          pos = bottomRightOffset();
+        } else {
+          pos = bottomLeftOffset();
+        }
+        break;
+      case _PositionMode.bottomLeftJustifyTop:
+        pos = bottomLeftOffset();
+        if (pos.dy - painter.size.height < 0) {
+          pos = Offset(pos.dx, pos.dy + painter.size.height);
+        }
         break;
     }
 
@@ -233,6 +289,8 @@ class PlotWidget extends StatefulWidget {
 class _PlotWidgetState extends State<PlotWidget> {
   late _PlotBounds bounds;
 
+  late Offset previousPanPos;
+
   @override
   void initState() {
     super.initState();
@@ -247,16 +305,41 @@ class _PlotWidgetState extends State<PlotWidget> {
     var minY = minX * aspectRatio;
     var maxY = maxX * aspectRatio;
 
-    bounds = _PlotBounds(min: [minX, minY], max: [maxX, maxY]);
+    bounds = _PlotBounds(
+      x: _AxisBounds(min: minX, max: maxX),
+      y: _AxisBounds(min: minY, max: maxY),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _PlotPainter(
-        bounds: bounds,
+    return GestureDetector(
+      onPanStart: (details) {
+        previousPanPos = details.localPosition;
+      },
+      onPanUpdate: (details) {
+        var delta = details.localPosition - previousPanPos;
+
+        var screenSize = MediaQuery.sizeOf(context);
+        // x panning
+        var diff = delta.dx * (bounds.x.length / screenSize.width);
+        bounds.x.min -= diff;
+        bounds.x.max -= diff;
+
+        // y panning
+        diff = delta.dy * (bounds.y.length / screenSize.height);
+        bounds.y.min -= diff;
+        bounds.y.max -= diff;
+
+        previousPanPos = details.localPosition;
+        setState(() {});
+      },
+      child: CustomPaint(
+        painter: _PlotPainter(
+          bounds: bounds,
+        ),
+        size: Size.infinite,
       ),
-      size: Size.infinite,
     );
   }
 }
