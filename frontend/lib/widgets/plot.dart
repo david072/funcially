@@ -1,11 +1,16 @@
-import 'dart:math';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-double log10(num x) => log(x) / ln10;
+double log10(num x) => math.log(x) / math.ln10;
 
 double map(double n, double a1, double b1, double a2, double b2) =>
     (n - a1) * (b2 - a2) / (b1 - a1) + a2;
+
+double roundDp(double n, int dp) {
+  var multiplier = math.pow(10, dp);
+  return (n * multiplier).roundToDouble() / multiplier;
+}
 
 /// Converts the double to a string and removes trailing zeroes.
 ///
@@ -56,9 +61,32 @@ class _PlotBounds {
   _PlotBounds({required this.x, required this.y});
 }
 
+class _Intervals {
+  final double smallInterval;
+  final double smallPower;
+  final double baseInterval;
+  final double basePower;
+
+  _Intervals({
+    required this.smallInterval,
+    required this.baseInterval,
+    required this.smallPower,
+    required this.basePower,
+  });
+
+  _Intervals min(_Intervals other) {
+    return _Intervals(
+      smallInterval: math.min(other.smallInterval, smallInterval),
+      smallPower: math.min(other.smallPower, smallPower),
+      baseInterval: math.min(other.baseInterval, baseInterval),
+      basePower: math.min(other.basePower, basePower),
+    );
+  }
+}
+
 class _PlotPainter extends CustomPainter {
   static const baseColor = Colors.white;
-  static const minLargeIntervalDistance = 14.0;
+  static const minLargeIntervalDistance = 10.0;
   static const maxLargeIntervalDistance = 50.0;
 
   final _PlotBounds bounds;
@@ -73,8 +101,11 @@ class _PlotPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    drawGrid(canvas, size);
-    drawLabels(canvas, size);
+    var xIntervals = calculateIntervals(bounds.x);
+    var yIntervals = calculateIntervals(bounds.y);
+    var intervals = xIntervals.min(yIntervals);
+    drawGrid(canvas, size, intervals);
+    drawLabels(canvas, size, intervals);
 
     // canvas.drawLine(Offset(0, 10), Offset(size.width, 10), baseIntervalPaint);
     // drawText(
@@ -86,13 +117,14 @@ class _PlotPainter extends CustomPainter {
     // );
   }
 
-  void drawGrid(Canvas canvas, Size size) {
+  void drawGrid(Canvas canvas, Size size, _Intervals intervals) {
     intervalDraw(
       canvas,
       size,
       bounds.y,
+      intervals,
       yNumberToPixel,
-      (_, y, paint) =>
+      (n, y, paint) =>
           canvas.drawLine(Offset(0, y), Offset(size.width, y), paint),
     );
 
@@ -100,13 +132,14 @@ class _PlotPainter extends CustomPainter {
       canvas,
       size,
       bounds.x,
+      intervals,
       xNumberToPixel,
       (_, x, paint) =>
           canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint),
     );
   }
 
-  void drawLabels(Canvas canvas, Size size) {
+  void drawLabels(Canvas canvas, Size size, _Intervals intervals) {
     double yAxisPosition;
     if (bounds.x.contains(0)) {
       yAxisPosition = xNumberToPixel(0, size);
@@ -120,6 +153,7 @@ class _PlotPainter extends CustomPainter {
       canvas,
       size,
       bounds.y,
+      intervals,
       yNumberToPixel,
       (n, y, paint) {
         // skip n = 0, since we use the x axis to draw it
@@ -151,6 +185,7 @@ class _PlotPainter extends CustomPainter {
       canvas,
       size,
       bounds.x,
+      intervals,
       xNumberToPixel,
       (n, x, paint) => drawText(
         doubleToString(n),
@@ -170,31 +205,45 @@ class _PlotPainter extends CustomPainter {
     Canvas canvas,
     Size size,
     _AxisBounds bounds,
+    _Intervals intervals,
     double Function(double, Size) numberToPixelFn,
     void Function(double, double, Paint) draw,
   ) {
     var (min, max) = bounds.record();
-    var (baseInterval, smallInterval) = calculateIntervals(min, max);
 
     var smallIntervalPaint =
-        getSmallIntervalPaint(smallInterval, size, numberToPixelFn);
+        getSmallIntervalPaint(intervals.smallInterval, size, numberToPixelFn);
 
-    var startOffset = calculateStartOffset(smallInterval, min);
-    for (double n = startOffset + min; n <= max; n += smallInterval) {
-      var px = numberToPixelFn(n, size);
-      var isBaseInterval = n % baseInterval == 0;
-      draw(n, px, isBaseInterval ? baseIntervalPaint : smallIntervalPaint);
+    void drawInterval(double interval, double power, double min, Paint paint) {
+      var startOffset = calculateStartOffset(interval, min);
+      for (double n = startOffset + min; n <= max; n += interval) {
+        var px = numberToPixelFn(n, size);
+        int dp = power < 0 ? power.abs().toInt() : 0;
+        var nRounded = roundDp(n, dp);
+        if (nRounded == -0.0) nRounded = 0;
+        draw(nRounded, px, paint);
+      }
     }
+
+    drawInterval(
+        intervals.smallInterval, intervals.smallPower, min, smallIntervalPaint);
+    drawInterval(
+        intervals.baseInterval, intervals.basePower, min, baseIntervalPaint);
   }
 
-  (double, double) calculateIntervals(double min, double max) {
+  _Intervals calculateIntervals(_AxisBounds bounds) {
     // log10(interval length) gives us the magnitude of the numbers in the range
     // i.e. [-12; 12] would have a length of 24, and floor(log10(24)) = 1
     // our step size is then 10 to the power of that, meaning 10^1.
-    var power = log10(max - min).floorToDouble();
-    var smallInterval = pow(10.0, power - 1) as double;
-    var baseInterval = pow(10.0, power) as double;
-    return (baseInterval, smallInterval);
+    var power = log10(bounds.length).floorToDouble();
+    var smallInterval = math.pow(10.0, power - 1) as double;
+    var baseInterval = math.pow(10.0, power) as double;
+    return _Intervals(
+      baseInterval: baseInterval,
+      basePower: power,
+      smallInterval: smallInterval,
+      smallPower: power - 1,
+    );
   }
 
   double calculateStartOffset(double interval, double min) {
@@ -333,10 +382,6 @@ class _PlotWidgetState extends State<PlotWidget> {
       }
 
       return GestureDetector(
-        // onTap: () {
-        //   bounds!.x.scale(.5);
-        //   bounds!.y.scale(.5);
-        // },
         onScaleStart: (details) {
           previousScalePos = details.localFocalPoint;
           lastScalingFactor = 1;
