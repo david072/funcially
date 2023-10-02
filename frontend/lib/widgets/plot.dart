@@ -46,12 +46,16 @@ class _AxisBounds {
 
   bool contains(double n) => n <= max && n >= min;
 
-  void scale(double factor) {
-    // TODO: Check if this works when panning everywhere, and not just in the middle of the screen
-    var rangeMiddle = min + (max - min) / 2;
-    min = (min - rangeMiddle) / factor + rangeMiddle;
-    max = (max - rangeMiddle) / factor + rangeMiddle;
+  void scale(double factor, double focalPoint) {
+    min = (min - focalPoint) / factor + focalPoint;
+    max = (max - focalPoint) / factor + focalPoint;
   }
+
+  double numberToPixel(double n, double maxSize, {bool invert = false}) =>
+      map(n, min, max, 0, maxSize);
+
+  double pixelToNumber(double px, double maxSize) =>
+      map(px, 0, maxSize, min, max);
 }
 
 class _PlotBounds {
@@ -275,10 +279,10 @@ class _PlotPainter extends CustomPainter {
   }
 
   double xNumberToPixel(double x, Size size) =>
-      map(x, bounds.x.min, bounds.x.max, 0, size.width);
+      bounds.x.numberToPixel(x, size.width);
 
   double yNumberToPixel(double y, Size size) =>
-      size.height - map(y, bounds.y.min, bounds.y.max, 0, size.height);
+      size.height - bounds.y.numberToPixel(y, size.height);
 
   void drawText(
     String text,
@@ -358,8 +362,16 @@ class _PlotWidgetState extends State<PlotWidget> {
 
   void scaleBounds(ScaleUpdateDetails details, BoxConstraints constraints) {
     var scalingFactor = details.scale / lastScalingFactor;
-    bounds!.x.scale(scalingFactor);
-    bounds!.y.scale(scalingFactor);
+    bounds!.x.scale(
+      scalingFactor,
+      bounds!.x.pixelToNumber(details.localFocalPoint.dx, constraints.maxWidth),
+    );
+    bounds!.y.scale(
+      scalingFactor,
+      bounds!.y.pixelToNumber(
+          constraints.maxHeight - details.localFocalPoint.dy,
+          constraints.maxHeight),
+    );
     lastScalingFactor = details.scale;
   }
 
