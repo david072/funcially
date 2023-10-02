@@ -106,15 +106,6 @@ class _PlotPainter extends CustomPainter {
     var intervals = xIntervals.min(yIntervals);
     drawGrid(canvas, size, intervals);
     drawLabels(canvas, size, intervals);
-
-    // canvas.drawLine(Offset(0, 10), Offset(size.width, 10), baseIntervalPaint);
-    // drawText(
-    //   "10",
-    //   Offset(size.width, 10),
-    //   canvas,
-    //   size,
-    //   positionMode: _PositionMode.bottomRight,
-    // );
   }
 
   void drawGrid(Canvas canvas, Size size, _Intervals intervals) {
@@ -267,8 +258,9 @@ class _PlotPainter extends CustomPainter {
   ) {
     var p1 = numberToPixel(smallInterval, size);
     var p2 = numberToPixel(smallInterval * 2, size);
+    var diff = p2 > p1 ? p2 - p1 : p1 - p2;
     var distanceBetweenLargeIntervalTicks =
-        (p2 - p1).clamp(minLargeIntervalDistance, maxLargeIntervalDistance);
+        diff.clamp(minLargeIntervalDistance, maxLargeIntervalDistance);
 
     var smallIntervalPaintOpacity = map(
       distanceBetweenLargeIntervalTicks,
@@ -286,7 +278,7 @@ class _PlotPainter extends CustomPainter {
       map(x, bounds.x.min, bounds.x.max, 0, size.width);
 
   double yNumberToPixel(double y, Size size) =>
-      map(y, bounds.y.min, bounds.y.max, 0, size.height);
+      size.height - map(y, bounds.y.min, bounds.y.max, 0, size.height);
 
   void drawText(
     String text,
@@ -358,8 +350,8 @@ class _PlotWidgetState extends State<PlotWidget> {
 
     // y panning
     diff = delta.dy * (bounds!.y.length / constraints.maxHeight);
-    bounds!.y.min -= diff;
-    bounds!.y.max -= diff;
+    bounds!.y.min += diff;
+    bounds!.y.max += diff;
 
     previousScalePos = details.localFocalPoint;
   }
