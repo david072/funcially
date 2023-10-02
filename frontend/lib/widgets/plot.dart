@@ -89,7 +89,7 @@ class _Intervals {
 }
 
 class _PlotPainter extends CustomPainter {
-  static const baseColor = Colors.white;
+  static const baseColor = Colors.grey;
   static const minLargeIntervalDistance = 10.0;
   static const maxLargeIntervalDistance = 50.0;
 
@@ -171,9 +171,9 @@ class _PlotPainter extends CustomPainter {
     if (bounds.y.contains(0)) {
       xAxisPosition = yNumberToPixel(0, size);
     } else if (bounds.y.min > 0 && bounds.y.max > 0) {
-      xAxisPosition = 0;
-    } else {
       xAxisPosition = size.height;
+    } else {
+      xAxisPosition = 0;
     }
 
     intervalDraw(
