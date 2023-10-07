@@ -426,102 +426,114 @@ class PlotWidget extends StatefulWidget {
 }
 
 class _PlotWidgetState extends State<PlotWidget> {
-  List<(bool, PlotGraph)> graphs = const [];
+  List<(bool, PlotGraph)> _graphs = const [];
 
-  _PlotBounds? bounds;
+  _PlotBounds? _bounds;
+  BoxConstraints? _previousConstraints;
 
-  late Offset previousScalePos;
-  late double lastScalingFactor;
+  late Offset _previousScalePos;
+  late double _lastScalingFactor;
 
-  void panBounds(ScaleUpdateDetails details, BoxConstraints constraints) {
-    var delta = details.localFocalPoint - previousScalePos;
+  void _panBounds(ScaleUpdateDetails details, BoxConstraints constraints) {
+    var delta = details.localFocalPoint - _previousScalePos;
 
     // x panning
-    var diff = delta.dx * (bounds!.x.length / constraints.maxWidth);
-    bounds!.x.min -= diff;
-    bounds!.x.max -= diff;
+    var diff = delta.dx * (_bounds!.x.length / constraints.maxWidth);
+    _bounds!.x.min -= diff;
+    _bounds!.x.max -= diff;
 
     // y panning
-    diff = delta.dy * (bounds!.y.length / constraints.maxHeight);
-    bounds!.y.min += diff;
-    bounds!.y.max += diff;
+    diff = delta.dy * (_bounds!.y.length / constraints.maxHeight);
+    _bounds!.y.min += diff;
+    _bounds!.y.max += diff;
 
-    previousScalePos = details.localFocalPoint;
+    _previousScalePos = details.localFocalPoint;
   }
 
-  void scaleBounds(ScaleUpdateDetails details, BoxConstraints constraints) {
-    var scalingFactor = details.scale / lastScalingFactor;
-    bounds!.x.scale(
+  void _scaleBounds(ScaleUpdateDetails details, BoxConstraints constraints) {
+    var scalingFactor = details.scale / _lastScalingFactor;
+    _bounds!.x.scale(
       scalingFactor,
-      bounds!.x.pixelToNumber(details.localFocalPoint.dx, constraints.maxWidth),
+      _bounds!.x
+          .pixelToNumber(details.localFocalPoint.dx, constraints.maxWidth),
     );
-    bounds!.y.scale(
+    _bounds!.y.scale(
       scalingFactor,
-      bounds!.y.pixelToNumber(
+      _bounds!.y.pixelToNumber(
           constraints.maxHeight - details.localFocalPoint.dy,
           constraints.maxHeight),
     );
-    lastScalingFactor = details.scale;
+    _lastScalingFactor = details.scale;
   }
 
   @override
   void initState() {
     super.initState();
-    updateGraphs(widget);
+    _updateGraphs(widget);
   }
 
   @override
   void didUpdateWidget(PlotWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    updateGraphs(oldWidget);
+    _updateGraphs(oldWidget);
   }
 
-  void updateGraphs(PlotWidget widget) {
-    if (graphs.isEmpty) {
-      graphs = widget.graphs.map((g) => (true, g)).toList();
+  void _updateGraphs(PlotWidget widget) {
+    if (_graphs.isEmpty) {
+      _graphs = widget.graphs.map((g) => (true, g)).toList();
       return;
     }
 
     var newGraphs = const <(bool, PlotGraph)>[];
     for (var g in widget.graphs) {
-      var index = graphs.indexWhere((e) => e.$2.name == g.name);
+      var index = _graphs.indexWhere((e) => e.$2.name == g.name);
       if (index != -1) {
-        newGraphs.add((graphs[index].$1, g));
+        newGraphs.add((_graphs[index].$1, g));
         continue;
       }
 
       newGraphs.add((true, g));
     }
 
-    graphs = newGraphs;
+    _graphs = newGraphs;
+  }
+
+  _AxisBounds _calculateYBounds(_AxisBounds x, BoxConstraints constraints) {
+    var aspectRatio = constraints.maxHeight / constraints.maxWidth;
+    return _AxisBounds(min: x.min * aspectRatio, max: x.max * aspectRatio);
   }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      if (bounds == null) {
-        var aspectRatio = constraints.maxHeight / constraints.maxWidth;
+      if (_bounds == null) {
         var x = _AxisBounds(min: -12, max: 12);
-        var y = _AxisBounds(min: x.min * aspectRatio, max: x.max * aspectRatio);
-        bounds = _PlotBounds(x: x, y: y);
+        _bounds = _PlotBounds(x: x, y: _calculateYBounds(x, constraints));
+      }
+
+      _previousConstraints ??= constraints;
+
+      if (constraints != _previousConstraints) {
+        _bounds!.y = _calculateYBounds(_bounds!.x, constraints);
+        _previousConstraints = constraints;
       }
 
       return Stack(
         children: [
           GestureDetector(
             onScaleStart: (details) {
-              previousScalePos = details.localFocalPoint;
-              lastScalingFactor = 1;
+              _previousScalePos = details.localFocalPoint;
+              _lastScalingFactor = 1;
             },
             onScaleUpdate: (details) {
-              panBounds(details, constraints);
-              scaleBounds(details, constraints);
+              _panBounds(details, constraints);
+              _scaleBounds(details, constraints);
               setState(() {});
             },
             child: CustomPaint(
               painter: _PlotPainter(
-                bounds: bounds!,
-                graphs: graphs.where((e) => e.$1).map((e) => e.$2).toList(),
+                bounds: _bounds!,
+                graphs: _graphs.where((e) => e.$1).map((e) => e.$2).toList(),
               ),
               size: Size.infinite,
             ),
@@ -529,9 +541,9 @@ class _PlotWidgetState extends State<PlotWidget> {
           Align(
             alignment: Alignment.bottomRight,
             child: _PlotLegend(
-              graphs: graphs,
+              graphs: _graphs,
               onChanged: (i, enabled) {
-                graphs[i] = (enabled, graphs[i].$2);
+                _graphs[i] = (enabled, _graphs[i].$2);
                 setState(() {});
               },
             ),
