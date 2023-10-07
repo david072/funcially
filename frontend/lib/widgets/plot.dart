@@ -56,6 +56,16 @@ class _AxisBounds {
 
   double pixelToNumber(double px, double maxSize) =>
       map(px, 0, maxSize, min, max);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _AxisBounds &&
+      other.runtimeType == runtimeType &&
+      other.min == min &&
+      other.max == max;
+
+  @override
+  int get hashCode => Object.hash(min, max);
 }
 
 class _PlotBounds {
@@ -63,6 +73,13 @@ class _PlotBounds {
   _AxisBounds y;
 
   _PlotBounds({required this.x, required this.y});
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PlotBounds && other.x == x && other.y == y;
+
+  @override
+  int get hashCode => Object.hash(x, y);
 }
 
 class _Intervals {
@@ -94,9 +111,11 @@ class _PlotPainter extends CustomPainter {
   static const maxLargeIntervalDistance = 50.0;
 
   final _PlotBounds bounds;
+  final List<PlotGraph> graphs;
 
   _PlotPainter({
     required this.bounds,
+    this.graphs = const [],
   });
 
   Paint get baseIntervalPaint => Paint()
@@ -110,6 +129,37 @@ class _PlotPainter extends CustomPainter {
     var intervals = xIntervals.min(yIntervals);
     drawGrid(canvas, size, intervals);
     drawLabels(canvas, size, intervals);
+
+    for (var graph in graphs) {
+      drawGraph(canvas, size, intervals, graph);
+    }
+  }
+
+  void drawGraph(
+    Canvas canvas,
+    Size size,
+    _Intervals intervals,
+    PlotGraph graph,
+  ) {
+    var paint = Paint()
+      ..color = graph.color
+      ..strokeWidth = 1;
+    var points = graph._generatePoints(
+        bounds.x, math.pow(10, intervals.smallPower - 1) as double);
+    Offset? lastPoint;
+    for (var point in points) {
+      var (x, y) = (
+        xNumberToPixel(point.$1, size),
+        yNumberToPixel(point.$2, size),
+      );
+      if (lastPoint == null) {
+        lastPoint = Offset(x, y);
+        continue;
+      }
+
+      canvas.drawLine(lastPoint, Offset(x, y), paint);
+      lastPoint = Offset(x, y);
+    }
   }
 
   void drawGrid(Canvas canvas, Size size, _Intervals intervals) {
@@ -328,11 +378,46 @@ class _PlotPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(_PlotPainter oldPainter) =>
+      oldPainter.bounds != bounds || oldPainter.graphs != graphs;
+}
+
+class PlotGraph {
+  final Color color;
+  final double Function(double x) function;
+
+  const PlotGraph({
+    required this.function,
+    this.color = Colors.white,
+  });
+
+  List<(double, double)> _generatePoints(
+    _AxisBounds xRange,
+    double pointOffset,
+  ) {
+    List<(double, double)> result = [];
+    for (double x = xRange.min; x <= xRange.max; x += pointOffset) {
+      result.add((x, function(x)));
+    }
+
+    return result;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is PlotGraph && other.color == color && other.function == function;
+
+  @override
+  int get hashCode => Object.hash(color, function);
 }
 
 class PlotWidget extends StatefulWidget {
-  const PlotWidget({super.key});
+  const PlotWidget({
+    super.key,
+    this.graphs = const [],
+  });
+
+  final List<PlotGraph> graphs;
 
   @override
   State<PlotWidget> createState() => _PlotWidgetState();
@@ -398,6 +483,7 @@ class _PlotWidgetState extends State<PlotWidget> {
         child: CustomPaint(
           painter: _PlotPainter(
             bounds: bounds!,
+            graphs: widget.graphs,
           ),
           size: Size.infinite,
         ),
