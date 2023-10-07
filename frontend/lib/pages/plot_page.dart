@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:frontend/widgets/plot.dart';
 
@@ -13,7 +15,18 @@ class _PlotPageState extends State<PlotPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Plot")),
-      body: const PlotWidget(),
+      body: const PlotWidget(
+        graphs: [
+          PlotGraph(
+            function: sin,
+            color: Colors.pink,
+          ),
+          PlotGraph(
+            function: cos,
+            color: Colors.green,
+          ),
+        ],
+      ),
     );
   }
 }
