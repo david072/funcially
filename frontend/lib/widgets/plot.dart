@@ -407,10 +407,7 @@ class PlotGraph {
 
   @override
   bool operator ==(Object other) =>
-      other is PlotGraph &&
-      other.name == name &&
-      other.color == color &&
-      other.function == function;
+      other is PlotGraph && other.name == name && other.color == color;
 
   @override
   int get hashCode => Object.hash(color, function);
@@ -558,47 +555,49 @@ class _PlotLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.2),
-        border: Border.all(
-          color: Colors.grey,
-        ),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      margin: const EdgeInsets.all(10),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: graphs.indexed.map((e) {
-          return GestureDetector(
-            onTap: () => onChanged(e.$1, !e.$2.$1),
-            child: Container(
-              color: Colors.transparent,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: e.$2.$1 ? e.$2.$2.color : Colors.transparent,
-                      border: Border.all(color: Colors.grey),
-                    ),
-                    width: 10,
-                    height: 10,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    e.$2.$2.name,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ],
+    return graphs.isNotEmpty
+        ? Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(.2),
+              border: Border.all(
+                color: Colors.grey,
               ),
+              borderRadius: BorderRadius.circular(5),
             ),
-          );
-        }).toList(),
-      ),
-    );
+            margin: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: graphs.indexed.map((e) {
+                return GestureDetector(
+                  onTap: () => onChanged(e.$1, !e.$2.$1),
+                  child: Container(
+                    color: Colors.transparent,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: e.$2.$1 ? e.$2.$2.color : Colors.transparent,
+                            border: Border.all(color: Colors.grey),
+                          ),
+                          width: 10,
+                          height: 10,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          e.$2.$2.name,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          )
+        : const SizedBox();
   }
 }

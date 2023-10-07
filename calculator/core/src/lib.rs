@@ -70,6 +70,7 @@ pub enum ResultData {
         arg_count: usize,
         function: Function,
     },
+    FunctionRemoval(String),
 }
 
 #[derive(Debug)]
@@ -286,7 +287,7 @@ impl Calculator {
                         .env
                         .remove_function(&name)
                         .unwrap();
-                    ResultData::Nothing
+                    ResultData::FunctionRemoval(name)
                 }
             },
             ParserResultData::Equation {
