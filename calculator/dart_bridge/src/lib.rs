@@ -8,7 +8,7 @@
 
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::RefCell;
-use std::ffi::{CStr, CString};
+use std::ffi::{c_double, CStr, CString};
 use std::mem;
 use std::ops::Range;
 use std::os::raw::c_char;
@@ -16,8 +16,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use funcially_core::{
-    Calculator, CalculatorResult, ContextData, Currencies, Environment, Result as CalcResult,
-    ResultData, Settings, Verbosity,
+    Calculator, CalculatorResult, ContextData, Currencies, Environment, NumberValue,
+    Result as CalcResult, ResultData, Settings, SourceRange, Verbosity,
 };
 
 struct AllocatableContextData {
@@ -124,6 +124,9 @@ pub struct FfiResultData {
     str_value: *const c_char,
     line_range_start: usize,
     line_range_end: usize,
+    function_name: *const c_char,
+    function_argument_count: usize,
+    function_was_defined: bool,
     is_error: bool,
     error_ranges: FfiVec<common_c::SourceRange>,
 }
@@ -168,6 +171,36 @@ pub unsafe extern "C" fn calculate(
         .into()
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn calculate_function_1(
+    calculator: usize,
+    function: *const c_char,
+    argument: c_double,
+) -> c_double {
+    let function = CStr::from_ptr(function as *mut c_char).to_str().unwrap();
+    let calc = CalculatorWrapper::load(calculator);
+    let context = calc.0.context.borrow();
+    let function = &context
+        .env
+        .functions
+        .iter()
+        .find(|(name, _)| name.as_str() == function)
+        .unwrap()
+        .1;
+    context
+        .env
+        .resolve_specific_function(
+            function,
+            &[(NumberValue::new(argument), SourceRange::empty())],
+            SourceRange::empty(),
+            calc.0.context(),
+        )
+        .map(|v| v.to_number().map(|n| n.number))
+        .ok()
+        .flatten()
+        .unwrap_or(f64::NAN)
+}
+
 fn result_to_ffi(
     result: &CalculatorResult,
     settings: &Settings,
@@ -177,10 +210,35 @@ fn result_to_ffi(
     let cstr = CString::new(str).unwrap().into_raw();
     let line_range = line_range_from_calculator_result(&result);
 
+    let mut function_name = 0 as *const c_char;
+    let mut function_argument_count = 0usize;
+    let mut function_was_defined = true;
+
+    if let Ok(res) = &result.data {
+        match &res.0 {
+            ResultData::Function {
+                name,
+                arg_count,
+                function: _,
+            } => {
+                function_name = CString::new(name.clone()).unwrap().into_raw();
+                function_argument_count = *arg_count;
+            }
+            ResultData::FunctionRemoval(name) => {
+                function_name = CString::new(name.clone()).unwrap().into_raw();
+                function_was_defined = false;
+            }
+            _ => {}
+        }
+    }
+
     FfiResultData {
         str_value: cstr,
         line_range_start: line_range.start,
         line_range_end: line_range.end,
+        function_name,
+        function_argument_count,
+        function_was_defined,
         is_error: result.data.is_err(),
         error_ranges: if let Err(e) = &result.data {
             e.ranges
@@ -243,7 +301,17 @@ pub unsafe extern "C" fn free_settings(settings: common_c::Settings) {
 
 #[no_mangle]
 pub unsafe extern "C" fn free_results(results: FfiVec<FfiCalculatorResult>) {
-    drop(results.into_vec());
+    for res in results.into_vec() {
+        drop(res.color_segments.into_vec());
+        free_str(res.data.str_value);
+        if res.data.function_name as usize != 0 {
+            free_str(res.data.function_name);
+        }
+    }
+}
+
+unsafe fn free_str(str: *const c_char) {
+    drop(CString::from_raw(str as *mut c_char));
 }
 
 #[no_mangle]

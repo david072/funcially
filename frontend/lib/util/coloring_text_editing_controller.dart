@@ -1,7 +1,21 @@
 import 'dart:convert';
 import 'dart:ffi';
 import 'package:flutter/material.dart';
-import 'package:frontend/calculator_bindings.dart' hide Color;
+import 'package:frontend/calculator_bindings.dart' hide Color, SourceRange;
+import 'package:frontend/calculator_bindings.dart' as bindings;
+
+class SourceRange {
+  int startLine, startChar;
+  int endLine, endChar;
+
+  SourceRange(this.startLine, this.startChar, this.endLine, this.endChar);
+
+  SourceRange.fromCalculatorRange(bindings.SourceRange r)
+      : startLine = r.start_line,
+        startChar = r.start_char,
+        endLine = r.end_line,
+        endChar = r.end_char;
+}
 
 class StyleSegment {
   final Color color;
@@ -25,7 +39,10 @@ class StyleSegment {
     var arr = seg.color.color;
     var r = arr[0], g = arr[1], b = arr[2], a = arr[3];
     var color = Color(a << 24 | r << 16 | g << 8 | b);
-    return StyleSegment(color: color, range: seg.range);
+    return StyleSegment(
+      color: color,
+      range: SourceRange.fromCalculatorRange(seg.range),
+    );
   }
 
   TextStyle textStyle() => TextStyle(
@@ -49,17 +66,16 @@ class ColoringTextEditingController extends TextEditingController {
         line + (i != lines.length - 1 ? "\n" : ""),
         colorSegments
             .where((seg) => seg.range != null)
-            .where(
-                (seg) => seg.range!.start_line <= i && seg.range!.end_line > i)
+            .where((seg) => seg.range!.startLine <= i && seg.range!.endLine > i)
             .map((seg) {
-          if (seg.range!.start_line != i) {
-            seg.range!.start_char = 0;
-          } else if (seg.range!.end_line > i + 1) {
-            seg.range!.end_char = -1;
+          if (seg.range!.startLine != i) {
+            seg.range!.startChar = 0;
+          } else if (seg.range!.endLine > i + 1) {
+            seg.range!.endChar = -1;
           }
 
-          seg.range!.start_line = i;
-          seg.range!.end_line = i + 1;
+          seg.range!.startLine = i;
+          seg.range!.endLine = i + 1;
           return seg;
         }).toList(),
       );
@@ -87,18 +103,18 @@ class ColoringTextEditingController extends TextEditingController {
     }
 
     lineSegments
-        .sort((a, b) => a.range!.start_char.compareTo(b.range!.start_char));
+        .sort((a, b) => a.range!.startChar.compareTo(b.range!.startChar));
 
     // print(lineSegments
-    //     .map((s) => "${s.range.start_char}..${s.range.end_char}")
+    //     .map((s) => "${s.range!.start_char}..${s.range!.end_char}")
     //     .join(",\n"));
 
     var result = <TextSpan>[];
     var lastChar = 0;
 
     for (var seg in lineSegments) {
-      var start = utf8IndexToCharIndex(line, seg.range!.start_char);
-      var end = utf8IndexToCharIndex(line, seg.range!.end_char);
+      var start = utf8IndexToCharIndex(line, seg.range!.startChar);
+      var end = utf8IndexToCharIndex(line, seg.range!.endChar);
       if (end == -1) end = line.length;
 
       if (lastChar < start) {

@@ -1,15 +1,16 @@
 import 'dart:ffi' hide Size;
+import 'dart:math';
 
 import 'package:after_layout/after_layout.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/main.dart';
-import 'package:frontend/pages/plot_page.dart';
 import 'package:frontend/pages/settings_page.dart';
 import 'package:frontend/util/coloring_text_editing_controller.dart';
 import 'package:frontend/util/util.dart';
 import 'package:frontend/widgets/custom_keyboard.dart';
+import 'package:frontend/widgets/plot.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
@@ -41,6 +42,8 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   int calculator = 0;
   late CalculatorSettings settings;
 
+  List<PlotGraph> graphs = [];
+
   bool initFinished = false;
   bool loading = true;
 
@@ -65,10 +68,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     HardwareKeyboard.instance.addHandler(onHardwareEvent);
 
     settings = await CalculatorSettings.load();
-    // if (calculator != 0) {
-    //   settings.saveSettingsToCalculator(calculator);
-    //   setState(() => loading = false);
-    // }
+    if (calculator != 0) {
+      settings.saveSettingsToCalculator(calculator);
+      setState(() => loading = false);
+    }
 
     initFinished = true;
   }
@@ -83,11 +86,11 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
   @override
   void afterFirstLayout(BuildContext context) {
-    // calculator = bindings.create_calculator();
-    // if (initFinished) {
-    //   settings.saveSettingsToCalculator(calculator);
-    //   setState(() => loading = false);
-    // }
+    calculator = bindings.create_calculator();
+    if (initFinished) {
+      settings.saveSettingsToCalculator(calculator);
+      setState(() => loading = false);
+    }
   }
 
   @override
@@ -145,7 +148,9 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
         for (int k = 0; k < calcRes.data.error_ranges.len; k++) {
           colorSegments.add(StyleSegment(
             color: Colors.red,
-            range: calcRes.data.error_ranges.array.elementAt(k).ref,
+            range: SourceRange.fromCalculatorRange(
+              calcRes.data.error_ranges.array.elementAt(k).ref,
+            ),
             decoration: TextDecoration.underline,
           ));
         }
@@ -153,6 +158,24 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
         for (int j = 0; j < calcRes.color_segments.len; j++) {
           var seg = calcRes.color_segments.array.elementAt(j).ref;
           colorSegments.add(StyleSegment.fromCalculatorColorSegment(seg));
+        }
+      }
+
+      if (res.function_name.address != 0) {
+        var name = res.function_name.cast<Utf8>().toDartString();
+        if (!res.function_was_defined) {
+          graphs.removeWhere((g) => g.name == name);
+        } else if (res.function_argument_count == 1 &&
+            graphs.indexWhere((g) => g.name == name) == -1) {
+          graphs.add(PlotGraph(
+            name: name,
+            color: Colors.primaries[Random().nextInt(Colors.primaries.length)],
+            function: (x) => bindings.calculate_function_1(
+              calculator,
+              name.toNativeUtf8().cast<Char>(),
+              x,
+            ),
+          ));
         }
       }
     }
@@ -187,7 +210,9 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
           IconButton(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const PlotPage()),
+              MaterialPageRoute(
+                builder: (_) => PlotPage(graphs: graphs.toList()),
+              ),
             ),
             icon: const Icon(Icons.show_chart),
           ),
@@ -323,6 +348,22 @@ class _LineNumberColumn extends StatelessWidget {
         readOnly: true,
         textAlign: TextAlign.end,
         textStyle: style,
+      ),
+    );
+  }
+}
+
+class PlotPage extends StatelessWidget {
+  const PlotPage({super.key, required this.graphs});
+
+  final List<PlotGraph> graphs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Plot")),
+      body: PlotWidget(
+        graphs: graphs,
       ),
     );
   }
