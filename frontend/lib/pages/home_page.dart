@@ -11,6 +11,7 @@ import 'package:frontend/util/coloring_text_editing_controller.dart';
 import 'package:frontend/util/util.dart';
 import 'package:frontend/widgets/custom_keyboard.dart';
 import 'package:frontend/widgets/plot.dart';
+import 'package:frontend/widgets/resizable_container.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
@@ -48,6 +49,9 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
   bool initFinished = false;
   bool loading = true;
+
+  double? resultsWidth;
+  double? plotWidth;
 
   @override
   void initState() {
@@ -268,16 +272,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                             ),
                           ),
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              left: BorderSide(
-                                  color: Colors.grey.withOpacity(.5)),
-                            ),
-                            color: Colors.grey.withOpacity(.05),
-                          ),
+                        ResizableContainer(
+                          color: Colors.grey.withOpacity(.05),
                           padding: const EdgeInsets.only(right: 2),
-                          width: MediaQuery.of(context).size.width * .35,
+                          initialWidth: MediaQuery.of(context).size.width * .35,
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -309,14 +307,8 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                           ),
                         ),
                         if (MediaQuery.sizeOf(context).width >= minTabletWidth)
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                left: BorderSide(
-                                    color: Colors.grey.withOpacity(.5)),
-                              ),
-                            ),
-                            width: MediaQuery.sizeOf(context).width * .2,
+                          ResizableContainer(
+                            initialWidth: MediaQuery.sizeOf(context).width * .2,
                             child: PlotWidget(
                               graphs: graphs,
                             ),
