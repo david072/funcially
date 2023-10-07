@@ -14,6 +14,8 @@ import 'package:frontend/widgets/plot.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
+const minTabletWidth = 700;
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -305,7 +307,20 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                               ),
                             ],
                           ),
-                        )
+                        ),
+                        if (MediaQuery.sizeOf(context).width >= minTabletWidth)
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                    color: Colors.grey.withOpacity(.5)),
+                              ),
+                            ),
+                            width: MediaQuery.sizeOf(context).width * .2,
+                            child: PlotWidget(
+                              graphs: graphs,
+                            ),
+                          ),
                       ],
                     ),
                   ),
