@@ -484,7 +484,7 @@ class _PlotWidgetState extends State<PlotWidget> {
       return;
     }
 
-    var newGraphs = const <(bool, PlotGraph)>[];
+    var newGraphs = <(bool, PlotGraph)>[];
     for (var g in widget.graphs) {
       var index = _graphs.indexWhere((e) => e.$2.name == g.name);
       if (index != -1) {
