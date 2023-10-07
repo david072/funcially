@@ -127,6 +127,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     var resultsText = "";
     var resultsLineNumbersText = "";
     var colorSegments = <StyleSegment>[];
+    var newGraphs = <PlotGraph>[];
 
     var lastLine = 0;
     for (int i = 0; i < results.len; i++) {
@@ -167,27 +168,30 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
         }
       }
 
-      if (res.function_name.address != 0) {
+      if (res.function_name.address != 0 && res.function_argument_count == 1) {
         var name = res.function_name.cast<Utf8>().toDartString();
-        if (!res.function_was_defined) {
-          graphs.removeWhere((g) => g.name == name);
-        } else if (res.function_argument_count == 1 &&
-            graphs.indexWhere((g) => g.name == name) == -1) {
-          graphs.add(PlotGraph(
+        var index = graphs.indexWhere((g) => g.name == name);
+        if (index == -1) {
+          newGraphs.add(PlotGraph(
             name: name,
             color: Colors.primaries[Random().nextInt(Colors.primaries.length)],
-            function: (x) => bindings.calculate_function_1(
-              calculator,
-              name.toNativeUtf8().cast<Char>(),
-              x,
-            ),
+            function: (x) {
+              return bindings.calculate_function_1(
+                calculator,
+                name.toNativeUtf8().cast<Char>(),
+                x,
+              );
+            },
           ));
+        } else {
+          newGraphs.add(graphs[index]);
         }
       }
     }
 
     bindings.free_results(results);
 
+    graphs = newGraphs;
     inputController.colorSegments = colorSegments;
     resultsController.text = resultsText;
     resultsLineNumbersController.text = resultsLineNumbersText;
