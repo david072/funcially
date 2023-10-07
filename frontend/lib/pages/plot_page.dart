@@ -18,10 +18,12 @@ class _PlotPageState extends State<PlotPage> {
       body: const PlotWidget(
         graphs: [
           PlotGraph(
+            name: "sin",
             function: sin,
             color: Colors.pink,
           ),
           PlotGraph(
+            name: "cos",
             function: cos,
             color: Colors.green,
           ),
