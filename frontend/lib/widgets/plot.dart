@@ -383,10 +383,12 @@ class _PlotPainter extends CustomPainter {
 }
 
 class PlotGraph {
+  final String name;
   final Color color;
   final double Function(double x) function;
 
   const PlotGraph({
+    required this.name,
     required this.function,
     this.color = Colors.white,
   });
@@ -405,7 +407,10 @@ class PlotGraph {
 
   @override
   bool operator ==(Object other) =>
-      other is PlotGraph && other.color == color && other.function == function;
+      other is PlotGraph &&
+      other.name == name &&
+      other.color == color &&
+      other.function == function;
 
   @override
   int get hashCode => Object.hash(color, function);
@@ -424,6 +429,8 @@ class PlotWidget extends StatefulWidget {
 }
 
 class _PlotWidgetState extends State<PlotWidget> {
+  List<(bool, PlotGraph)> graphs = const [];
+
   _PlotBounds? bounds;
 
   late Offset previousScalePos;
@@ -461,6 +468,38 @@ class _PlotWidgetState extends State<PlotWidget> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    updateGraphs(widget);
+  }
+
+  @override
+  void didUpdateWidget(PlotWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    updateGraphs(oldWidget);
+  }
+
+  void updateGraphs(PlotWidget widget) {
+    if (graphs.isEmpty) {
+      graphs = widget.graphs.map((g) => (true, g)).toList();
+      return;
+    }
+
+    var newGraphs = const <(bool, PlotGraph)>[];
+    for (var g in widget.graphs) {
+      var index = graphs.indexWhere((e) => e.$2.name == g.name);
+      if (index != -1) {
+        newGraphs.add((graphs[index].$1, g));
+        continue;
+      }
+
+      newGraphs.add((true, g));
+    }
+
+    graphs = newGraphs;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       if (bounds == null) {
@@ -470,24 +509,96 @@ class _PlotWidgetState extends State<PlotWidget> {
         bounds = _PlotBounds(x: x, y: y);
       }
 
-      return GestureDetector(
-        onScaleStart: (details) {
-          previousScalePos = details.localFocalPoint;
-          lastScalingFactor = 1;
-        },
-        onScaleUpdate: (details) {
-          panBounds(details, constraints);
-          scaleBounds(details, constraints);
-          setState(() {});
-        },
-        child: CustomPaint(
-          painter: _PlotPainter(
-            bounds: bounds!,
-            graphs: widget.graphs,
+      return Stack(
+        children: [
+          GestureDetector(
+            onScaleStart: (details) {
+              previousScalePos = details.localFocalPoint;
+              lastScalingFactor = 1;
+            },
+            onScaleUpdate: (details) {
+              panBounds(details, constraints);
+              scaleBounds(details, constraints);
+              setState(() {});
+            },
+            child: CustomPaint(
+              painter: _PlotPainter(
+                bounds: bounds!,
+                graphs: graphs.where((e) => e.$1).map((e) => e.$2).toList(),
+              ),
+              size: Size.infinite,
+            ),
           ),
-          size: Size.infinite,
-        ),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: _PlotLegend(
+              graphs: graphs,
+              onChanged: (i, enabled) {
+                graphs[i] = (enabled, graphs[i].$2);
+                setState(() {});
+              },
+            ),
+          ),
+        ],
       );
     });
+  }
+}
+
+class _PlotLegend extends StatelessWidget {
+  const _PlotLegend({
+    super.key,
+    required this.graphs,
+    required this.onChanged,
+  });
+
+  final List<(bool, PlotGraph)> graphs;
+
+  final void Function(int i, bool enabled) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(.2),
+        border: Border.all(
+          color: Colors.grey,
+        ),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      margin: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: graphs.indexed.map((e) {
+          return GestureDetector(
+            onTap: () => onChanged(e.$1, !e.$2.$1),
+            child: Container(
+              color: Colors.transparent,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: e.$2.$1 ? e.$2.$2.color : Colors.transparent,
+                      border: Border.all(color: Colors.grey),
+                    ),
+                    width: 10,
+                    height: 10,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    e.$2.$2.name,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
