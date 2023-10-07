@@ -469,16 +469,16 @@ class _PlotWidgetState extends State<PlotWidget> {
   @override
   void initState() {
     super.initState();
-    _updateGraphs(widget);
+    _updateGraphs();
   }
 
   @override
   void didUpdateWidget(PlotWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _updateGraphs(oldWidget);
+    _updateGraphs();
   }
 
-  void _updateGraphs(PlotWidget widget) {
+  void _updateGraphs() {
     if (_graphs.isEmpty) {
       _graphs = widget.graphs.map((g) => (true, g)).toList();
       return;
