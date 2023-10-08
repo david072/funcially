@@ -19,6 +19,8 @@ import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
 const minTabletWidth = 700;
 
+const tabText = "    ";
+
 class Result {
   final String text;
   final (int, int) lineRange;
@@ -101,7 +103,11 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   bool onHardwareEvent(KeyEvent event) {
     calculatorKeyboardKey.currentState?.setShowKeyboard(false);
     if (event.character != null) {
-      editor.insertText(event.character!);
+      if (event.character == "\t") {
+        editor.insertText(tabText);
+      } else {
+        editor.insertText(event.character!);
+      }
     }
     return true;
   }
