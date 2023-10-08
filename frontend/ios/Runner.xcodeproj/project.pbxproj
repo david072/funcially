@@ -543,7 +543,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.david072.apps.funcially;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRIP_STYLE = "non-global";
@@ -725,7 +725,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.david072.apps.funcially;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRIP_STYLE = "non-global";
@@ -751,7 +751,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.david072.apps.funcially;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRIP_STYLE = "non-global";
