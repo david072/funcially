@@ -212,3 +212,20 @@ TextField bareTextField({
       enableSuggestions: false,
       onChanged: onChanged,
     );
+
+extension MoreInteratorFunction<T> on Iterable<T> {
+  T? firstWhereOrNull(bool Function(T element) predicate) {
+    for (var t in this) {
+      if (predicate(t)) return t;
+    }
+
+    return null;
+  }
+}
+
+extension IfNotNull<T> on T? {
+  R? map<R>(R Function(T it) predicate) {
+    if (this == null) return null;
+    return predicate(this as T);
+  }
+}

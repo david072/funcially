@@ -282,6 +282,15 @@ fn line_range_from_calculator_result(res: &CalculatorResult) -> Range<usize> {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn format(calculator: usize, input: *const c_char) -> *const c_char {
+    let calc = CalculatorWrapper::load(calculator);
+    let input = CStr::from_ptr(input);
+    calc.0
+        .format(input.to_str().unwrap())
+        .map_or(0 as *const c_char, |v| CString::new(v).unwrap().into_raw())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn get_settings(calculator: usize) -> common_c::Settings {
     let calc = CalculatorWrapper::load(calculator);
     let ctx = calc.0.context.borrow();
@@ -310,7 +319,8 @@ pub unsafe extern "C" fn free_results(results: FfiVec<FfiCalculatorResult>) {
     }
 }
 
-unsafe fn free_str(str: *const c_char) {
+#[no_mangle]
+pub unsafe extern "C" fn free_str(str: *const c_char) {
     drop(CString::from_raw(str as *mut c_char));
 }
 

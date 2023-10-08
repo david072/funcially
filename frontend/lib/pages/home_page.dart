@@ -5,9 +5,11 @@ import 'package:after_layout/after_layout.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:frontend/calculator_bindings.dart' as calculator_bindings;
 import 'package:frontend/main.dart';
 import 'package:frontend/pages/settings_page.dart';
 import 'package:frontend/util/coloring_text_editing_controller.dart';
+import 'package:frontend/util/menu_entry.dart';
 import 'package:frontend/util/util.dart';
 import 'package:frontend/widgets/custom_keyboard.dart';
 import 'package:frontend/widgets/plot.dart';
@@ -17,6 +19,17 @@ import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
 const minTabletWidth = 700;
 
+class Result {
+  final String text;
+  final (int, int) lineRange;
+
+  const Result(this.text, this.lineRange);
+
+  Result.fromCalculatorResult(calculator_bindings.FfiCalculatorResult result)
+      : text = result.data.str_value.cast<Utf8>().toDartString().trim(),
+        lineRange = (result.data.line_range_start, result.data.line_range_end);
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -25,6 +38,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with AfterLayoutMixin {
+  ShortcutRegistryEntry? shortcutEntry;
+
   final calculatorKeyboardKey = GlobalKey<CalculatorKeyboardState>();
 
   final scrollControllers = LinkedScrollControllerGroup();
@@ -45,6 +60,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   int calculator = 0;
   late CalculatorSettings settings;
 
+  List<Result> results = [];
   List<PlotGraph> graphs = [];
 
   bool initFinished = false;
@@ -101,6 +117,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
   @override
   void dispose() {
+    shortcutEntry?.dispose();
     inputScrollController.dispose();
     resultsScrollController.dispose();
     bindings.free_calculator(calculator);
@@ -116,6 +133,8 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       setState(() {});
       return;
     }
+
+    this.results.clear();
 
     bindings.reset_calculator(calculator);
     var results = bindings.calculate(
@@ -134,7 +153,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       var calcRes = results.array.elementAt(i).ref;
 
       var res = calcRes.data;
-      var text = res.str_value.cast<Utf8>().toDartString();
+      var text = res.str_value.cast<Utf8>().toDartString().trim();
       if (lastLine < res.line_range_start) {
         var topOffset = "\n" * (res.line_range_start - lastLine);
         resultsText += topOffset;
@@ -187,6 +206,8 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
           newGraphs.add(graphs[index]);
         }
       }
+
+      this.results.add(Result.fromCalculatorResult(calcRes));
     }
 
     bindings.free_results(results);
@@ -206,6 +227,74 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     }
 
     setState(() {});
+  }
+
+  List<MenuEntry> getMenus() {
+    final result = [
+      MenuEntry(
+        label: "Edit",
+        children: [
+          MenuEntry(
+            label: "Surround selection with brackets",
+            onPressed: surroundSelectionWithBrackets,
+            shortcut:
+                const SingleActivator(LogicalKeyboardKey.keyB, control: true),
+          ),
+          MenuEntry(
+            label: "Copy Result",
+            onPressed: copyResult,
+            shortcut: const SingleActivator(LogicalKeyboardKey.keyC,
+                control: true, shift: true),
+          ),
+          MenuEntry(
+            label: "Format",
+            onPressed: formatInput,
+            shortcut: const SingleActivator(LogicalKeyboardKey.keyF,
+                control: true, shift: true),
+          ),
+        ],
+      ),
+    ];
+
+    shortcutEntry?.dispose();
+    shortcutEntry =
+        ShortcutRegistry.of(context).addAll(MenuEntry.shortcuts(result));
+
+    return result;
+  }
+
+  void surroundSelectionWithBrackets() {
+    var sel = inputController.selection;
+    if (sel.isCollapsed) return;
+
+    var text = inputController.text;
+    inputController.text =
+        "${sel.textBefore(text)}(${sel.textInside(text)})${sel.textAfter(text)}";
+  }
+
+  Future<void> copyResult() async {
+    var line = inputController.selection.start;
+    if (inputController.selection.affinity == TextAffinity.upstream) line--;
+
+    var text = results
+        .firstWhereOrNull(
+            (res) => res.lineRange.$1 <= line && res.lineRange.$2 > line)
+        .map((it) => it.text);
+    if (text == null) return;
+
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text("Copied result")));
+  }
+
+  void formatInput() {
+    var result = bindings.format(
+        calculator, inputController.text.toNativeUtf8().cast<Char>());
+    // format failed
+    if (result.address == 0) return;
+    inputController.text = result.cast<Utf8>().toDartString();
+    bindings.free_str(result);
   }
 
   @override
@@ -247,7 +336,14 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
       body: !loading
           ? SafeArea(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  MenuBar(
+                    style: const MenuStyle(
+                      elevation: MaterialStatePropertyAll(0),
+                    ),
+                    children: MenuEntry.build(getMenus()),
+                  ),
                   Expanded(
                     child: Row(
                       children: [
