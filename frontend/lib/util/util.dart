@@ -37,6 +37,18 @@ class TextFieldEditor {
     }
   }
 
+  void insertOrMove(String text) {
+    var sel = controller.selection;
+    if (!sel.isCollapsed ||
+        sel.start == controller.text.length ||
+        controller.text[sel.start] != text) {
+      insertText(text);
+      return;
+    }
+
+    controller.selection = TextSelection.collapsed(offset: sel.start + 1);
+  }
+
   void insertFunction(String name) {
     insertText("$name()");
     var sel = controller.selection;

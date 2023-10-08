@@ -20,7 +20,8 @@ import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 const minTabletWidth = 700;
 
 const tabText = "    ";
-const brackets = "([{";
+const openingBrackets = "([{";
+const closingBrackets = ")]}";
 
 class Result {
   final String text;
@@ -112,8 +113,10 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     if (event.character != null) {
       if (event.character == "\t") {
         editor.insertText(tabText);
-      } else if (brackets.contains(event.character!)) {
+      } else if (openingBrackets.contains(event.character!)) {
         editor.insertBrackets(event.character!);
+      } else if (closingBrackets.contains(event.character!)) {
+        editor.insertOrMove(event.character!);
       } else {
         editor.insertText(event.character!);
       }
@@ -320,7 +323,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     if (sel.start >= text.length) return;
 
     var charBeforeCursor = text[sel.start - 1];
-    if (!brackets.contains(charBeforeCursor)) return;
+    if (!openingBrackets.contains(charBeforeCursor)) return;
     if (text[sel.start] != getClosingBracket(charBeforeCursor)) {
       return;
     }

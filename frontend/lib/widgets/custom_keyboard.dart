@@ -60,7 +60,7 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
         ["t#pi", "t#e", "f#sqrt", "empty"],
         ["t#^", "t#=", "t#<", "t#>"],
         ["t#in", "empty", "empty", "empty"],
-        ["t#.", "t#,", "b#(", "t#)"],
+        ["t#.", "t#,", "ob#(", "cb#)"],
       ],
       [
         ["t#:=", "t#/", "t#*", "t#-"],
@@ -81,8 +81,8 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
       [
         ["t#%", "t#of", "t#!", "t#mod"],
         ["t#&", "t#|", "t#<<", "t#>>"],
-        ["b#{", "t#}", "t##", "backspace"],
-        ["b#[", "t#]", "t#°", "return"],
+        ["ob#{", "cb#}", "t##", "backspace"],
+        ["ob#[", "cb#]", "t#°", "return"],
         ["t#0b", "t#0x", "left", "right"],
       ],
     ],
@@ -125,22 +125,31 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
   Widget keyToWidget(String key) {
     var separatorIdx = key.indexOf("#");
     if (separatorIdx == -1) separatorIdx = key.length;
+
     var type = key.substring(0, separatorIdx);
+    String text = "";
+    if (separatorIdx != key.length) text = key.substring(separatorIdx + 1);
+
     switch (type) {
       case "t":
         return keyboardButton(
-          child: Text(key.substring(2)),
-          onPressed: () => editor.insertText(key.substring(2)),
+          child: Text(text),
+          onPressed: () => editor.insertText(text),
         );
       case "f":
         return keyboardButton(
-          child: Text(key.substring(2)),
-          onPressed: () => editor.insertFunction(key.substring(2)),
+          child: Text(text),
+          onPressed: () => editor.insertFunction(text),
         );
-      case "b":
+      case "ob":
         return keyboardButton(
-          child: Text(key.substring(2)),
-          onPressed: () => editor.insertBrackets(key.substring(2)),
+          child: Text(text),
+          onPressed: () => editor.insertBrackets(text),
+        );
+      case "cb":
+        return keyboardButton(
+          child: Text(text),
+          onPressed: () => editor.insertOrMove(text),
         );
       case "empty":
         return keyboardButton(child: const SizedBox());
