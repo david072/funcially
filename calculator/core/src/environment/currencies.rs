@@ -142,49 +142,51 @@ mod updating {
     }
 
     /// Update currency file, and optionally update `Currencies` struct
+    // TODO: enable this again with another exachange rates API!
     #[cfg(not(target_arch = "wasm32"))]
     pub fn update_currencies(currencies: Option<std::sync::Arc<Currencies>>) {
-        std::thread::spawn(move || {
-            let response: ApiResponse = reqwest::blocking::get(CURRENCY_API_URL)
-                .unwrap()
-                .json()
-                .unwrap();
+        // std::thread::spawn(move || {
+        //     let response: ApiResponse = reqwest::blocking::get(CURRENCY_API_URL)
+        //         .unwrap()
+        //         .json()
+        //         .unwrap();
 
-            if let Some(currencies) = currencies {
-                *currencies.base.lock().unwrap() = Some(response.base.to_owned());
-                *currencies.currencies.lock().unwrap() = Some(response.rates.clone());
-            }
+        //     if let Some(currencies) = currencies {
+        //         *currencies.base.lock().unwrap() = Some(response.base.to_owned());
+        //         *currencies.currencies.lock().unwrap() = Some(response.rates.clone());
+        //     }
 
-            if !cache_dir().try_exists().unwrap_or(false) {
-                let _ = std::fs::create_dir(cache_dir());
-            }
+        //     if !cache_dir().try_exists().unwrap_or(false) {
+        //         let _ = std::fs::create_dir(cache_dir());
+        //     }
 
-            let file_content = encode_currencies(&response);
-            let file = cache_file_path();
-            let _ = std::fs::write(file, file_content);
-        });
+        //     let file_content = encode_currencies(&response);
+        //     let file = cache_file_path();
+        //     let _ = std::fs::write(file, file_content);
+        // });
     }
 
+    // TODO: enable this again with another exachange rates API!
     #[cfg(target_arch = "wasm32")]
     pub fn update_currencies(currencies: Option<std::sync::Arc<Currencies>>) {
-        wasm_bindgen_futures::spawn_local(async {
-            async fn get() -> reqwest::Result<ApiResponse> {
-                reqwest::get(CURRENCY_API_URL).await?.json().await
-            }
+        // wasm_bindgen_futures::spawn_local(async {
+        //     async fn get() -> reqwest::Result<ApiResponse> {
+        //         reqwest::get(CURRENCY_API_URL).await?.json().await
+        //     }
 
-            let response = match get().await {
-                Ok(v) => v,
-                Err(_) => return,
-            };
+        //     let response = match get().await {
+        //         Ok(v) => v,
+        //         Err(_) => return,
+        //     };
 
-            if let Some(currencies) = currencies {
-                *currencies.base.lock().unwrap() = Some(response.base.to_owned());
-                *currencies.currencies.lock().unwrap() = Some(response.rates.clone());
-            }
+        //     if let Some(currencies) = currencies {
+        //         *currencies.base.lock().unwrap() = Some(response.base.to_owned());
+        //         *currencies.currencies.lock().unwrap() = Some(response.rates.clone());
+        //     }
 
-            let content = encode_currencies(&response);
-            set_local_storage_item(LOCAL_STORAGE_KEY, &content);
-        });
+        //     let content = encode_currencies(&response);
+        //     set_local_storage_item(LOCAL_STORAGE_KEY, &content);
+        // });
     }
 
     fn encode_currencies(response: &ApiResponse) -> String {
