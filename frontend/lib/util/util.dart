@@ -46,6 +46,15 @@ class TextFieldEditor {
     );
   }
 
+  void insertBrackets(String bracket) {
+    insertText("$bracket${getClosingBracket(bracket)}");
+    var sel = controller.selection;
+    controller.selection = TextSelection.collapsed(
+      offset: sel.start - 1,
+      affinity: sel.affinity,
+    );
+  }
+
   void backspace() {
     targetRequestFocus();
     var sel = controller.selection;
@@ -130,6 +139,19 @@ class LabeledDropdownButton<T> extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+String getClosingBracket(String openingBracket) {
+  switch (openingBracket) {
+    case "(":
+      return ")";
+    case "[":
+      return "]";
+    case "{":
+      return "}";
+    default:
+      return "";
   }
 }
 

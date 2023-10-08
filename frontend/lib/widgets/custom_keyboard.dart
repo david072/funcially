@@ -60,7 +60,7 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
         ["t#pi", "t#e", "f#sqrt", "empty"],
         ["t#^", "t#=", "t#<", "t#>"],
         ["t#in", "empty", "empty", "empty"],
-        ["t#.", "t#,", "t#(", "t#)"],
+        ["t#.", "t#,", "b#(", "t#)"],
       ],
       [
         ["t#:=", "t#/", "t#*", "t#-"],
@@ -81,8 +81,8 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
       [
         ["t#%", "t#of", "t#!", "t#mod"],
         ["t#&", "t#|", "t#<<", "t#>>"],
-        ["t#{", "t#}", "t##", "backspace"],
-        ["t#[", "t#]", "t#°", "return"],
+        ["b#{", "t#}", "t##", "backspace"],
+        ["b#[", "t#]", "t#°", "return"],
         ["t#0b", "t#0x", "left", "right"],
       ],
     ],
@@ -136,6 +136,11 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
         return keyboardButton(
           child: Text(key.substring(2)),
           onPressed: () => editor.insertFunction(key.substring(2)),
+        );
+      case "b":
+        return keyboardButton(
+          child: Text(key.substring(2)),
+          onPressed: () => editor.insertBrackets(key.substring(2)),
         );
       case "empty":
         return keyboardButton(child: const SizedBox());

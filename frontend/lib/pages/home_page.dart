@@ -20,6 +20,7 @@ import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 const minTabletWidth = 700;
 
 const tabText = "    ";
+const brackets = "([{";
 
 class Result {
   final String text;
@@ -102,9 +103,17 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
 
   bool onHardwareEvent(KeyEvent event) {
     calculatorKeyboardKey.currentState?.setShowKeyboard(false);
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.backspace) {
+        onBeforeBackspace();
+      }
+    }
+
     if (event.character != null) {
       if (event.character == "\t") {
         editor.insertText(tabText);
+      } else if (brackets.contains(event.character!)) {
+        editor.insertBrackets(event.character!);
       } else {
         editor.insertText(event.character!);
       }
@@ -301,6 +310,26 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     if (result.address == 0) return;
     inputController.text = result.cast<Utf8>().toDartString();
     bindings.free_str(result);
+  }
+
+  void onBeforeBackspace() {
+    var text = inputController.text;
+    var sel = inputController.selection;
+    if (!sel.isCollapsed) return;
+    if (sel.start == 0) return;
+    if (sel.start >= text.length) return;
+
+    var charBeforeCursor = text[sel.start - 1];
+    if (!brackets.contains(charBeforeCursor)) return;
+    if (text[sel.start] != getClosingBracket(charBeforeCursor)) {
+      return;
+    }
+
+    // remove closing bracket
+    inputController.text =
+        "${text.substring(0, sel.start)}${text.substring(sel.start + 1)}";
+    inputController.selection =
+        TextSelection.collapsed(offset: sel.start, affinity: sel.affinity);
   }
 
   @override
