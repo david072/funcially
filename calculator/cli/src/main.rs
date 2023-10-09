@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use clap::{Arg, ArgAction, Command};
 use colored::Colorize;
 
-use funcially_core::{AccessError, Calculator, data_dir, ResultData, Settings, Verbosity};
+use funcially_core::{data_dir, AccessError, Calculator, ResultData, Settings, Verbosity};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -77,6 +77,9 @@ fn main() {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
         input = input.trim().to_string();
+        if input.is_empty() {
+            continue;
+        }
 
         if !calculate_and_print(input, &mut calculator, use_thousands_separator) {
             break;
@@ -84,7 +87,11 @@ fn main() {
     }
 }
 
-fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands_separator: bool) -> bool {
+fn calculate_and_print(
+    input: String,
+    calculator: &mut Calculator,
+    use_thousands_separator: bool,
+) -> bool {
     let mut words = input.split(' ').filter(|s| !s.is_empty());
     let first_word = words.next().map(|s| s.to_lowercase());
     if matches!(input.as_str(), "quit" | "exit") {
@@ -105,7 +112,9 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
                 let mut path = path;
                 path.push("");
                 let err = settings.set(&path, "").unwrap_err();
-                if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
+                if let AccessError::InvalidPath(options) = err {
+                    println!("Options: {options:?}")
+                }
                 return true;
             }
 
@@ -142,7 +151,9 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
                 let mut path = path;
                 path.push("");
                 let err = settings.set(&path, "").unwrap_err();
-                if let AccessError::InvalidPath(options) = err { println!("Options: {options:?}") }
+                if let AccessError::InvalidPath(options) = err {
+                    println!("Options: {options:?}")
+                }
                 return true;
             } else if next.is_some() {
                 eprintln!("{}", "Too many arguments.".red());
@@ -162,12 +173,20 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
         _ => match &calculator.calculate(&input)[0].data {
             Ok((res, _)) => match res {
                 ResultData::Value(value) => {
-                    println!("= {}", value.format(&calculator.context.borrow().settings, use_thousands_separator));
+                    println!(
+                        "= {}",
+                        value.format(
+                            &calculator.context.borrow().settings,
+                            use_thousands_separator
+                        )
+                    );
                 }
                 ResultData::Boolean(b) => {
                     println!("=> {}", if *b { "True".green() } else { "False".red() });
                 }
-                ResultData::Function { .. } | ResultData::Nothing => {}
+                ResultData::Function { .. }
+                | ResultData::Nothing
+                | ResultData::FunctionRemoval(_) => {}
             },
             Err(ref error) => {
                 let mut error = error.clone();
@@ -176,7 +195,8 @@ fn calculate_and_print(input: String, calculator: &mut Calculator, use_thousands
                 error.ranges.sort();
                 let ranges = &error.ranges;
 
-                let slice_start = std::cmp::max(0, ranges.first().unwrap().start_char as isize - 5) as usize;
+                let slice_start =
+                    std::cmp::max(0, ranges.first().unwrap().start_char as isize - 5) as usize;
                 let slice_end = std::cmp::min(input.len(), ranges.last().unwrap().end_char + 5);
                 let slice = &input[slice_start..slice_end];
                 eprintln!("{slice}");
