@@ -49,6 +49,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   final scrollControllers = LinkedScrollControllerGroup();
   late ScrollController inputScrollController;
   late ScrollController resultsScrollController;
+  late ScrollController resultLineNumbersScrollController;
   late ScrollController lineNumbersScrollController;
 
   final resultsController = TextEditingController();
@@ -82,6 +83,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   Future<void> initialize() async {
     inputScrollController = scrollControllers.addAndGet();
     resultsScrollController = scrollControllers.addAndGet();
+    resultLineNumbersScrollController = scrollControllers.addAndGet();
     lineNumbersScrollController = scrollControllers.addAndGet();
     inputController.addListener(onInputChanged);
 
@@ -138,6 +140,7 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     shortcutEntry?.dispose();
     inputScrollController.dispose();
     resultsScrollController.dispose();
+    resultLineNumbersScrollController.dispose();
     bindings.free_calculator(calculator);
     HardwareKeyboard.instance.removeHandler(onHardwareEvent);
     super.dispose();
@@ -421,7 +424,8 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
                                 lineNumbersController:
                                     resultsLineNumbersController,
                                 style: _inputTextStyle,
-                                scrollController: resultsScrollController,
+                                scrollController:
+                                    resultLineNumbersScrollController,
                               ),
                               const SizedBox(width: 5),
                               Expanded(
