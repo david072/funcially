@@ -107,7 +107,8 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   bool onHardwareEvent(KeyEvent event) {
     calculatorKeyboardKey.currentState?.setShowKeyboard(false);
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.backspace) {
+      if (event.logicalKey == LogicalKeyboardKey.backspace ||
+          event.character == "\b") {
         onBeforeBackspace();
       }
     }
@@ -115,10 +116,14 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
     if (event.character != null) {
       if (event.character == "\t") {
         editor.insertText(tabText);
+      } else if (event.character == "\r") {
+        editor.insertText("\n");
       } else if (openingBrackets.contains(event.character!)) {
         editor.insertBrackets(event.character!);
       } else if (closingBrackets.contains(event.character!)) {
         editor.insertOrMove(event.character!);
+      } else if (event.character == "\b") {
+        editor.backspace();
       } else {
         editor.insertText(event.character!);
       }
