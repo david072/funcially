@@ -59,8 +59,16 @@ class TextFieldEditor {
   }
 
   void insertBrackets(String bracket) {
-    insertText("$bracket${getClosingBracket(bracket)}");
     var sel = controller.selection;
+    if (sel.isCollapsed &&
+        sel.start < controller.text.length &&
+        RegExp(r"\S").firstMatch(controller.text[sel.start]) != null) {
+      insertText(bracket);
+      return;
+    }
+
+    insertText("$bracket${getClosingBracket(bracket)}");
+    sel = controller.selection;
     controller.selection = TextSelection.collapsed(
       offset: sel.start - 1,
       affinity: sel.affinity,
