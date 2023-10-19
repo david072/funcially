@@ -59,7 +59,7 @@ class CalculatorKeyboardState extends State<CalculatorKeyboard> {
         ["t#f", "t#g", "t#x", "t#y"],
         ["t#pi", "t#e", "f#sqrt", "empty"],
         ["t#^", "t#=", "t#<", "t#>"],
-        ["t#in", "empty", "empty", "empty"],
+        ["t#in", "t#?", "empty", "empty"],
         ["t#.", "t#,", "ob#(", "cb#)"],
       ],
       [
