@@ -124,6 +124,7 @@ class _PlotPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
     var xIntervals = calculateIntervals(bounds.x);
     var yIntervals = calculateIntervals(bounds.y);
     var intervals = xIntervals.min(yIntervals);
