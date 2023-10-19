@@ -294,8 +294,9 @@ class _HomePageState extends State<HomePage> with AfterLayoutMixin {
   }
 
   Future<void> copyResult() async {
-    var line = inputController.selection.start;
-    if (inputController.selection.affinity == TextAffinity.upstream) line--;
+    var start = inputController.selection.start;
+    var line = inputController.text.substring(0, start).split("\n").length - 1;
+    if (inputController.selection.affinity == TextAffinity.upstream) --line;
 
     var text = results
         .firstWhereOrNull(
