@@ -54,8 +54,8 @@ android {
         applicationId "de.david072.apps.funcially"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
-        versionCode 3
-        versionName "0.2.0"
+        versionCode 5
+        versionName "0.2.1"
     }
 
     signingConfigs {
